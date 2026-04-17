@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+dist
+coverage
+.env.local
+.env*.local
+public/uploads
+public/generated
+data/projects.json
+data/heavy-jobs
+tools/ComfyUI
+*.log
+tsconfig.tsbuildinfo

@@ -1,0 +1,166 @@
+{
+  "3": {
+    "inputs": {
+      "seed": "{{SEED}}",
+      "steps": 26,
+      "cfg": 6.8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.52,
+      "model": [
+        "16",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "KSampler"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "{{CKPT_NAME}}"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "5": {
+    "inputs": {
+      "ipadapter_file": "{{IPADAPTER_MODEL}}"
+    },
+    "class_type": "IPAdapterModelLoader"
+  },
+  "6": {
+    "inputs": {
+      "text": "{{PROMPT}}, cinematic portrait, dramatic lighting, consistent face, strong likeness, vertical composition, highly detailed",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "7": {
+    "inputs": {
+      "text": "{{NEGATIVE_PROMPT}}",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "image": "{{SCENE_IMAGE}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "15": {
+    "inputs": {
+      "image": "{{IDENTITY_IMAGE}}",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "9": {
+    "inputs": {
+      "clip_vision": "{{CLIP_VISION_MODEL}}"
+    },
+    "class_type": "CLIPVisionLoader"
+  },
+  "10": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": "{{WIDTH}}",
+      "height": "{{HEIGHT}}",
+      "crop": "center",
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "ImageScale"
+  },
+  "11": {
+    "inputs": {
+      "pixels": [
+        "10",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEEncode"
+  },
+  "12": {
+    "inputs": {
+      "image": [
+        "15",
+        0
+      ],
+      "clip_vision": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode"
+  },
+  "16": {
+    "inputs": {
+      "weight": 0.75,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 1,
+      "embeds_scaling": "V only",
+      "model": [
+        "4",
+        0
+      ],
+      "ipadapter": [
+        "5",
+        0
+      ],
+      "image_embeds": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "IPAdapterApply"
+  },
+  "13": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "14": {
+    "inputs": {
+      "filename_prefix": "{{OUTPUT_PREFIX}}",
+      "images": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "SaveImage"
+  }
+}
