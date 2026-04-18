@@ -78,6 +78,8 @@ Vercel deploys application files as read-only. PulseReel therefore writes runtim
 
 That fixes read-only filesystem crashes, but `/tmp` is still temporary serverless storage. For a public app with durable movies and many users, the remote GPU worker should upload final MP4s to durable storage and return a hosted `processedVideoUrl`.
 
+If `PULSEREEL_REMOTE_MODEL_BACKEND_URL` is not set on Vercel, the create endpoint returns a JSON setup error instead of attempting the local FFmpeg/Python/ComfyUI render path. Local generation still works on your PC.
+
 ## ComfyUI path
 
 PulseReel includes workflow templates in `data/comfyui`.

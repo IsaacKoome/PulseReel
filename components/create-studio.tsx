@@ -33,6 +33,9 @@ type BackendCapabilities = {
 
 export function CreateStudio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
+  const cameraRetryRef = useRef<number | null>(null);
+  const trackFramePendingRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -48,6 +51,7 @@ export function CreateStudio() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
+  const [useCanvasPreview, setUseCanvasPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<StatusState>({ tone: "idle", message: "" });
   const [backendCapabilities, setBackendCapabilities] = useState<BackendCapabilities | null>(null);
@@ -56,6 +60,87 @@ export function CreateStudio() {
     () => movieTemplates.find((template) => template.id === selectedTemplate) ?? movieTemplates[0],
     [selectedTemplate],
   );
+
+  function drawCanvasPreviewFrame() {
+    const video = videoRef.current;
+    const canvas = canvasPreviewRef.current;
+    if (!video || !canvas || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      return false;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return false;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return true;
+  }
+
+  async function drawTrackFrameToCanvas(stream: MediaStream) {
+    if (trackFramePendingRef.current) {
+      return false;
+    }
+
+    const canvas = canvasPreviewRef.current;
+    const track = stream.getVideoTracks()[0];
+    const ImageCaptureCtor = (window as unknown as {
+      ImageCapture?: new (track: MediaStreamTrack) => { grabFrame: () => Promise<ImageBitmap> };
+    }).ImageCapture;
+
+    if (!canvas || !track || !ImageCaptureCtor) {
+      return false;
+    }
+
+    trackFramePendingRef.current = true;
+    try {
+      const frame = await new ImageCaptureCtor(track).grabFrame();
+      canvas.width = frame.width;
+      canvas.height = frame.height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        frame.close();
+        return false;
+      }
+      context.drawImage(frame, 0, 0, canvas.width, canvas.height);
+      frame.close();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      trackFramePendingRef.current = false;
+    }
+  }
+
+  function startCanvasPreviewLoop() {
+    if (cameraRetryRef.current) {
+      window.cancelAnimationFrame(cameraRetryRef.current);
+    }
+
+    const draw = () => {
+      if (!streamRef.current || previewUrl || selfieUrl) {
+        return;
+      }
+
+      if (drawCanvasPreviewFrame()) {
+        setUseCanvasPreview(true);
+        setIsPreviewReady(true);
+      } else if (streamRef.current) {
+        void drawTrackFrameToCanvas(streamRef.current).then((didDraw) => {
+          if (didDraw) {
+            setUseCanvasPreview(true);
+            setIsPreviewReady(true);
+          }
+        });
+      }
+
+      cameraRetryRef.current = window.requestAnimationFrame(draw);
+    };
+
+    cameraRetryRef.current = window.requestAnimationFrame(draw);
+  }
 
   async function attachStreamToPreview(stream: MediaStream, target?: HTMLVideoElement | null) {
     const element = target ?? videoRef.current;
@@ -74,12 +159,26 @@ export function CreateStudio() {
     }
 
     element.controls = false;
+    element.onloadeddata = () => {
+      setIsPreviewReady(true);
+      void drawCanvasPreviewFrame();
+    };
+    element.oncanplay = () => {
+      setIsPreviewReady(true);
+      void drawCanvasPreviewFrame();
+    };
+    element.onplaying = () => {
+      setIsPreviewReady(true);
+      void drawCanvasPreviewFrame();
+    };
 
     const playPreview = async () => {
       try {
         await element.play();
         setIsPreviewReady(true);
+        startCanvasPreviewLoop();
       } catch {
+        startCanvasPreviewLoop();
         return;
       }
     };
@@ -173,10 +272,11 @@ export function CreateStudio() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
-            width: { ideal: 720 },
-            height: { ideal: 1280 },
+            width: { ideal: 480 },
+            height: { ideal: 640 },
+            frameRate: { ideal: 15, max: 24 },
           },
-          audio: true,
+          audio: false,
         });
         if (!isMounted) {
           stream.getTracks().forEach((track) => track.stop());
@@ -185,6 +285,7 @@ export function CreateStudio() {
         streamRef.current = stream;
         setIsCameraActive(true);
         setIsPreviewReady(false);
+        setUseCanvasPreview(false);
         await attachStreamToPreview(stream);
       } catch {
         setIsCameraActive(false);
@@ -208,14 +309,16 @@ export function CreateStudio() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "user",
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
+          width: { ideal: 480 },
+          height: { ideal: 640 },
+          frameRate: { ideal: 15, max: 24 },
         },
-        audio: true,
+        audio: false,
       });
       streamRef.current = stream;
       setIsCameraActive(true);
       setIsPreviewReady(false);
+      setUseCanvasPreview(false);
       await attachStreamToPreview(stream);
       setStatus({ tone: "success", message: "Camera is live. Recording only happens when you press record." });
     } catch {
@@ -240,6 +343,11 @@ export function CreateStudio() {
     streamRef.current = null;
     setIsCameraActive(false);
     setIsPreviewReady(false);
+    setUseCanvasPreview(false);
+    if (cameraRetryRef.current) {
+      window.cancelAnimationFrame(cameraRetryRef.current);
+      cameraRetryRef.current = null;
+    }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -252,6 +360,9 @@ export function CreateStudio() {
       }
       if (selfieUrl) {
         URL.revokeObjectURL(selfieUrl);
+      }
+      if (cameraRetryRef.current) {
+        window.cancelAnimationFrame(cameraRetryRef.current);
       }
     };
   }, [previewUrl, selfieUrl]);
@@ -268,6 +379,7 @@ export function CreateStudio() {
       mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
         ? "video/webm;codecs=vp9"
         : "video/webm",
+      videoBitsPerSecond: 700_000,
     });
 
     chunksRef.current = [];
@@ -351,6 +463,15 @@ export function CreateStudio() {
       return;
     }
 
+    if (finalVideo.size > 4_000_000) {
+      setStatus({
+        tone: "error",
+        message:
+          "That video is too large for the current Vercel upload path. Record with the built-in 10s button or upload a clip under 4 MB.",
+      });
+      return;
+    }
+
     formData.set("video", finalVideo);
     formData.set("templateId", selectedTemplate);
     formData.set("genre", genre);
@@ -376,7 +497,17 @@ export function CreateStudio() {
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json()) as { slug?: string; error?: string };
+      const responseText = await response.text();
+      let payload: { slug?: string; error?: string } = {};
+      try {
+        payload = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        payload = {
+          error: response.ok
+            ? "The server returned an empty response."
+            : `The server returned ${response.status}. Check the Vercel function logs for the full backend error.`,
+        };
+      }
 
       if (!response.ok || !payload.slug) {
         throw new Error(payload.error || "The studio could not process that clip.");
@@ -411,7 +542,28 @@ export function CreateStudio() {
             ) : selfieUrl ? (
               <img alt="Captured selfie preview" src={selfieUrl} />
             ) : (
-              <video className="camera-video camera-live" ref={setVideoElement} autoPlay playsInline muted />
+              <>
+                <video
+                  className="camera-video camera-live"
+                  ref={setVideoElement}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ opacity: useCanvasPreview ? 0 : 1 }}
+                />
+                <canvas
+                  className="camera-video camera-live"
+                  ref={canvasPreviewRef}
+                  style={{
+                    display: useCanvasPreview ? "block" : "none",
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              </>
             )}
             {isCameraActive && !previewUrl && !selfieUrl && !isPreviewReady ? (
               <div

@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createHeavyProject } from "@/lib/heavy-worker";
 import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
+import { isVercelRuntime } from "@/lib/runtime-storage";
 import { addProject } from "@/lib/store";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const schema = z.object({
   creatorName: z.string().min(1),
@@ -96,6 +98,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message || "The form data is incomplete." },
         { status: 400 },
+      );
+    }
+
+    if (isVercelRuntime() && !process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "The public Vercel app needs PULSEREEL_REMOTE_MODEL_BACKEND_URL before it can render movies. Local generation works on your PC, but Vercel cannot run the full local FFmpeg/Python/ComfyUI pipeline inside a web request.",
+        },
+        { status: 503 },
       );
     }
 
