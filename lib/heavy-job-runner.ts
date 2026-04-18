@@ -4,8 +4,9 @@ import { spawn } from "child_process";
 import sharp from "sharp";
 import type { HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
 import { getTemplateById } from "@/data/templates";
+import { assetUrlToPath, getRuntimeAssetDir, getRuntimeDataDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 
-const JOBS_DIR = path.join(process.cwd(), "data", "heavy-jobs");
+const JOBS_DIR = path.join(getRuntimeDataDir(), "heavy-jobs");
 
 export type HeavyJobPayload = {
   protocolVersion: "pulsereel-heavy-job-v1";
@@ -118,7 +119,7 @@ function publicUrlToAbsolutePath(publicUrl?: string) {
     return undefined;
   }
 
-  return path.join(process.cwd(), "public", publicUrl.replace(/^\//, ""));
+  return assetUrlToPath(publicUrl);
 }
 
 function escapeXml(value: string) {
@@ -714,6 +715,142 @@ export async function readHeavyJobResult(resultPath: string) {
   }
 }
 
+type RunnerExecutionResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  command: string;
+};
+
+async function appendFileIfExists(formData: FormData, fieldName: string, filePath?: string) {
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    const bytes = await fs.readFile(filePath);
+    const blob = new Blob([bytes]);
+    formData.append(fieldName, blob, path.basename(filePath));
+  } catch {
+    return;
+  }
+}
+
+async function writeBase64Video(outputBase64: string, jobId: string) {
+  const generatedDir = getRuntimeAssetDir("generated");
+  await fs.mkdir(generatedDir, { recursive: true });
+  const outputFilename = `${jobId}-remote-model.mp4`;
+  const outputPath = path.join(generatedDir, outputFilename);
+  await fs.writeFile(outputPath, Buffer.from(outputBase64, "base64"));
+  return runtimeAssetUrl("generated", outputFilename);
+}
+
+async function executeRemoteModelBackend(input: {
+  payloadPath: string;
+  resultPath: string;
+  statusPath: string;
+}): Promise<RunnerExecutionResult | null> {
+  const remoteUrl = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim();
+  if (!remoteUrl) {
+    return null;
+  }
+
+  const token = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN?.trim();
+  const payload = await readHeavyJobPayload(input.payloadPath);
+  const formData = new FormData();
+  formData.append("payload", new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "payload.json");
+  formData.append("protocolVersion", payload.protocolVersion);
+  formData.append("jobId", payload.jobId);
+
+  await appendFileIfExists(formData, "sourceVideo", payload.assets.sourceVideoPath);
+  await appendFileIfExists(formData, "sourceImage", payload.assets.sourceImagePath);
+  await appendFileIfExists(formData, "poster", payload.assets.posterPath);
+
+  for (const shot of payload.shotReferences) {
+    await appendFileIfExists(formData, `reference_${shot.index}`, shot.referencePngPath);
+  }
+
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+  const response = await fetch(remoteUrl, {
+    method: "POST",
+    body: formData,
+    headers,
+  });
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    return {
+      exitCode: 1,
+      stdout: responseText,
+      stderr: `Remote model backend returned ${response.status}: ${responseText}`,
+      command: `POST ${remoteUrl}`,
+    };
+  }
+
+  let remoteResult: {
+    status?: "completed" | "failed";
+    processedVideoUrl?: string;
+    videoBase64?: string;
+    shotPlan?: HeavyJobResult["shotPlan"];
+    error?: string;
+  };
+
+  try {
+    remoteResult = JSON.parse(responseText);
+  } catch {
+    return {
+      exitCode: 1,
+      stdout: responseText,
+      stderr: "Remote model backend did not return JSON.",
+      command: `POST ${remoteUrl}`,
+    };
+  }
+
+  if (remoteResult.status === "failed") {
+    await writeHeavyJobResult(input.resultPath, {
+      jobId: payload.jobId,
+      provider: payload.provider,
+      status: "failed",
+      completedAt: new Date().toISOString(),
+      error: remoteResult.error || "Remote model backend failed.",
+    });
+    return {
+      exitCode: 1,
+      stdout: responseText,
+      stderr: remoteResult.error || "Remote model backend failed.",
+      command: `POST ${remoteUrl}`,
+    };
+  }
+
+  const processedVideoUrl = remoteResult.processedVideoUrl ||
+    (remoteResult.videoBase64 ? await writeBase64Video(remoteResult.videoBase64, payload.jobId) : undefined);
+
+  if (!processedVideoUrl) {
+    return {
+      exitCode: 1,
+      stdout: responseText,
+      stderr: "Remote model backend returned no processedVideoUrl or videoBase64.",
+      command: `POST ${remoteUrl}`,
+    };
+  }
+
+  await writeHeavyJobResult(input.resultPath, {
+    jobId: payload.jobId,
+    provider: payload.provider,
+    status: "completed",
+    completedAt: new Date().toISOString(),
+    processedVideoUrl,
+    shotPlan: remoteResult.shotPlan ?? payload.shots,
+  });
+
+  return {
+    exitCode: 0,
+    stdout: responseText,
+    stderr: "",
+    command: `POST ${remoteUrl}`,
+  };
+}
+
 function buildRunnerCommand(payloadPath: string, resultPath: string, statusPath: string) {
   const configured = process.env.PULSEREEL_OPEN_MODEL_RUNNER?.trim();
   const pythonExecutable = process.env.PULSEREEL_PYTHON_EXECUTABLE?.trim();
@@ -735,9 +872,14 @@ export async function executeHeavyRunnerCommand(input: {
   resultPath: string;
   statusPath: string;
 }) {
+  const remoteResult = await executeRemoteModelBackend(input);
+  if (remoteResult) {
+    return remoteResult;
+  }
+
   const command = buildRunnerCommand(input.payloadPath, input.resultPath, input.statusPath);
 
-  return new Promise<{ exitCode: number; stdout: string; stderr: string; command: string }>((resolve, reject) => {
+  return new Promise<RunnerExecutionResult>((resolve, reject) => {
     const child = spawn(command, {
       cwd: process.cwd(),
       env: process.env,

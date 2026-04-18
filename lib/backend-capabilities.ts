@@ -30,6 +30,7 @@ export type BackendCapabilities = {
   pythonBridgeReady: boolean;
   pythonExecutablePath?: string;
   customBackendCommandConfigured: boolean;
+  remoteModelBackendConfigured: boolean;
   comfyUiInstallDetected: boolean;
   comfyUiVenvReady: boolean;
   comfyUiConfigured: boolean;
@@ -40,7 +41,7 @@ export type BackendCapabilities = {
   comfyUiAvailableCheckpoints: string[];
   comfyUiCanAutoStart: boolean;
   realModelBackendReady: boolean;
-  activeHeavyPath: "fast-local" | "python-bridge" | "custom-backend-command" | "comfyui-backend";
+  activeHeavyPath: "fast-local" | "python-bridge" | "custom-backend-command" | "remote-model-backend" | "comfyui-backend";
   summary: string;
 };
 
@@ -70,6 +71,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const heavyProvider = process.env.PULSEREEL_HEAVY_PROVIDER?.trim() || "open-model-adapter";
   const pythonExecutable = detectPythonExecutable();
   const customBackendCommand = process.env.PULSEREEL_MODEL_BACKEND_COMMAND?.trim();
+  const remoteModelBackendUrl = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim();
   const comfyUiUrl = process.env.PULSEREEL_COMFYUI_URL?.trim();
   const comfyUiWorkflow = process.env.PULSEREEL_COMFYUI_WORKFLOW_TEMPLATE?.trim();
   const comfyUiRoot = path.join(process.cwd(), "tools", "ComfyUI");
@@ -79,6 +81,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const pythonExecutableConfigured = Boolean(pythonExecutable);
   const pythonBridgeReady = pythonExecutableConfigured;
   const customBackendCommandConfigured = Boolean(customBackendCommand);
+  const remoteModelBackendConfigured = Boolean(remoteModelBackendUrl);
   const comfyUiInstallDetected = existsSync(path.join(comfyUiRoot, "main.py"));
   const comfyUiVenvReady = existsSync(comfyUiVenvPython);
   const comfyUiConfigured = Boolean(comfyUiUrl && comfyUiWorkflow);
@@ -113,11 +116,14 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     existsSync(path.join(process.cwd(), "scripts", "start-comfyui.ps1"));
   const realModelBackendReady =
     customBackendCommandConfigured ||
+    remoteModelBackendConfigured ||
     (comfyUiConfigured && comfyUiWorkflowExists && comfyUiServerReachable && comfyUiCheckpointReady);
 
   const activeHeavyPath =
     customBackendCommandConfigured
       ? "custom-backend-command"
+      : remoteModelBackendConfigured
+        ? "remote-model-backend"
       : comfyUiConfigured && comfyUiWorkflowExists && comfyUiServerReachable && comfyUiCheckpointReady
         ? "comfyui-backend"
         : pythonBridgeReady
@@ -129,7 +135,9 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
       ? "Real ComfyUI backend is configured for heavy generation."
       : activeHeavyPath === "custom-backend-command"
         ? "Custom model backend command is configured for heavy generation."
-      : activeHeavyPath === "python-bridge"
+        : activeHeavyPath === "remote-model-backend"
+          ? "Remote model backend is configured for production heavy generation."
+          : activeHeavyPath === "python-bridge"
           ? comfyUiInstallDetected && comfyUiVenvReady && !comfyUiCheckpointReady
             ? "Python bridge is configured. ComfyUI is installed locally, but you still need a real checkpoint model before heavy generation can switch over."
             : "Python bridge is configured, but no real external model backend is fully wired yet."
@@ -141,6 +149,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     pythonBridgeReady,
     pythonExecutablePath: pythonExecutable || undefined,
     customBackendCommandConfigured,
+    remoteModelBackendConfigured,
     comfyUiInstallDetected,
     comfyUiVenvReady,
     comfyUiConfigured,

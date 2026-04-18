@@ -16,6 +16,7 @@ type BackendCapabilities = {
   pythonBridgeReady: boolean;
   pythonExecutablePath?: string;
   customBackendCommandConfigured: boolean;
+  remoteModelBackendConfigured: boolean;
   comfyUiInstallDetected: boolean;
   comfyUiVenvReady: boolean;
   comfyUiConfigured: boolean;
@@ -26,7 +27,7 @@ type BackendCapabilities = {
   comfyUiAvailableCheckpoints: string[];
   comfyUiCanAutoStart: boolean;
   realModelBackendReady: boolean;
-  activeHeavyPath: "fast-local" | "python-bridge" | "custom-backend-command" | "comfyui-backend";
+  activeHeavyPath: "fast-local" | "python-bridge" | "custom-backend-command" | "remote-model-backend" | "comfyui-backend";
   summary: string;
 };
 
@@ -638,6 +639,9 @@ export function CreateStudio() {
               <span className="pill">
                 Real model backend: {backendCapabilities.realModelBackendReady ? "ready" : "not ready"}
               </span>
+              {backendCapabilities.remoteModelBackendConfigured ? (
+                <span className="pill">Remote GPU worker: configured</span>
+              ) : null}
               <span className="pill">
                 Python: {backendCapabilities.pythonExecutableConfigured ? "configured" : "not configured"}
               </span>

@@ -11,4 +11,6 @@ data/projects.json
 data/heavy-jobs
 tools/ComfyUI
 *.log
+__pycache__/
+*.pyc
 tsconfig.tsbuildinfo

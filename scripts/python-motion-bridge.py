@@ -99,6 +99,20 @@ def resolve_ffmpeg() -> str:
     return "ffmpeg"
 
 
+def is_vercel_runtime() -> bool:
+    return os.environ.get("VERCEL") == "1" or bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+
+def runtime_asset_dir(folder: str) -> Path:
+    if is_vercel_runtime():
+        return Path("/tmp") / "pulsereel" / "public" / folder
+    return Path.cwd() / "public" / folder
+
+
+def runtime_asset_url(folder: str, filename: str) -> str:
+    return f"/api/assets/{folder}/{filename}"
+
+
 def run_ffmpeg(args: list[str]) -> None:
     command = [resolve_ffmpeg(), *args]
     process = subprocess.run(command, capture_output=True, text=True)
@@ -442,7 +456,7 @@ def render_local_fallback(payload: dict, result_path: Path, status_path: Path) -
             min(80, 28 + int((index / max(1, len(shot_references))) * 48)),
         )
 
-    generated_dir = Path.cwd() / "public" / "generated"
+    generated_dir = runtime_asset_dir("generated")
     generated_dir.mkdir(parents=True, exist_ok=True)
     output_filename = f"{payload['jobId']}-python-open-model.mp4"
     output_path = generated_dir / output_filename
@@ -450,7 +464,7 @@ def render_local_fallback(payload: dict, result_path: Path, status_path: Path) -
 
     update_status(status_path, payload, "Python motion bridge joining cinematic shots with smoother continuity", 86)
     concat_segments(segment_paths, concat_list_path, str(output_path), payload.get("outputSpec", {}))
-    write_result(result_path, payload, f"/generated/{output_filename}")
+    write_result(result_path, payload, runtime_asset_url("generated", output_filename))
     update_status(status_path, payload, "Python motion bridge finished the cinematic movie", 100, status="completed")
 
 

@@ -17,6 +17,7 @@ The current local runner creates a convincing cinematic illusion from still plat
 - ComfyUI checkpoint for image generation.
 - Optional IPAdapter and CLIP Vision models for stronger identity preservation.
 - Future video or animation nodes for true generated motion.
+- A hosted GPU worker for production deployments such as Vercel.
 
 PulseReel already writes shot-level payloads for this path, including scene intent, identity references, world activity, camera hints, and continuity metadata.
 
@@ -49,7 +50,33 @@ PULSEREEL_COMFYUI_WORKFLOW_TEMPLATE=
 PULSEREEL_COMFYUI_CHECKPOINT=
 PULSEREEL_COMFYUI_IPADAPTER_MODEL=
 PULSEREEL_COMFYUI_CLIP_VISION_MODEL=
+PULSEREEL_REMOTE_MODEL_BACKEND_URL=
+PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN=
 ```
+
+## Production GPU worker
+
+For Vercel, the realistic production path is:
+
+- Vercel hosts the web app and user flow.
+- A remote GPU worker receives the PulseReel job package.
+- The worker runs ComfyUI, Wan, CogVideoX, Stable Video Diffusion, or another real model stack.
+- The worker returns a hosted MP4 URL.
+
+Set:
+
+```text
+PULSEREEL_REMOTE_MODEL_BACKEND_URL=https://your-worker.example.com/pulsereel/render
+PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN=optional-secret-token
+```
+
+See `data/remote-worker-contract.md` for the exact multipart request and JSON response format.
+
+## Vercel runtime storage
+
+Vercel deploys application files as read-only. PulseReel therefore writes runtime data to `/tmp/pulsereel` when it detects Vercel, and serves those files through `/api/assets/uploads/...` and `/api/assets/generated/...`.
+
+That fixes read-only filesystem crashes, but `/tmp` is still temporary serverless storage. For a public app with durable movies and many users, the remote GPU worker should upload final MP4s to durable storage and return a hosted `processedVideoUrl`.
 
 ## ComfyUI path
 

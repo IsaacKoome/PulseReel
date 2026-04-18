@@ -275,6 +275,20 @@ def resolve_ffmpeg() -> str:
     return "ffmpeg"
 
 
+def is_vercel_runtime() -> bool:
+    return os.environ.get("VERCEL") == "1" or bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+
+def runtime_asset_dir(folder: str) -> Path:
+    if is_vercel_runtime():
+        return Path("/tmp") / "pulsereel" / "public" / folder
+    return Path.cwd() / "public" / folder
+
+
+def runtime_asset_url(folder: str, filename: str) -> str:
+    return f"/api/assets/{folder}/{filename}"
+
+
 def run_ffmpeg(args: list[str]) -> None:
     command = [resolve_ffmpeg(), *args]
     process = subprocess.run(command, capture_output=True, text=True)
@@ -696,14 +710,14 @@ def main() -> int:
             segment_paths.append(str(motion_output))
 
     update_status(status_path, payload, "ComfyUI backend joining rendered shots", 84)
-    generated_dir = Path.cwd() / "public" / "generated"
+    generated_dir = runtime_asset_dir("generated")
     generated_dir.mkdir(parents=True, exist_ok=True)
     output_filename = f"{payload['jobId']}-comfyui-open-model.mp4"
     output_path = generated_dir / output_filename
     concat_list_path = renders_dir / "concat.txt"
     concat_segments(segment_paths, concat_list_path, str(output_path), payload.get("outputSpec", {}))
 
-    write_result(result_path, payload, f"/generated/{output_filename}")
+    write_result(result_path, payload, runtime_asset_url("generated", output_filename))
     update_status(status_path, payload, "ComfyUI backend finished the movie", 100, status="completed")
     return 0
 

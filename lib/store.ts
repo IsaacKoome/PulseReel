@@ -1,8 +1,9 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { MovieProject } from "@/lib/types";
+import { getRuntimeDataDir } from "@/lib/runtime-storage";
 
-const dataDir = path.join(process.cwd(), "data");
+const dataDir = getRuntimeDataDir();
 const dataFile = path.join(dataDir, "projects.json");
 
 async function ensureStore() {

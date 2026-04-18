@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { removeBackground } from "@imgly/background-removal-node";
 import { v4 as uuid } from "uuid";
 import { getTemplateById } from "@/data/templates";
+import { assetUrlToPath, getRuntimeAssetDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 import type { MovieProject, ShotSpec, StoryBeat } from "@/lib/types";
 import { slugify } from "@/lib/utils";
 
@@ -15,7 +16,7 @@ const BACKGROUND_REMOVAL_PATH = `file://${path.resolve("node_modules/@imgly/back
 const TARGET_MOVIE_SECONDS = 60;
 const TARGET_SHOT_SECONDS = 5;
 const USE_EXPERIMENTAL_MOTION = process.platform !== "win32";
-const CACHE_DIR = path.join(process.cwd(), "public", "generated", "cache");
+const CACHE_DIR = getRuntimeAssetDir("generated", "cache");
 
 function resolveFfmpegPath() {
   const candidates = [
@@ -159,18 +160,18 @@ function inferScenePlan(input: {
 }
 
 async function ensurePublicFolders() {
-  await fs.mkdir(path.join(process.cwd(), "public", "uploads"), { recursive: true });
-  await fs.mkdir(path.join(process.cwd(), "public", "generated"), { recursive: true });
+  await fs.mkdir(getRuntimeAssetDir("uploads"), { recursive: true });
+  await fs.mkdir(getRuntimeAssetDir("generated"), { recursive: true });
   await fs.mkdir(CACHE_DIR, { recursive: true });
 }
 
 async function saveFile(file: File, folder: "uploads" | "generated") {
   const ext = path.extname(file.name || "clip.webm") || ".webm";
   const filename = `${uuid()}${ext}`;
-  const outputPath = path.join(process.cwd(), "public", folder, filename);
+  const outputPath = getRuntimeAssetDir(folder, filename);
   const bytes = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(outputPath, bytes);
-  return `/${folder}/${filename}`;
+  return runtimeAssetUrl(folder, filename);
 }
 
 export async function saveSourceAssets(videoFile: File, imageFile?: File | null) {
@@ -201,7 +202,7 @@ async function renderPoster(project: {
 }) {
   const template = getTemplateById(project.templateId);
   const filename = `${uuid()}.svg`;
-  const outputPath = path.join(process.cwd(), "public", "generated", filename);
+  const outputPath = getRuntimeAssetDir("generated", filename);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -231,7 +232,7 @@ async function renderPoster(project: {
   </foreignObject>
   </svg>`;
   await fs.writeFile(outputPath, svg, "utf8");
-  return `/generated/${filename}`;
+  return runtimeAssetUrl("generated", filename);
 }
 
 function buildShotPlan(input: {
@@ -863,7 +864,7 @@ async function renderAnimatedShotVideo(options: {
     options.stage === "battle" && options.plan.enemyCount > 0
       ? await createEnemyLayer(options.plan.enemyCount)
       : null;
-  const outputPath = path.join(process.cwd(), "public", "generated", `${uuid()}-${options.shot.label}.mp4`);
+  const outputPath = getRuntimeAssetDir("generated", `${uuid()}-${options.shot.label}.mp4`);
   const heroMotion = getHeroMotion(options.stage, options.shotIndex);
   const heroWidth = options.stage === "battle" ? 360 : 420;
   const heroHeight = options.stage === "battle" ? 760 : 860;
@@ -967,7 +968,7 @@ async function renderShotSegment(options: {
 }
 
 async function imageToVideo(imagePath: string, durationSeconds: number, label: string) {
-  const outputPath = path.join(process.cwd(), "public", "generated", `${uuid()}-${label}.mp4`);
+  const outputPath = getRuntimeAssetDir("generated", `${uuid()}-${label}.mp4`);
   const frameCount = Math.max(1, Math.round(durationSeconds * 25));
 
   await new Promise<void>((resolve, reject) => {
@@ -1000,7 +1001,7 @@ async function imageToVideo(imagePath: string, durationSeconds: number, label: s
 }
 
 async function stylizeSourceClip(sourcePath: string, label: string, durationSeconds: number, variant: number) {
-  const outputPath = path.join(process.cwd(), "public", "generated", `${uuid()}-${label}.mp4`);
+  const outputPath = getRuntimeAssetDir("generated", `${uuid()}-${label}.mp4`);
   const startTime = (variant * 1.1) % 4;
   const filterVariants = [
     `scale=${VIDEO_SIZE.width}:${VIDEO_SIZE.height}:force_original_aspect_ratio=decrease,pad=${VIDEO_SIZE.width}:${VIDEO_SIZE.height}:(ow-iw)/2:(oh-ih)/2:black,eq=contrast=1.18:saturation=1.2:brightness=-0.02,unsharp=5:5:0.8:3:3:0.2,drawbox=x=28:y=28:w=iw-56:h=ih-56:color=white@0.12:t=2,trim=duration=${durationSeconds.toFixed(2)},fade=t=in:st=0:d=0.25,fade=t=out:st=${Math.max(
@@ -1089,9 +1090,9 @@ function sourceMotionDurationForShot(shot: ShotSpec) {
 }
 
 async function concatVideoSegments(segmentPaths: string[]) {
-  const listPath = path.join(process.cwd(), "public", "generated", `${uuid()}-concat.txt`);
+  const listPath = getRuntimeAssetDir("generated", `${uuid()}-concat.txt`);
   const outputFilename = `${uuid()}.mp4`;
-  const outputPath = path.join(process.cwd(), "public", "generated", outputFilename);
+  const outputPath = getRuntimeAssetDir("generated", outputFilename);
   const fileContents = segmentPaths.map((segmentPath) => `file '${segmentPath.replaceAll("\\", "/")}'`).join("\n");
   await fs.writeFile(listPath, fileContents, "utf8");
 
@@ -1121,7 +1122,7 @@ async function concatVideoSegments(segmentPaths: string[]) {
       .run();
   });
 
-  return `/generated/${outputFilename}`;
+  return runtimeAssetUrl("generated", outputFilename);
 }
 
 async function createAmbientAudioTrack() {
@@ -1155,9 +1156,9 @@ async function createAmbientAudioTrack() {
 }
 
 async function attachAudioAndSubtleEffects(videoRelativeUrl: string) {
-  const sourcePath = path.join(process.cwd(), "public", videoRelativeUrl.replace(/^\//, ""));
+  const sourcePath = assetUrlToPath(videoRelativeUrl) ?? path.join(process.cwd(), "public", videoRelativeUrl.replace(/^\//, ""));
   const outputFilename = `${uuid()}-scored.mp4`;
-  const outputPath = path.join(process.cwd(), "public", "generated", outputFilename);
+  const outputPath = getRuntimeAssetDir("generated", outputFilename);
 
   try {
     const audioPath = await createAmbientAudioTrack();
@@ -1187,7 +1188,7 @@ async function attachAudioAndSubtleEffects(videoRelativeUrl: string) {
     await fs.copyFile(sourcePath, outputPath);
   }
 
-  return `/generated/${outputFilename}`;
+  return runtimeAssetUrl("generated", outputFilename);
 }
 
 async function processVideo(input: {
@@ -1202,9 +1203,9 @@ async function processVideo(input: {
   templateId: string;
   renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
 }) {
-  const sourcePath = path.join(process.cwd(), "public", input.sourceVideoUrl.replace(/^\//, ""));
+  const sourcePath = assetUrlToPath(input.sourceVideoUrl) ?? path.join(process.cwd(), "public", input.sourceVideoUrl.replace(/^\//, ""));
   const heroSourcePath = input.sourceImageUrl
-    ? path.join(process.cwd(), "public", input.sourceImageUrl.replace(/^\//, ""))
+    ? (assetUrlToPath(input.sourceImageUrl) ?? path.join(process.cwd(), "public", input.sourceImageUrl.replace(/^\//, "")))
     : await extractFrameFromVideo(sourcePath);
   const characterPath = await createPortraitCutout(heroSourcePath);
   const plan = inferScenePlan(input);

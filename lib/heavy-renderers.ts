@@ -51,9 +51,13 @@ const openModelAdapterProvider: HeavyRenderProvider = {
   description:
     "Adapter slot for future open-source motion/video models. It currently falls back to the local heavy renderer while keeping a compatible contract.",
   async render(project, progress, job) {
+    const hasRemoteBackend = Boolean(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim());
     await progress.update(14, "Preparing open-model adapter payload");
     await progress.update(22, `Writing shot-level bundle for ${job.payload.shots.length} shots`);
-    await progress.update(30, "Launching external open-model runner");
+    await progress.update(
+      30,
+      hasRemoteBackend ? "Sending shot package to remote GPU model worker" : "Launching external open-model runner",
+    );
 
     const runner = await executeHeavyRunnerCommand({
       payloadPath: job.payloadPath,
@@ -68,7 +72,10 @@ const openModelAdapterProvider: HeavyRenderProvider = {
       runnerResult.processedVideoUrl &&
       runnerResult.shotPlan
     ) {
-      await progress.update(82, "External open-model runner produced a movie");
+      await progress.update(
+        82,
+        hasRemoteBackend ? "Remote GPU model worker produced a movie" : "External open-model runner produced a movie",
+      );
       return {
         processedVideoUrl: runnerResult.processedVideoUrl,
         shotPlan: runnerResult.shotPlan,
@@ -79,15 +86,15 @@ const openModelAdapterProvider: HeavyRenderProvider = {
       provider: "open-model-adapter",
       status: "running",
       stage: runner.exitCode === 0
-        ? "External runner finished without a usable video, falling back to local heavy renderer"
-        : "External runner failed, falling back to local heavy renderer",
+        ? "External model path finished without a usable video, falling back to local heavy renderer"
+        : "External model path failed, falling back to local heavy renderer",
       progress: 36,
       error:
         runner.stderr.trim() ||
         runnerResult?.error ||
         (runner.exitCode === 0 ? undefined : `Runner exited with code ${runner.exitCode}`),
     });
-    await progress.update(38, "Using local heavy fallback after external adapter pass");
+    await progress.update(38, "Using local heavy fallback after external model path");
     return localHeavyProvider.render(project, progress, job);
   },
 };

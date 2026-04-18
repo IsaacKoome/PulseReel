@@ -6,6 +6,20 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const ffmpegStatic = require("ffmpeg-static");
 
+function isVercelRuntime() {
+  return process.env.VERCEL === "1" || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+}
+
+function runtimeAssetDir(folder) {
+  return isVercelRuntime()
+    ? path.join("/tmp", "pulsereel", "public", folder)
+    : path.join(process.cwd(), "public", folder);
+}
+
+function runtimeAssetUrl(folder, filename) {
+  return `/api/assets/${folder}/${filename}`;
+}
+
 function resolveFfmpegPath() {
   const candidates = [
     ffmpegStatic,
@@ -395,7 +409,7 @@ async function main() {
     });
   }
 
-  const generatedDir = path.join(process.cwd(), "public", "generated");
+  const generatedDir = runtimeAssetDir("generated");
   await fs.mkdir(generatedDir, { recursive: true });
   const outputFilename = `${payload.jobId}-open-model.mp4`;
   const outputPath = path.join(generatedDir, outputFilename);
@@ -419,7 +433,7 @@ async function main() {
         provider: "open-model-adapter",
         status: "completed",
         completedAt: new Date().toISOString(),
-        processedVideoUrl: `/generated/${outputFilename}`,
+        processedVideoUrl: runtimeAssetUrl("generated", outputFilename),
         shotPlan: payload.shots,
       },
       null,
