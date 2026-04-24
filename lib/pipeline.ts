@@ -4,10 +4,9 @@ import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
-import { removeBackground } from "@imgly/background-removal-node";
 import { v4 as uuid } from "uuid";
 import { getTemplateById } from "@/data/templates";
-import { assetUrlToPath, getRuntimeAssetDir, runtimeAssetUrl } from "@/lib/runtime-storage";
+import { assetUrlToPath, getRuntimeAssetDir, isVercelRuntime, runtimeAssetUrl } from "@/lib/runtime-storage";
 import type { MovieProject, ShotSpec, StoryBeat } from "@/lib/types";
 import { slugify } from "@/lib/utils";
 
@@ -17,6 +16,17 @@ const TARGET_MOVIE_SECONDS = 60;
 const TARGET_SHOT_SECONDS = 5;
 const USE_EXPERIMENTAL_MOTION = process.platform !== "win32";
 const CACHE_DIR = getRuntimeAssetDir("generated", "cache");
+
+type BackgroundRemovalModule = {
+  removeBackground: (
+    image: string,
+    options: {
+      publicPath: string;
+      model: string;
+      output: { format: string; quality: number };
+    },
+  ) => Promise<Blob>;
+};
 
 function resolveFfmpegPath() {
   const candidates = [
@@ -533,6 +543,21 @@ async function extractFrameFromVideo(sourcePath: string) {
   return outputPath;
 }
 
+async function loadBackgroundRemovalModule(): Promise<BackgroundRemovalModule | null> {
+  if (isVercelRuntime()) {
+    return null;
+  }
+
+  try {
+    const dynamicImport = new Function("specifier", "return import(specifier);") as (
+      specifier: string,
+    ) => Promise<BackgroundRemovalModule>;
+    return await dynamicImport("@imgly/background-removal-node");
+  } catch {
+    return null;
+  }
+}
+
 async function createPortraitCutout(sourceImagePath: string) {
   const outputPath = path.join(CACHE_DIR, `${cacheKey("cutout", sourceImagePath)}.png`);
 
@@ -541,7 +566,12 @@ async function createPortraitCutout(sourceImagePath: string) {
   }
 
   try {
-    const blob = await removeBackground(sourceImagePath, {
+    const backgroundRemoval = await loadBackgroundRemovalModule();
+    if (!backgroundRemoval) {
+      throw new Error("Background removal module is unavailable in this runtime.");
+    }
+
+    const blob = await backgroundRemoval.removeBackground(sourceImagePath, {
       publicPath: BACKGROUND_REMOVAL_PATH,
       model: "small",
       output: { format: "image/png", quality: 0.9 },
