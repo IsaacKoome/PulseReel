@@ -17,6 +17,10 @@ type BackendCapabilities = {
   pythonExecutablePath?: string;
   customBackendCommandConfigured: boolean;
   remoteModelBackendConfigured: boolean;
+  remoteModelBackendReachable: boolean;
+  remoteModelBackendMode?: string;
+  remoteModelBackendComfyUiConfigured: boolean;
+  remoteModelBackendDurableStorageConfigured: boolean;
   comfyUiInstallDetected: boolean;
   comfyUiVenvReady: boolean;
   comfyUiConfigured: boolean;
@@ -792,7 +796,20 @@ export function CreateStudio() {
                 Real model backend: {backendCapabilities.realModelBackendReady ? "ready" : "not ready"}
               </span>
               {backendCapabilities.remoteModelBackendConfigured ? (
-                <span className="pill">Remote GPU worker: configured</span>
+                <span className="pill">
+                  Remote GPU worker: {backendCapabilities.remoteModelBackendReachable ? "reachable" : "offline"}
+                </span>
+              ) : null}
+              {backendCapabilities.remoteModelBackendMode ? (
+                <span className="pill">Remote mode: {backendCapabilities.remoteModelBackendMode}</span>
+              ) : null}
+              {backendCapabilities.remoteModelBackendComfyUiConfigured ? (
+                <span className="pill">Remote ComfyUI: ready</span>
+              ) : null}
+              {backendCapabilities.remoteModelBackendConfigured ? (
+                <span className="pill">
+                  Durable storage: {backendCapabilities.remoteModelBackendDurableStorageConfigured ? "ready" : "missing"}
+                </span>
               ) : null}
               <span className="pill">
                 Python: {backendCapabilities.pythonExecutableConfigured ? "configured" : "not configured"}

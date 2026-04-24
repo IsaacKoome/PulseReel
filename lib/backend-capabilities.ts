@@ -31,6 +31,10 @@ export type BackendCapabilities = {
   pythonExecutablePath?: string;
   customBackendCommandConfigured: boolean;
   remoteModelBackendConfigured: boolean;
+  remoteModelBackendReachable: boolean;
+  remoteModelBackendMode?: string;
+  remoteModelBackendComfyUiConfigured: boolean;
+  remoteModelBackendDurableStorageConfigured: boolean;
   comfyUiInstallDetected: boolean;
   comfyUiVenvReady: boolean;
   comfyUiConfigured: boolean;
@@ -67,6 +71,50 @@ function canConnectToPort(host: string, port: number) {
   }
 }
 
+async function fetchRemoteWorkerHealth(remoteModelBackendUrl: string) {
+  try {
+    const renderUrl = new URL(remoteModelBackendUrl);
+    renderUrl.pathname = renderUrl.pathname.replace(/\/pulsereel\/render\/?$/, "/health");
+    if (!renderUrl.pathname.endsWith("/health")) {
+      renderUrl.pathname = "/health";
+    }
+
+    const response = await fetch(renderUrl.toString(), {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2000),
+    });
+
+    if (!response.ok) {
+      return {
+        reachable: false,
+        mode: undefined,
+        comfyuiConfigured: false,
+        durableStorageConfigured: false,
+      };
+    }
+
+    const payload = (await response.json()) as {
+      mode?: string;
+      comfyuiConfigured?: boolean;
+      durableStorageConfigured?: boolean;
+    };
+
+    return {
+      reachable: true,
+      mode: payload.mode,
+      comfyuiConfigured: Boolean(payload.comfyuiConfigured),
+      durableStorageConfigured: Boolean(payload.durableStorageConfigured),
+    };
+  } catch {
+    return {
+      reachable: false,
+      mode: undefined,
+      comfyuiConfigured: false,
+      durableStorageConfigured: false,
+    };
+  }
+}
+
 export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const heavyProvider = process.env.PULSEREEL_HEAVY_PROVIDER?.trim() || "open-model-adapter";
   const pythonExecutable = detectPythonExecutable();
@@ -82,6 +130,14 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const pythonBridgeReady = pythonExecutableConfigured;
   const customBackendCommandConfigured = Boolean(customBackendCommand);
   const remoteModelBackendConfigured = Boolean(remoteModelBackendUrl);
+  const remoteModelBackendHealth = remoteModelBackendConfigured
+    ? await fetchRemoteWorkerHealth(remoteModelBackendUrl!)
+    : {
+        reachable: false,
+        mode: undefined,
+        comfyuiConfigured: false,
+        durableStorageConfigured: false,
+      };
   const comfyUiInstallDetected = existsSync(path.join(comfyUiRoot, "main.py"));
   const comfyUiVenvReady = existsSync(comfyUiVenvPython);
   const comfyUiConfigured = Boolean(comfyUiUrl && comfyUiWorkflow);
@@ -116,7 +172,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     existsSync(path.join(process.cwd(), "scripts", "start-comfyui.ps1"));
   const realModelBackendReady =
     customBackendCommandConfigured ||
-    remoteModelBackendConfigured ||
+    (remoteModelBackendConfigured && remoteModelBackendHealth.reachable) ||
     (comfyUiConfigured && comfyUiWorkflowExists && comfyUiServerReachable && comfyUiCheckpointReady);
 
   const activeHeavyPath =
@@ -136,7 +192,11 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
       : activeHeavyPath === "custom-backend-command"
         ? "Custom model backend command is configured for heavy generation."
         : activeHeavyPath === "remote-model-backend"
-          ? "Remote model backend is configured for production heavy generation."
+          ? remoteModelBackendHealth.reachable
+            ? remoteModelBackendHealth.durableStorageConfigured
+              ? "Remote model backend is live and durable hosted output storage is configured for production heavy generation."
+              : "Remote model backend is live for production heavy generation, but durable output storage is not configured yet."
+            : "Remote model backend URL is configured, but the worker is not reachable right now."
           : activeHeavyPath === "python-bridge"
           ? comfyUiInstallDetected && comfyUiVenvReady && !comfyUiCheckpointReady
             ? "Python bridge is configured. ComfyUI is installed locally, but you still need a real checkpoint model before heavy generation can switch over."
@@ -150,6 +210,10 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     pythonExecutablePath: pythonExecutable || undefined,
     customBackendCommandConfigured,
     remoteModelBackendConfigured,
+    remoteModelBackendReachable: remoteModelBackendHealth.reachable,
+    remoteModelBackendMode: remoteModelBackendHealth.mode,
+    remoteModelBackendComfyUiConfigured: remoteModelBackendHealth.comfyuiConfigured,
+    remoteModelBackendDurableStorageConfigured: remoteModelBackendHealth.durableStorageConfigured,
     comfyUiInstallDetected,
     comfyUiVenvReady,
     comfyUiConfigured,

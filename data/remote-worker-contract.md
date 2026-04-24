@@ -57,6 +57,7 @@ For local testing, a worker may return base64 MP4:
 ```
 
 Hosted URLs are better for Vercel because serverless files are temporary.
+Best practice is for the worker to upload the final MP4 to durable object storage such as Cloudflare R2, AWS S3, Backblaze B2 S3, or another S3-compatible bucket, then return that public URL as `processedVideoUrl`.
 
 ## Failed Response
 

@@ -18,6 +18,7 @@ The current local runner creates a convincing cinematic illusion from still plat
 - Optional IPAdapter and CLIP Vision models for stronger identity preservation.
 - Future video or animation nodes for true generated motion.
 - A hosted GPU worker for production deployments such as Vercel.
+- Durable cloud storage for finished movies and public playback at scale.
 
 PulseReel already writes shot-level payloads for this path, including scene intent, identity references, world activity, camera hints, and continuity metadata.
 
@@ -60,7 +61,7 @@ For Vercel, the realistic production path is:
 
 - Vercel hosts the web app and user flow.
 - A remote GPU worker receives the PulseReel job package.
-- The worker runs ComfyUI, Wan, CogVideoX, Stable Video Diffusion, or another real model stack.
+- The worker can run ComfyUI today, and later Wan, CogVideoX, Stable Video Diffusion, or another real model stack.
 - The worker returns a hosted MP4 URL.
 
 Set:
@@ -71,6 +72,7 @@ PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN=optional-secret-token
 ```
 
 See `data/remote-worker-contract.md` for the exact multipart request and JSON response format.
+There is also a starter worker in `workers/pulsereel-gpu-worker` that can already return hosted `processedVideoUrl` values, optionally switch into ComfyUI-backed shot generation on the GPU machine, and upload final movies to S3-compatible storage for durable production playback.
 
 ## Vercel runtime storage
 
