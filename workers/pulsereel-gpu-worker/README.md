@@ -83,6 +83,15 @@ PULSEREEL_WORKER_COMFYUI_NEGATIVE_PROMPT=optional negative prompt
 
 the worker will use ComfyUI to generate shot frames first, then assemble the hosted movie from those generated frames plus motion inserts from the source clip.
 
+The worker now also consumes richer continuity metadata from PulseReel:
+
+- character identity anchors and wardrobe anchors
+- shot emotional beats and camera goals
+- continuity anchors plus previous/next shot summaries
+- world activity and supporting-cast context
+
+This helps the model backend keep the hero, world, and sequence flow more consistent instead of treating each shot like a disconnected poster.
+
 `GET /health` also reports whether ComfyUI and durable storage are configured, which makes it easier to sanity-check a deployment before pointing Vercel at it.
 
 ## Where To Add Real Models

@@ -111,7 +111,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (parsed.data.renderMode === "heavy-worker-beta") {
+    const shouldUseHeavyWorker =
+      parsed.data.renderMode === "heavy-worker-beta" ||
+      (isVercelRuntime() && Boolean(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()));
+
+    if (shouldUseHeavyWorker) {
       const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
         video,
         selfie instanceof File && selfie.size > 0 ? selfie : undefined,
@@ -125,12 +129,16 @@ export async function POST(request: Request) {
         premise: parsed.data.premise,
         scenePrompt: parsed.data.scenePrompt,
         persona: parsed.data.persona,
-        renderMode: "heavy-worker-beta",
+        renderMode: parsed.data.renderMode,
         sourceVideoUrl,
         sourceImageUrl,
       });
 
-      return NextResponse.json({ slug: project.slug, status: project.status });
+      return NextResponse.json({
+        slug: project.slug,
+        status: project.status,
+        executionPath: isVercelRuntime() ? "remote-heavy-worker" : "local-heavy-worker",
+      });
     }
 
     const project = await createMovieProject({

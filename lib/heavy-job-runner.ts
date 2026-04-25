@@ -59,6 +59,31 @@ export type HeavyJobPayload = {
     hook: string;
     openingShot: string;
     scenePrompts: string[];
+    visualIntent: {
+      heroLook: string;
+      worldScale: string;
+      pacing: string;
+      realismTarget: string;
+      performanceNote: string;
+    };
+  };
+  styleBible: {
+    cinematicTone: string;
+    lensLanguage: string;
+    lightingLanguage: string;
+    editRhythm: string;
+    cameraBehavior: string;
+    textureGoal: string;
+    scoreMood: string;
+  };
+  characterBible: {
+    heroDisplayName: string;
+    identityAnchor: string;
+    wardrobeAnchor: string;
+    physicalFeatures: string[];
+    screenPresence: string;
+    movementStyle: string;
+    performanceEnergy: string;
   };
   worldSpec: {
     setting: string;
@@ -80,6 +105,12 @@ export type HeavyJobPayload = {
     sourceClipOffsetSeconds: number;
     stage: "intro" | "battle" | "finale";
     continuityGroup: "setup" | "conflict" | "resolution";
+    continuityAnchor: string;
+    emotionalBeat: string;
+    cameraGoal: string;
+    backgroundAction: string;
+    previousShotSummary?: string;
+    nextShotSummary?: string;
     transitionStyle: "dissolve" | "flash" | "drift";
     cameraMove: "push-in" | "push-out" | "pan-left" | "pan-right" | "float";
     colorGrade: "warm" | "cool" | "teal-orange" | "neutral-night";
@@ -542,6 +573,196 @@ function motionEnergyForShot(
   return "gentle" as const;
 }
 
+function inferCharacterBible(project: MovieProject, worldSpec: ReturnType<typeof inferWorldSpec>) {
+  const text = `${project.persona} ${project.premise} ${project.scenePrompt}`.toLowerCase();
+  const heroDisplayName = project.creatorName;
+  const identityAnchor = `${project.creatorName} as the same lead character across all shots`;
+  const wardrobeAnchor =
+    /(pirate|island|harbor|sea)/.test(text)
+      ? "wind-touched adventure wardrobe with grounded natural textures"
+      : /(fight|kung fu|battle|gang)/.test(text)
+        ? "hero-ready street action wardrobe with strong silhouette"
+        : /(love|romance)/.test(text)
+          ? "clean romantic wardrobe with soft elegant styling"
+          : "grounded cinematic wardrobe with a memorable silhouette";
+  const physicalFeatures = [
+    "same face shape and skin tone across every shot",
+    "recognizable eyes and expression",
+    "consistent hairline and head shape",
+  ];
+  const screenPresence =
+    /(fight|kung fu|battle)/.test(text)
+      ? "commanding action-lead presence"
+      : /(love|romance)/.test(text)
+        ? "quiet magnetic romantic-lead presence"
+        : /(adventure|quest|journey|pirate)/.test(text)
+          ? "curious heroic explorer presence"
+          : "cinematic lead presence";
+  const movementStyle =
+    /(fight|kung fu|battle)/.test(text)
+      ? "precise, athletic, expressive movement"
+      : /(love|romance)/.test(text)
+        ? "gentle, emotionally readable movement"
+        : "natural movie-character movement";
+  const performanceEnergy =
+    /(fight|kung fu|battle)/.test(text)
+      ? "intense, controlled, physically confident"
+      : /(love|romance)/.test(text)
+        ? "warm, sincere, emotionally open"
+        : worldSpec.crowdMood === "restless and alert"
+          ? "focused and alert"
+          : "grounded and cinematic";
+
+  return {
+    heroDisplayName,
+    identityAnchor,
+    wardrobeAnchor,
+    physicalFeatures,
+    screenPresence,
+    movementStyle,
+    performanceEnergy,
+  };
+}
+
+function inferStyleBible(project: MovieProject, worldSpec: ReturnType<typeof inferWorldSpec>) {
+  const template = getTemplateById(project.templateId);
+  const text = `${project.genre} ${project.premise} ${project.scenePrompt} ${project.persona}`.toLowerCase();
+
+  const cinematicTone =
+    /(fight|kung fu|battle|gang|war)/.test(text)
+      ? "grounded action-drama with heroic intensity"
+      : /(love|romance|memory|confessional)/.test(text)
+        ? "intimate emotional cinema with polished realism"
+        : /(adventure|pirate|journey|quest|island|legend)/.test(text)
+          ? "big-screen adventure realism with cinematic wonder"
+          : `${template.name.toLowerCase()} tone with grounded live-action realism`;
+
+  const lensLanguage =
+    /(fight|kung fu|battle)/.test(text)
+      ? "mix of wide environmental shots, medium hero shots, and occasional close reaction shots; 28mm to 85mm live-action lens feeling"
+      : /(love|romance)/.test(text)
+        ? "gentle close-ups, medium two-shots, and soft background separation; 50mm to 85mm lens feeling"
+        : /(adventure|island|pirate|forest|city)/.test(text)
+          ? "wide establishing frames that still keep the hero readable, then medium cinematic coverage; 24mm to 50mm lens feeling"
+          : "cinematic lens variation with readable hero coverage and world depth";
+
+  const lightingLanguage =
+    /(fight|kung fu|battle)/.test(text)
+      ? "directional contrast lighting, strong edge light, believable practical highlights, dramatic but realistic exposure"
+      : /(love|romance)/.test(text)
+        ? "soft flattering key light, gentle falloff, warm practicals, realistic skin tones"
+        : worldSpec.atmosphere.includes("haze")
+          ? "atmospheric backlight, natural haze, sunlight shafts, realistic cinematic diffusion"
+          : "believable live-action lighting with controlled contrast and depth";
+
+  const editRhythm =
+    /(fight|kung fu|battle)/.test(text)
+      ? "clear visual geography, measured build, sharper mid-scene cuts, then a satisfying heroic release"
+      : /(adventure|pirate|quest)/.test(text)
+        ? "wonder first, movement second, escalation in the middle, poster-like ending"
+        : /(love|romance|memory)/.test(text)
+          ? "gentle lyrical pacing, emotional pauses, soft transitions"
+          : "cinematic pacing with readable escalation and a confident ending";
+
+  const cameraBehavior =
+    /(fight|kung fu|battle)/.test(text)
+      ? "camera feels intentional and athletic, never chaotic; push-ins, lateral motion, and readable action framing"
+      : /(adventure|pirate|quest|island)/.test(text)
+        ? "camera discovers the world with the hero, mixing drift, push-ins, and world-revealing motion"
+        : /(love|romance)/.test(text)
+          ? "camera feels close, observant, and emotionally patient"
+          : "camera feels deliberate, cinematic, and story-led";
+
+  const textureGoal =
+    /(island|pirate|sea|harbor)/.test(text)
+      ? "salt air, fabric texture, weathered wood, believable environment detail"
+      : /(forest|jungle|savanna)/.test(text)
+        ? "organic foliage detail, mist, layered depth, realistic outdoor texture"
+        : /(city|street|market)/.test(text)
+          ? "street texture, layered signage, practical light sources, believable crowd life"
+          : "believable live-action texture with cinematic polish";
+
+  const scoreMood =
+    /(fight|kung fu|battle)/.test(text)
+      ? "rising percussion, tension, release"
+      : /(love|romance)/.test(text)
+        ? "warm emotional swell with intimate restraint"
+        : /(adventure|pirate|quest)/.test(text)
+          ? "expansive adventurous lift with mystery underneath"
+          : "cinematic emotional score arc";
+
+  return {
+    cinematicTone,
+    lensLanguage,
+    lightingLanguage,
+    editRhythm,
+    cameraBehavior,
+    textureGoal,
+    scoreMood,
+  };
+}
+
+function emotionalBeatForShot(
+  shot: ShotSpec,
+  stage: "intro" | "battle" | "finale",
+  shotKind: ReturnType<typeof shotKindForShot>,
+) {
+  const text = `${shot.title} ${shot.prompt}`.toLowerCase();
+  if (stage === "intro") {
+    return /(wonder|arrival|first sight|discovery)/.test(text) ? "discovery and awe" : "arrival and anticipation";
+  }
+  if (stage === "finale") {
+    return /(victory|promise|afterglow|legend|future)/.test(text)
+      ? "earned triumph and legacy"
+      : "resolution and emotional payoff";
+  }
+  if (shotKind === "reaction") {
+    return "personal reaction under pressure";
+  }
+  if (shotKind === "interaction") {
+    return "charged human connection";
+  }
+  if (shotKind === "action") {
+    return "conflict and forward momentum";
+  }
+  return "rising tension inside a living world";
+}
+
+function cameraGoalForShot(
+  stage: "intro" | "battle" | "finale",
+  shotKind: ReturnType<typeof shotKindForShot>,
+  subjectFraming: ReturnType<typeof subjectFramingForShot>,
+) {
+  if (stage === "intro" && subjectFraming === "world-first") {
+    return "introduce the world before landing on the hero";
+  }
+  if (shotKind === "interaction") {
+    return "keep the hero connected to another person or force in the frame";
+  }
+  if (shotKind === "reaction") {
+    return "read the face clearly and hold emotional detail";
+  }
+  if (stage === "finale") {
+    return "end on a poster-ready image with strong emotional closure";
+  }
+  return "keep the hero legible while preserving cinematic world scale";
+}
+
+function backgroundActionForShot(
+  worldSpec: ReturnType<typeof inferWorldSpec>,
+  worldActivity: ReturnType<typeof worldActivityForShot>,
+  shotKind: ReturnType<typeof shotKindForShot>,
+) {
+  const extras = worldSpec.extras.slice(0, worldActivity === "high" ? 4 : 2).join(", ");
+  if (shotKind === "reaction") {
+    return `subtle world motion behind the hero: ${extras || "ambient movement"}`;
+  }
+  if (shotKind === "interaction") {
+    return `supporting characters continue moving naturally in the background: ${extras || "ambient crowd movement"}`;
+  }
+  return `visible background life sells the scene: ${extras || "environmental motion and atmosphere"}`;
+}
+
 export async function createHeavyJobFiles(project: MovieProject, provider: HeavyRenderProviderId) {
   await ensureJobsDir();
   const dir = jobDir(project.workerJob?.id ?? `job-${project.id}`);
@@ -556,8 +777,10 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
   const sourceImagePath = publicUrlToAbsolutePath(project.sourceImageUrl);
   const posterPath = publicUrlToAbsolutePath(project.posterUrl) ?? project.posterUrl;
   const worldSpec = inferWorldSpec(project);
+  const styleBible = inferStyleBible(project, worldSpec);
+  const characterBible = inferCharacterBible(project, worldSpec);
 
-  const shotReferences = await Promise.all(
+  const draftedShotReferences = await Promise.all(
     project.shotPlan.map(async (shot, index) => {
       const stage = stageForShot(index, project.shotPlan.length);
       const continuityGroup = continuityGroupForShot(stage);
@@ -567,6 +790,10 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
       const motionEnergy = motionEnergyForShot(shot, shotKind, continuityGroup);
       const recurringElements = worldSpec.recurringMotifs.slice(0, 2 + (index % 2));
       const supportingCast = worldSpec.supportingCast.slice(0, 1 + ((stage === "battle" || stage === "finale") ? 1 : 0));
+      const emotionalBeat = emotionalBeatForShot(shot, stage, shotKind);
+      const continuityAnchor = `${stage}-${subjectFraming}-${worldSpec.setting}-${characterBible.wardrobeAnchor}`;
+      const cameraGoal = cameraGoalForShot(stage, shotKind, subjectFraming);
+      const backgroundAction = backgroundActionForShot(worldSpec, worldActivity, shotKind);
       const referenceSvgPath = path.join(referencesDir, `${String(index + 1).padStart(2, "0")}-${shot.id}.svg`);
       const referencePngPath = path.join(referencesDir, `${String(index + 1).padStart(2, "0")}-${shot.id}.png`);
       await fs.writeFile(
@@ -586,6 +813,10 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
         sourceClipOffsetSeconds: sourceClipOffsetForShot(index),
         stage,
         continuityGroup,
+        continuityAnchor,
+        emotionalBeat,
+        cameraGoal,
+        backgroundAction,
         transitionStyle: transitionStyleForShot(index, stage),
         cameraMove: cameraMoveForShot(index, stage),
         colorGrade: colorGradeForShot(index, stage),
@@ -601,6 +832,18 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
       };
     }),
   );
+
+  const shotReferences = draftedShotReferences.map((shot, index, allShots) => ({
+    ...shot,
+    previousShotSummary:
+      index > 0
+        ? `${allShots[index - 1].title}: ${allShots[index - 1].emotionalBeat}; ${allShots[index - 1].cameraGoal}.`
+        : undefined,
+    nextShotSummary:
+      index < allShots.length - 1
+        ? `${allShots[index + 1].title}: ${allShots[index + 1].emotionalBeat}; ${allShots[index + 1].cameraGoal}.`
+        : undefined,
+  }));
 
   const payload: HeavyJobPayload = {
     protocolVersion: "pulsereel-heavy-job-v1",
@@ -653,7 +896,22 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
       hook: project.hook,
       openingShot: project.openingShot,
       scenePrompts: project.scenePrompts,
+      visualIntent: {
+        heroLook: characterBible.wardrobeAnchor,
+        worldScale:
+          shotReferences.some((shot) => shot.subjectFraming === "world-first" || shot.subjectFraming === "hero-in-world")
+            ? "hero grounded inside a believable larger world"
+            : "hero-forward framing with cinematic depth",
+        pacing:
+          shotReferences.some((shot) => shot.motionEnergy === "kinetic")
+            ? "starts readable, builds to kinetic peaks, resolves on a strong closing image"
+            : "measured cinematic pacing with emotional escalation",
+        realismTarget: "believable live-action scene continuity, not poster-only imagery",
+        performanceNote: characterBible.performanceEnergy,
+      },
     },
+    styleBible,
+    characterBible,
     worldSpec,
     shotReferences,
     shots: project.shotPlan,

@@ -73,6 +73,7 @@ PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN=optional-secret-token
 
 See `data/remote-worker-contract.md` for the exact multipart request and JSON response format.
 There is also a starter worker in `workers/pulsereel-gpu-worker` that can already return hosted `processedVideoUrl` values, optionally switch into ComfyUI-backed shot generation on the GPU machine, and upload final movies to S3-compatible storage for durable production playback.
+When PulseReel is running on Vercel and `PULSEREEL_REMOTE_MODEL_BACKEND_URL` is set, all movie requests automatically route through the heavy worker path, even if the UI mode is Fast Trailer or Prompt Movie Beta.
 
 ## Vercel runtime storage
 

@@ -234,17 +234,40 @@ def extract_identity_frame(source_video_path: Path, destination: Path) -> None:
 
 def build_model_prompt(payload: dict, shot: dict) -> str:
     world = payload.get("worldSpec", {})
+    character = payload.get("characterBible", {})
+    story = payload.get("story", {})
+    style = payload.get("styleBible", {})
+    visual_intent = story.get("visualIntent", {})
     extras = ", ".join(world.get("extras", []))
     recurring = ", ".join(shot.get("recurringElements", []))
     cast = ", ".join(shot.get("supportingCast", []))
+    physical_features = ", ".join(character.get("physicalFeatures", []))
+    previous_summary = shot.get("previousShotSummary", "")
+    next_summary = shot.get("nextShotSummary", "")
     return (
         f"{shot.get('prompt', '')}. "
         f"Vertical cinematic movie frame, {shot.get('subjectFraming', 'hero')} composition, "
         f"{shot.get('shotKind', 'establishing')} beat, {shot.get('worldActivity', 'medium')} world activity. "
         f"Setting: {world.get('setting', '')}; landmark: {world.get('landmark', '')}; atmosphere: {world.get('atmosphere', '')}. "
         f"Visible world life: {extras}. Supporting cast: {cast}. Recurring motifs: {recurring}. "
-        "Preserve creator identity from the uploaded identity image, natural face, realistic lighting, cinematic depth."
+        f"Emotional beat: {shot.get('emotionalBeat', '')}. Camera goal: {shot.get('cameraGoal', '')}. "
+        f"Background action: {shot.get('backgroundAction', '')}. Continuity anchor: {shot.get('continuityAnchor', '')}. "
+        f"Hero identity anchor: {character.get('identityAnchor', '')}. Wardrobe anchor: {character.get('wardrobeAnchor', '')}. "
+        f"Physical consistency: {physical_features}. Screen presence: {character.get('screenPresence', '')}. "
+        f"Movement style: {character.get('movementStyle', '')}. Performance energy: {character.get('performanceEnergy', '')}. "
+        f"Style tone: {style.get('cinematicTone', '')}. Lens language: {style.get('lensLanguage', '')}. "
+        f"Lighting language: {style.get('lightingLanguage', '')}. Edit rhythm: {style.get('editRhythm', '')}. "
+        f"Camera behavior: {style.get('cameraBehavior', '')}. Texture goal: {style.get('textureGoal', '')}. "
+        f"Score mood: {style.get('scoreMood', '')}. "
+        f"Overall visual intent: {visual_intent.get('worldScale', '')}; pacing: {visual_intent.get('pacing', '')}; realism target: {visual_intent.get('realismTarget', '')}. "
+        f"Previous shot: {previous_summary} Next shot: {next_summary} "
+        "Preserve creator identity from the uploaded identity image, natural face, believable live-action lighting, cinematic depth, and continuity across the sequence."
     )
+
+
+def continuity_seed(job_id: str, shot: dict) -> int:
+    source = f"{job_id}|{shot.get('continuityAnchor', '')}|{shot.get('shotId', '')}|{shot.get('stage', '')}"
+    return sum(ord(character) for character in source) % 2147483647 or 1
 
 
 def render_reference_segment(reference_path: Path, output_path: Path, shot: dict, output_spec: dict) -> None:
@@ -386,19 +409,23 @@ def generate_comfyui_frames(
         if reference_path is None:
             continue
 
-        scene_upload_name = upload_image_to_comfyui(COMFYUI_URL, reference_path, "scene")
+        continuity_scene_path = rendered_frames.get(index - 1) if index > 0 and shot.get("continuityGroup") != "setup" else None
+        primary_scene_path = continuity_scene_path or reference_path
+        scene_upload_name = upload_image_to_comfyui(COMFYUI_URL, primary_scene_path, "scene")
+        reference_upload_name = upload_image_to_comfyui(COMFYUI_URL, reference_path, "reference")
         prompt_payload = apply_placeholders(
             workflow_template,
             {
                 "PROMPT": build_model_prompt(payload, shot),
                 "NEGATIVE_PROMPT": COMFYUI_NEGATIVE_PROMPT,
-                "REFERENCE_IMAGE": scene_upload_name,
+                "REFERENCE_IMAGE": reference_upload_name,
                 "SCENE_IMAGE": scene_upload_name,
                 "IDENTITY_IMAGE": identity_upload_name or scene_upload_name,
+                "PREVIOUS_IMAGE": scene_upload_name,
                 "OUTPUT_PREFIX": f"{payload.get('jobId', uuid.uuid4().hex)}-{shot.get('shotId', index)}",
                 "WIDTH": payload.get("outputSpec", {}).get("width", 720),
                 "HEIGHT": payload.get("outputSpec", {}).get("height", 1280),
-                "SEED": int(time.time() * 1000) % 2147483647,
+                "SEED": continuity_seed(str(payload.get("jobId", uuid.uuid4().hex)), shot),
             },
         )
 

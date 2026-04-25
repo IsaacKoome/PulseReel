@@ -22,7 +22,7 @@ export async function createHeavyProject(input: {
   premise: string;
   scenePrompt: string;
   persona: string;
-  renderMode: "heavy-worker-beta";
+  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
   sourceVideoUrl: string;
   sourceImageUrl?: string;
 }) {
@@ -193,9 +193,9 @@ export async function getProjectStatus(slug: string) {
   }
 
   if (
-    project.renderMode === "heavy-worker-beta" &&
+    project.workerJob &&
     project.status === "processing" &&
-    project.workerJob?.resultPath
+    project.workerJob.resultPath
   ) {
     const result = await readHeavyJobResult(project.workerJob.resultPath);
 

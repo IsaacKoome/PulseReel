@@ -32,8 +32,10 @@ Authorization: Bearer <token>
 ## Important Payload Sections
 
 - `story`: title, premise, persona, scene prompts.
+- `styleBible`: cinematic tone, lens language, lighting language, camera behavior, edit rhythm, texture goal.
+- `characterBible`: identity anchors, wardrobe anchors, physical consistency notes, screen presence, movement style.
 - `worldSpec`: setting, atmosphere, extras, supporting cast, recurring motifs.
-- `shotReferences`: shot prompt, duration, camera move, transition, shot kind, subject framing, world activity, source clip offset, reference image paths.
+- `shotReferences`: shot prompt, duration, camera move, transition, shot kind, subject framing, world activity, source clip offset, emotional beat, camera goal, continuity anchor, previous/next shot summaries, and reference image paths.
 - `outputSpec`: expected width, height, fps, and total duration.
 
 ## Successful Response
@@ -77,6 +79,12 @@ Best practice is for the worker to upload the final MP4 to durable object storag
    - `worldActivity`
    - `subjectFraming`
    - `shotKind`
+   - `emotionalBeat`
+   - `cameraGoal`
+   - `continuityAnchor`
+   - `previousShotSummary` / `nextShotSummary`
+   - `styleBible`
+   - `characterBible`
    - `supportingCast`
    - `recurringElements`
    - uploaded `reference_<index>` image
