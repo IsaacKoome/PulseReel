@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { movieTemplates } from "@/data/templates";
 import { getProjects } from "@/lib/store";
-import { formatCompactNumber } from "@/lib/utils";
+import { RecentMovies } from "@/components/recent-movies";
 
 export const dynamic = "force-dynamic";
 
@@ -106,46 +106,7 @@ export default async function HomePage() {
         </div>
 
         <div className="feed-grid">
-          {featured.length === 0 ? (
-            <article className="feed-card glass" style={{ padding: 24 }}>
-              <h3>No movies yet</h3>
-              <p className="body-copy">Create the first PulseReel movie.</p>
-              <Link className="button" href="/create">
-                Start
-              </Link>
-            </article>
-          ) : (
-            featured.map((project) => {
-              const template = movieTemplates.find((item) => item.id === project.templateId) ?? movieTemplates[0];
-              return (
-                <Link className="feed-card glass" href={`/watch/${project.slug}`} key={project.id}>
-                  <div className="feed-art" style={gradientStyle(template.palette)}>
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: "auto 18px 18px",
-                        zIndex: 2,
-                      }}
-                    >
-                      <strong style={{ fontSize: "1.2rem" }}>{project.title}</strong>
-                      <p className="muted" style={{ margin: "6px 0 0" }}>
-                        {project.creatorName}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="feed-copy">
-                    <h3>{project.title}</h3>
-                    <p>{project.caption}</p>
-                    <div className="pill-row">
-                      <span className="pill">{project.genre}</span>
-                      <span className="pill">{formatCompactNumber(project.metrics.plays)} plays</span>
-                      <span className="pill">{formatCompactNumber(project.metrics.shares)} shares</span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })
-          )}
+          <RecentMovies initialProjects={featured} />
         </div>
       </section>
     </main>
