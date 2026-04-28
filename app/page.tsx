@@ -13,53 +13,37 @@ function gradientStyle(palette: string[]) {
 
 export default async function HomePage() {
   const projects = await getProjects();
-  const featured = projects.slice(0, 6);
+  const featured = projects.slice(0, 3);
+  const primaryTemplates = movieTemplates.slice(0, 3);
 
   return (
     <main>
       <section className="hero shell">
-        <div className="hero-grid">
+        <div className="hero-grid landing-hero">
           <div className="hero-card glass">
-            <span className="eyebrow">Identity-First Movie Maker</span>
-            <h1 className="display">Create the movie where you are the main character.</h1>
+            <span className="eyebrow">AI movie studio</span>
+            <h1 className="display">Turn yourself into a movie scene.</h1>
             <p className="lede">
-              PulseReel turns the idea in your head into a guided short-form movie package. Capture yourself,
-              choose a mood, shape the story, and publish a trailer-style result people can watch immediately.
+              Record or upload a short clip, describe the scene, and PulseReel builds a vertical movie around
+              you.
             </p>
             <div className="cta-row">
               <Link className="button" href="/create">
-                Start Creating
+                Create a Movie
               </Link>
-              <a className="button-secondary" href="#templates">
-                Explore Templates
-              </a>
             </div>
 
-            <div className="meta-row">
-              <div className="meta-box">
-                <strong>Guided</strong>
-                Blank prompts are replaced with cinematic templates and structured beats.
-              </div>
-              <div className="meta-box">
-                <strong>Vertical</strong>
-                Built for mobile-first capture, short runtime, and sharing velocity.
-              </div>
-              <div className="meta-box">
-                <strong>Expandable</strong>
-                The pipeline is ready for future face-swap, lip-sync, and voice modules.
-              </div>
+            <div className="simple-steps" aria-label="How PulseReel works">
+              <span>1. Add your clip</span>
+              <span>2. Type your idea</span>
+              <span>3. Generate</span>
             </div>
           </div>
 
-          <div className="panel hero-preview glass">
-            <div>
-              <span className="eyebrow">Live Product Direction</span>
-              <h2 style={{ marginBottom: 10 }}>TikTok energy, movie identity, creator ownership.</h2>
-              <p className="body-copy">
-                This MVP follows the strongest recommendation from the research: focus on templated story
-                creation and publishing first, then plug in heavier generative models once the product loop is
-                proven.
-              </p>
+          <div className="panel hero-preview glass" aria-label="Example movie preview">
+            <div className="preview-copy">
+              <span className="eyebrow">Example</span>
+              <h2>“I’m on an island with pirates and fishermen.”</h2>
             </div>
 
             <div className="phone-frame">
@@ -74,11 +58,8 @@ export default async function HomePage() {
       <section className="section shell" id="templates">
         <div className="section-title">
           <div>
-            <h2>Template System</h2>
-            <p>
-              The app leans into repeatable creator success: fast onboarding, strong emotional hooks, and
-              enough structure to make the result feel intentional rather than random.
-            </p>
+            <h2>Pick a vibe</h2>
+            <p>Start simple. The studio can guide the style for you.</p>
           </div>
           <Link className="button-secondary" href="/create">
             Open Studio
@@ -86,7 +67,7 @@ export default async function HomePage() {
         </div>
 
         <div className="template-grid">
-          {movieTemplates.map((template) => (
+          {primaryTemplates.map((template) => (
             <article className="template-card glass" key={template.id}>
               <div className="template-art" style={gradientStyle(template.palette)}>
                 <div
@@ -103,10 +84,8 @@ export default async function HomePage() {
                 </div>
               </div>
               <div>
-                <h3>{template.tagline}</h3>
-                <p className="body-copy">{template.hook}</p>
                 <div className="pill-row">
-                  {template.genres.map((genre) => (
+                  {template.genres.slice(0, 2).map((genre) => (
                     <span className="pill" key={genre}>
                       {genre}
                     </span>
@@ -121,11 +100,8 @@ export default async function HomePage() {
       <section className="section shell">
         <div className="section-title">
           <div>
-            <h2>Freshly Published</h2>
-            <p>
-              Every finished project gets a public watch page, a generated poster, and structured story beats
-              that make the output feel like a mini release rather than a raw upload.
-            </p>
+            <h2>Recent movies</h2>
+            <p>Finished movies appear here after publishing.</p>
           </div>
         </div>
 
@@ -133,12 +109,9 @@ export default async function HomePage() {
           {featured.length === 0 ? (
             <article className="feed-card glass" style={{ padding: 24 }}>
               <h3>No movies yet</h3>
-              <p className="body-copy">
-                Be the first creator to publish a short. The studio is ready with capture, templates, and
-                processing.
-              </p>
+              <p className="body-copy">Create the first PulseReel movie.</p>
               <Link className="button" href="/create">
-                Make The First One
+                Start
               </Link>
             </article>
           ) : (
@@ -175,12 +148,6 @@ export default async function HomePage() {
           )}
         </div>
       </section>
-
-      <section className="shell footer-copy">
-        Built as a zero-to-low-cost MVP inspired by the product direction in your two PDFs: guided capture,
-        template-first creation, local processing, and public sharing first.
-      </section>
     </main>
   );
 }
-
