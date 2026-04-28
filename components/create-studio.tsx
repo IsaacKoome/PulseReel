@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
+import type { MovieProject } from "@/lib/types";
 
 type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
 
@@ -502,7 +503,7 @@ export function CreateStudio() {
         body: formData,
       });
       const responseText = await response.text();
-      let payload: { slug?: string; error?: string } = {};
+      let payload: { slug?: string; error?: string; project?: MovieProject } = {};
       try {
         payload = responseText ? JSON.parse(responseText) : {};
       } catch {
@@ -515,6 +516,10 @@ export function CreateStudio() {
 
       if (!response.ok || !payload.slug) {
         throw new Error(payload.error || "The studio could not process that clip.");
+      }
+
+      if (payload.project) {
+        window.localStorage.setItem(`pulsereel:project:${payload.slug}`, JSON.stringify(payload.project));
       }
 
       window.location.href = `/watch/${payload.slug}`;

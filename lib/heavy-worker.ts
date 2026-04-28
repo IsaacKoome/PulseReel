@@ -25,7 +25,7 @@ export async function createHeavyProject(input: {
   renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
   sourceVideoUrl: string;
   sourceImageUrl?: string;
-}) {
+}, options: { autoStart?: boolean } = {}) {
   const provider = getHeavyRenderProvider();
   const project = await createMovieProjectDraft({
     ...input,
@@ -45,7 +45,9 @@ export async function createHeavyProject(input: {
   project.workerJob.resultPath = jobFiles.resultPath;
 
   await addProject(project);
-  void startHeavyGeneration(project.id);
+  if (options.autoStart ?? true) {
+    void startHeavyGeneration(project.id);
+  }
   return project;
 }
 

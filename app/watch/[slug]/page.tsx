@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ProjectStatusPoller } from "@/components/project-status-poller";
+import { RecoveredWatchProject } from "@/components/recovered-watch-project";
 import { getTemplateById } from "@/data/templates";
 import { getProjectBySlug } from "@/lib/store";
 import { formatCompactNumber } from "@/lib/utils";
@@ -16,7 +16,7 @@ export default async function WatchPage({
   const project = await getProjectBySlug(slug);
 
   if (!project) {
-    notFound();
+    return <RecoveredWatchProject slug={slug} />;
   }
 
   const template = getTemplateById(project.templateId);

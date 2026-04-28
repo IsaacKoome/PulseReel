@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createHeavyProject } from "@/lib/heavy-worker";
+import { createHeavyProject, startHeavyGeneration } from "@/lib/heavy-worker";
 import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
-import { addProject } from "@/lib/store";
+import { addProject, getProjectById } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -132,12 +132,19 @@ export async function POST(request: Request) {
         renderMode: parsed.data.renderMode,
         sourceVideoUrl,
         sourceImageUrl,
-      });
+      }, { autoStart: !isVercelRuntime() });
+
+      if (isVercelRuntime()) {
+        await startHeavyGeneration(project.id);
+      }
+
+      const finalProject = (await getProjectById(project.id)) ?? project;
 
       return NextResponse.json({
-        slug: project.slug,
-        status: project.status,
+        slug: finalProject.slug,
+        status: finalProject.status,
         executionPath: isVercelRuntime() ? "remote-heavy-worker" : "local-heavy-worker",
+        project: finalProject,
       });
     }
 

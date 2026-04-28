@@ -19,16 +19,18 @@ It accepts the PulseReel multipart job package, renders a vertical MP4, serves t
 
 ```powershell
 cd workers\pulsereel-gpu-worker
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn worker:app --host 0.0.0.0 --port 8000
+powershell -ExecutionPolicy Bypass -File .\start-worker.ps1
 ```
+
+You can also copy `.env.example` to `.env` first, then the PowerShell starter will load it automatically.
 
 Set your app env:
 
 ```text
 PULSEREEL_REMOTE_MODEL_BACKEND_URL=http://127.0.0.1:8000/pulsereel/render
 ```
+
+For a public Vercel deployment, this must be a public HTTPS worker URL, not `127.0.0.1`.
 
 ## Docker
 

@@ -109,6 +109,11 @@ export type HeavyJobPayload = {
     emotionalBeat: string;
     cameraGoal: string;
     backgroundAction: string;
+    heroAction: string;
+    lensSuggestion: string;
+    lightingCue: string;
+    editInstruction: string;
+    negativePrompt: string;
     previousShotSummary?: string;
     nextShotSummary?: string;
     transitionStyle: "dissolve" | "flash" | "drift";
@@ -763,6 +768,118 @@ function backgroundActionForShot(
   return `visible background life sells the scene: ${extras || "environmental motion and atmosphere"}`;
 }
 
+function heroActionForShot(shot: ShotSpec, shotKind: ReturnType<typeof shotKindForShot>) {
+  const text = `${shot.title} ${shot.prompt} ${shot.motionHint}`.toLowerCase();
+  if (shotKind === "action") {
+    return /(fight|kick|strike|kung fu|battle)/.test(text)
+      ? "hero executes a readable physical action with confidence and clean body language"
+      : "hero drives the moment with strong physical intent";
+  }
+  if (shotKind === "interaction") {
+    return "hero shares the frame with another person or force while staying visually dominant";
+  }
+  if (shotKind === "reaction") {
+    return "hero holds a clear emotional expression that the audience can read immediately";
+  }
+  if (shotKind === "landmark") {
+    return "hero enters or stands inside the world as if the place is larger than life";
+  }
+  return "hero remains the cinematic center of gravity";
+}
+
+function lensSuggestionForShot(
+  stage: "intro" | "battle" | "finale",
+  shotKind: ReturnType<typeof shotKindForShot>,
+  subjectFraming: ReturnType<typeof subjectFramingForShot>,
+) {
+  if (subjectFraming === "world-first" || shotKind === "landmark") {
+    return "24mm to 35mm wide live-action lens feeling";
+  }
+  if (shotKind === "reaction") {
+    return "65mm to 85mm portrait lens feeling";
+  }
+  if (shotKind === "interaction") {
+    return "40mm to 50mm medium cinematic lens feeling";
+  }
+  if (stage === "battle") {
+    return "35mm to 50mm action-friendly lens feeling with readable movement";
+  }
+  return "35mm to 65mm cinematic lens feeling";
+}
+
+function lightingCueForShot(
+  stage: "intro" | "battle" | "finale",
+  colorGrade: ReturnType<typeof colorGradeForShot>,
+  worldSpec: ReturnType<typeof inferWorldSpec>,
+) {
+  const base =
+    colorGrade === "warm"
+      ? "warm practical highlights and flattering key light"
+      : colorGrade === "cool"
+        ? "cooler directional light with controlled contrast"
+        : colorGrade === "teal-orange"
+          ? "teal shadow separation and warm highlights with believable exposure"
+          : "neutral night realism with readable skin tones";
+
+  if (stage === "battle") {
+    return `${base}; stronger edge light and tension-friendly contrast`;
+  }
+  if (stage === "finale") {
+    return `${base}; poster-ready separation and heroic glow`;
+  }
+  return `${base}; atmosphere shaped by ${worldSpec.atmosphere}`;
+}
+
+function editInstructionForShot(
+  stage: "intro" | "battle" | "finale",
+  shotKind: ReturnType<typeof shotKindForShot>,
+  motionEnergy: ReturnType<typeof motionEnergyForShot>,
+) {
+  if (stage === "intro") {
+    return "cut should feel like a measured opening reveal";
+  }
+  if (stage === "finale") {
+    return "cut should land like the final image of a trailer";
+  }
+  if (shotKind === "action" || motionEnergy === "kinetic") {
+    return "cut should add momentum without losing spatial clarity";
+  }
+  if (shotKind === "reaction") {
+    return "hold long enough for the audience to read the face before moving on";
+  }
+  return "cut should preserve continuity and emotional escalation";
+}
+
+function negativePromptForShot(
+  shotKind: ReturnType<typeof shotKindForShot>,
+  subjectFraming: ReturnType<typeof subjectFramingForShot>,
+  worldActivity: ReturnType<typeof worldActivityForShot>,
+) {
+  const items = [
+    "blurry",
+    "low quality",
+    "deformed anatomy",
+    "duplicate face",
+    "extra limbs",
+    "plastic skin",
+    "cartoon look",
+    "text artifacts",
+    "watermark",
+  ];
+
+  if (shotKind === "action") {
+    items.push("unclear action pose", "broken hands", "twisted limbs");
+  }
+  if (subjectFraming === "world-first") {
+    items.push("floating hero", "disconnected scale");
+  }
+  if (worldActivity === "high") {
+    items.push("empty background", "missing crowd life");
+  }
+
+  return items.join(", ");
+}
+
 export async function createHeavyJobFiles(project: MovieProject, provider: HeavyRenderProviderId) {
   await ensureJobsDir();
   const dir = jobDir(project.workerJob?.id ?? `job-${project.id}`);
@@ -793,6 +910,12 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
       const emotionalBeat = emotionalBeatForShot(shot, stage, shotKind);
       const continuityAnchor = `${stage}-${subjectFraming}-${worldSpec.setting}-${characterBible.wardrobeAnchor}`;
       const cameraGoal = cameraGoalForShot(stage, shotKind, subjectFraming);
+      const heroAction = heroActionForShot(shot, shotKind);
+      const lensSuggestion = lensSuggestionForShot(stage, shotKind, subjectFraming);
+      const colorGrade = colorGradeForShot(index, stage);
+      const lightingCue = lightingCueForShot(stage, colorGrade, worldSpec);
+      const editInstruction = editInstructionForShot(stage, shotKind, motionEnergy);
+      const negativePrompt = negativePromptForShot(shotKind, subjectFraming, worldActivity);
       const backgroundAction = backgroundActionForShot(worldSpec, worldActivity, shotKind);
       const referenceSvgPath = path.join(referencesDir, `${String(index + 1).padStart(2, "0")}-${shot.id}.svg`);
       const referencePngPath = path.join(referencesDir, `${String(index + 1).padStart(2, "0")}-${shot.id}.png`);
@@ -817,9 +940,14 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
         emotionalBeat,
         cameraGoal,
         backgroundAction,
+        heroAction,
+        lensSuggestion,
+        lightingCue,
+        editInstruction,
+        negativePrompt,
         transitionStyle: transitionStyleForShot(index, stage),
         cameraMove: cameraMoveForShot(index, stage),
-        colorGrade: colorGradeForShot(index, stage),
+        colorGrade,
         shotKind,
         subjectFraming,
         worldActivity,

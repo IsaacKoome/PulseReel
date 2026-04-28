@@ -36,6 +36,7 @@ Authorization: Bearer <token>
 - `characterBible`: identity anchors, wardrobe anchors, physical consistency notes, screen presence, movement style.
 - `worldSpec`: setting, atmosphere, extras, supporting cast, recurring motifs.
 - `shotReferences`: shot prompt, duration, camera move, transition, shot kind, subject framing, world activity, source clip offset, emotional beat, camera goal, continuity anchor, previous/next shot summaries, and reference image paths.
+- `shotReferences`: shot prompt, duration, camera move, transition, shot kind, subject framing, world activity, source clip offset, emotional beat, camera goal, hero action, lens suggestion, lighting cue, edit instruction, negative prompt, continuity anchor, previous/next shot summaries, and reference image paths.
 - `outputSpec`: expected width, height, fps, and total duration.
 
 ## Successful Response

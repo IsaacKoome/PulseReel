@@ -251,7 +251,9 @@ def build_model_prompt(payload: dict, shot: dict) -> str:
         f"Setting: {world.get('setting', '')}; landmark: {world.get('landmark', '')}; atmosphere: {world.get('atmosphere', '')}. "
         f"Visible world life: {extras}. Supporting cast: {cast}. Recurring motifs: {recurring}. "
         f"Emotional beat: {shot.get('emotionalBeat', '')}. Camera goal: {shot.get('cameraGoal', '')}. "
-        f"Background action: {shot.get('backgroundAction', '')}. Continuity anchor: {shot.get('continuityAnchor', '')}. "
+        f"Background action: {shot.get('backgroundAction', '')}. Hero action: {shot.get('heroAction', '')}. "
+        f"Lens suggestion: {shot.get('lensSuggestion', '')}. Lighting cue: {shot.get('lightingCue', '')}. "
+        f"Edit instruction: {shot.get('editInstruction', '')}. Continuity anchor: {shot.get('continuityAnchor', '')}. "
         f"Hero identity anchor: {character.get('identityAnchor', '')}. Wardrobe anchor: {character.get('wardrobeAnchor', '')}. "
         f"Physical consistency: {physical_features}. Screen presence: {character.get('screenPresence', '')}. "
         f"Movement style: {character.get('movementStyle', '')}. Performance energy: {character.get('performanceEnergy', '')}. "
@@ -263,6 +265,13 @@ def build_model_prompt(payload: dict, shot: dict) -> str:
         f"Previous shot: {previous_summary} Next shot: {next_summary} "
         "Preserve creator identity from the uploaded identity image, natural face, believable live-action lighting, cinematic depth, and continuity across the sequence."
     )
+
+
+def build_negative_prompt(shot: dict) -> str:
+    shot_negative = shot.get("negativePrompt", "")
+    if shot_negative:
+        return f"{COMFYUI_NEGATIVE_PROMPT}, {shot_negative}"
+    return COMFYUI_NEGATIVE_PROMPT
 
 
 def continuity_seed(job_id: str, shot: dict) -> int:
@@ -417,7 +426,7 @@ def generate_comfyui_frames(
             workflow_template,
             {
                 "PROMPT": build_model_prompt(payload, shot),
-                "NEGATIVE_PROMPT": COMFYUI_NEGATIVE_PROMPT,
+                "NEGATIVE_PROMPT": build_negative_prompt(shot),
                 "REFERENCE_IMAGE": reference_upload_name,
                 "SCENE_IMAGE": scene_upload_name,
                 "IDENTITY_IMAGE": identity_upload_name or scene_upload_name,
