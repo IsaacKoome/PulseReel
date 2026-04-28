@@ -73,7 +73,14 @@ This starter is intentionally deployable before a full GPU model stack is ready:
 - Receives the real PulseReel job package.
 - Saves the source video, selfie, poster, and shot reference images.
 - Builds a hosted 60-second MP4 from the reference plates and motion inserts.
+- Adds an AAC ambient audio bed by default so generated movies are not silent.
 - Returns a real hosted `processedVideoUrl`.
+
+To disable the generated audio bed, set:
+
+```text
+PULSEREEL_WORKER_ENABLE_AUDIO_BED=0
+```
 
 If these are set on the worker machine:
 

@@ -32,6 +32,7 @@ STORAGE_ACCESS_KEY = os.environ.get("PULSEREEL_WORKER_STORAGE_ACCESS_KEY", "").s
 STORAGE_SECRET_KEY = os.environ.get("PULSEREEL_WORKER_STORAGE_SECRET_KEY", "").strip()
 STORAGE_PUBLIC_BASE_URL = os.environ.get("PULSEREEL_WORKER_STORAGE_PUBLIC_BASE_URL", "").rstrip("/")
 STORAGE_PREFIX = os.environ.get("PULSEREEL_WORKER_STORAGE_PREFIX", "jobs").strip().strip("/")
+ENABLE_AUDIO_BED = os.environ.get("PULSEREEL_WORKER_ENABLE_AUDIO_BED", "1").strip() != "0"
 
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -460,15 +461,45 @@ def concat_segments(segment_paths: list[Path], output_path: Path, output_spec: d
         "\n".join([f"file '{str(path).replace(chr(39), chr(39) + chr(39))}'" for path in segment_paths]),
         encoding="utf-8",
     )
-    run_ffmpeg(
+    args = [
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        str(concat_list),
+    ]
+
+    if ENABLE_AUDIO_BED:
+        audio_source = (
+            f"anoisesrc=d={total_duration}:c=pink:r=44100:a=0.035,"
+            "highpass=f=90,lowpass=f=1200,"
+            "afade=t=in:st=0:d=1.5,"
+            f"afade=t=out:st={max(0, total_duration - 4)}:d=4"
+        )
+        args.extend(
+            [
+                "-f",
+                "lavfi",
+                "-i",
+                audio_source,
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "96k",
+                "-shortest",
+            ]
+        )
+    else:
+        args.append("-an")
+
+    args.extend(
         [
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(concat_list),
             "-c:v",
             "libx264",
             "-pix_fmt",
@@ -479,10 +510,10 @@ def concat_segments(segment_paths: list[Path], output_path: Path, output_spec: d
             str(total_duration),
             "-movflags",
             "+faststart",
-            "-an",
             str(output_path),
         ]
     )
+    run_ffmpeg(args)
 
 
 def render_movie(
@@ -521,7 +552,37 @@ def render_movie(
 
     if not segment_paths and source_video:
         output_path = OUTPUT_DIR / f"{payload.get('jobId', uuid.uuid4().hex)}.mp4"
-        run_ffmpeg(["-y", "-i", str(source_video), "-t", "60", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(output_path)])
+        total_duration = float(payload.get("outputSpec", {}).get("totalDurationSeconds", 60))
+        if ENABLE_AUDIO_BED:
+            run_ffmpeg(
+                [
+                    "-y",
+                    "-i",
+                    str(source_video),
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"anoisesrc=d={total_duration}:c=pink:r=44100:a=0.035,highpass=f=90,lowpass=f=1200",
+                    "-t",
+                    str(total_duration),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "1:a:0",
+                    "-c:v",
+                    "libx264",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "96k",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-shortest",
+                    str(output_path),
+                ]
+            )
+        else:
+            run_ffmpeg(["-y", "-i", str(source_video), "-t", str(total_duration), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(output_path)])
         return output_path
 
     if not segment_paths:
