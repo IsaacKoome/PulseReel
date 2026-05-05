@@ -11,31 +11,6 @@ type StatusState = {
   message: string;
 };
 
-type BackendCapabilities = {
-  heavyProvider: string;
-  pythonExecutableConfigured: boolean;
-  pythonBridgeReady: boolean;
-  pythonExecutablePath?: string;
-  customBackendCommandConfigured: boolean;
-  remoteModelBackendConfigured: boolean;
-  remoteModelBackendReachable: boolean;
-  remoteModelBackendMode?: string;
-  remoteModelBackendComfyUiConfigured: boolean;
-  remoteModelBackendDurableStorageConfigured: boolean;
-  comfyUiInstallDetected: boolean;
-  comfyUiVenvReady: boolean;
-  comfyUiConfigured: boolean;
-  comfyUiWorkflowExists: boolean;
-  comfyUiServerReachable: boolean;
-  comfyUiCheckpointReady: boolean;
-  comfyUiCheckpointDir?: string;
-  comfyUiAvailableCheckpoints: string[];
-  comfyUiCanAutoStart: boolean;
-  realModelBackendReady: boolean;
-  activeHeavyPath: "fast-local" | "python-bridge" | "custom-backend-command" | "remote-model-backend" | "comfyui-backend";
-  summary: string;
-};
-
 export function CreateStudio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
@@ -50,8 +25,7 @@ export function CreateStudio() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
-  const [renderMode, setRenderMode] = useState<RenderMode>("prompt-movie-beta");
-  const [creationMode, setCreationMode] = useState<"quick" | "guided">("quick");
+  const [renderMode] = useState<RenderMode>("heavy-worker-beta");
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -59,8 +33,6 @@ export function CreateStudio() {
   const [useCanvasPreview, setUseCanvasPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<StatusState>({ tone: "idle", message: "" });
-  const [backendCapabilities, setBackendCapabilities] = useState<BackendCapabilities | null>(null);
-  const [isEnsuringBackend, setIsEnsuringBackend] = useState(false);
   const selected = useMemo(
     () => movieTemplates.find((template) => template.id === selectedTemplate) ?? movieTemplates[0],
     [selectedTemplate],
@@ -214,62 +186,6 @@ export function CreateStudio() {
   }
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const response = await fetch("/api/backend/capabilities", { cache: "no-store" });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as BackendCapabilities;
-        setBackendCapabilities(payload);
-      } catch {
-        return;
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (
-      !backendCapabilities ||
-      isEnsuringBackend ||
-      !backendCapabilities.comfyUiCanAutoStart ||
-      backendCapabilities.comfyUiServerReachable
-    ) {
-      return;
-    }
-
-    setIsEnsuringBackend(true);
-    void (async () => {
-      try {
-        const response = await fetch("/api/backend/ensure-comfyui", {
-          method: "POST",
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as {
-          capabilities?: BackendCapabilities;
-          started?: boolean;
-        };
-        if (payload.capabilities) {
-          setBackendCapabilities(payload.capabilities);
-        }
-        if (payload.started) {
-          setStatus((current) =>
-            current.tone === "error"
-              ? current
-              : { tone: "success", message: "Local ComfyUI server started in the background for heavier backend work." },
-          );
-        }
-      } catch {
-        return;
-      } finally {
-        setIsEnsuringBackend(false);
-      }
-    })();
-  }, [backendCapabilities, isEnsuringBackend]);
-
-  useEffect(() => {
     let isMounted = true;
 
     async function startCamera() {
@@ -405,14 +321,14 @@ export function CreateStudio() {
       stopCamera();
       setStatus({
         tone: "success",
-        message: "Clip captured. Recording has stopped and the camera was turned off so nothing continues in the background.",
+        message: "Clip captured.",
       });
     };
 
     recorderRef.current = recorder;
     recorder.start();
     setIsRecording(true);
-    setStatus({ tone: "idle", message: "Recording live. Hold your frame and give the story some energy." });
+    setStatus({ tone: "idle", message: "Recording..." });
 
     window.setTimeout(() => {
       if (recorderRef.current?.state === "recording") {
@@ -448,7 +364,7 @@ export function CreateStudio() {
       }
       setSelfieFile(file);
       setSelfieUrl(URL.createObjectURL(file));
-      setStatus({ tone: "success", message: "Selfie locked in. It will be used for the movie package." });
+      setStatus({ tone: "success", message: "Selfie captured." });
     }, "image/png");
   }
 
@@ -481,7 +397,7 @@ export function CreateStudio() {
     formData.set("templateId", selectedTemplate);
     formData.set("genre", genre);
     formData.set("renderMode", renderMode);
-    formData.set("quickPrompt", creationMode === "quick" ? quickPrompt : "");
+    formData.set("quickPrompt", quickPrompt);
     if (selfieFile) {
       formData.set("selfie", selfieFile);
     }
@@ -489,12 +405,7 @@ export function CreateStudio() {
     setIsSubmitting(true);
     setStatus({
       tone: "idle",
-      message:
-        renderMode === "heavy-worker-beta"
-          ? "Queuing your heavy movie worker. You will land on a live status page while the motion render runs."
-          : creationMode === "quick"
-            ? "Processing your movie from the single prompt. This can take under a couple of minutes."
-            : "Processing your movie package. This can take under a couple of minutes.",
+      message: "Creating your movie...",
     });
 
     try {
@@ -534,16 +445,12 @@ export function CreateStudio() {
   }
 
   return (
-    <form className="studio-layout" onSubmit={onSubmit}>
-      <section className="studio-card glass">
-        <p className="eyebrow-copy">Creator Studio</p>
-        <h1 className="heading">Shoot yourself into the story</h1>
-        <p className="subtle">
-          Capture a vertical clip, grab a selfie still, then pair it with a cinematic template and a short
-          idea. The current build now turns that into a composed trailer: generated scene cards, your cut-out
-          hero image, a stylized action insert from your source clip, a poster, story beats, and a public watch page.
-        </p>
-
+    <form className="studio-simple" onSubmit={onSubmit}>
+      <section className="studio-card glass capture-panel">
+        <div className="studio-section-title">
+          <span>1</span>
+          <h2>Your clip</h2>
+        </div>
         <div className="camera-shell">
           <div className="camera-stage">
             {previewUrl ? (
@@ -614,58 +521,57 @@ export function CreateStudio() {
           <div className="toolbar">
             {!isRecording ? (
               <button className="button" type="button" onClick={startRecording}>
-                Record 10s Clip
+                Record 10s
               </button>
             ) : (
               <button className="button-secondary" type="button" onClick={stopRecording}>
-                Stop Recording
+                Stop
               </button>
             )}
             {isCameraActive ? (
               <button className="button-secondary" type="button" onClick={stopCamera}>
-                Turn Camera Off
+                Camera Off
               </button>
             ) : (
               <button className="button-secondary" type="button" onClick={() => void startCamera()}>
-                Turn Camera On
+                Camera On
               </button>
             )}
             <button className="button-secondary" type="button" onClick={captureSelfie}>
-              Capture Selfie
+              Selfie
             </button>
           </div>
 
           <label className="label">
-            <span>Or upload a vertical clip. Selfie capture is strongly recommended for scene compositing.</span>
+            <span>Upload instead</span>
             <input className="input" name="videoUpload" type="file" accept="video/*" />
           </label>
         </div>
       </section>
 
-      <section className="studio-card glass">
-        <p className="eyebrow-copy">Story Design</p>
-        <h2 className="heading" style={{ fontSize: "2.2rem" }}>
-          Guided templates, not blank-page paralysis
-        </h2>
-
-        <div className="toolbar" style={{ marginTop: 12 }}>
-          <button
-            className={creationMode === "quick" ? "button" : "button-secondary"}
-            type="button"
-            onClick={() => setCreationMode("quick")}
-          >
-            Quick Prompt
-          </button>
-          <button
-            className={creationMode === "guided" ? "button" : "button-secondary"}
-            type="button"
-            onClick={() => setCreationMode("guided")}
-          >
-            Guided Form
-          </button>
+      <section className="studio-card glass story-panel">
+        <div className="studio-section-title">
+          <span>2</span>
+          <h2>Movie idea</h2>
         </div>
 
-        <div className="template-grid" style={{ marginTop: 16 }}>
+        <label className="label">
+          <textarea
+            className="textarea idea-box"
+            name="quickPrompt"
+            onChange={(event) => setQuickPrompt(event.target.value)}
+            placeholder="Example: I am on an island with pirates and fishermen."
+            required
+            value={quickPrompt}
+          />
+        </label>
+
+        <div className="studio-section-title compact">
+          <span>3</span>
+          <h2>Style</h2>
+        </div>
+
+        <div className="simple-template-list">
           {movieTemplates.map((template) => (
             <label
               className={`template-option ${template.id === selected.id ? "active" : ""}`}
@@ -681,202 +587,17 @@ export function CreateStudio() {
                 type="radio"
                 value={template.id}
               />
-              <strong>{template.name}</strong>
-              <p className="muted">{template.tagline}</p>
-              <div className="pill-row">
-                {template.genres.map((genre) => (
-                  <span className="pill" key={genre}>
-                    {genre}
-                  </span>
-                ))}
-              </div>
+              <span>{template.name}</span>
             </label>
           ))}
         </div>
 
-        {creationMode === "quick" ? (
-          <div className="form-grid">
-            <label className="label wide">
-              <span>One simple prompt</span>
-              <textarea
-                className="textarea"
-                name="quickPrompt"
-                onChange={(event) => setQuickPrompt(event.target.value)}
-                placeholder="Example: Mecon150 fights 5 gang members with kung fu in a forest and wins like a legend."
-                required={creationMode === "quick"}
-                value={quickPrompt}
-              />
-            </label>
-            <label className="label">
-              <span>Generation mode</span>
-              <select
-                className="select"
-                name="renderMode"
-                onChange={(event) => setRenderMode(event.target.value as RenderMode)}
-                value={renderMode}
-              >
-                <option value="heavy-worker-beta">Heavy Worker Beta</option>
-                <option value="prompt-movie-beta">Prompt Movie Beta</option>
-                <option value="fast-trailer">Fast Trailer</option>
-              </select>
-            </label>
-            <div className="panel" style={{ padding: 18 }}>
-              <strong style={{ display: "block", marginBottom: 10 }}>What happens next</strong>
-              <p className="muted" style={{ margin: 0 }}>
-                The backend will infer the title, persona, genre, premise, and shot plan from your one prompt, then build the movie automatically.
-                {renderMode === "heavy-worker-beta"
-                  ? " Heavy mode queues a separate worker and updates the watch page live."
-                  : ""}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="form-grid">
-          <label className="label">
-            <span>Your creator name</span>
-            <input className="input" name="creatorName" placeholder="Isaac K" required />
-          </label>
-          <label className="label">
-            <span>Movie title</span>
-            <input className="input" name="title" placeholder="I Refused To Stay Small" required />
-          </label>
-          <label className="label">
-            <span>Genre</span>
-            <input
-              className="input"
-              name="genre"
-              onChange={(event) => setGenre(event.target.value)}
-              placeholder="Motivation"
-              value={genre}
-            />
-          </label>
-          <label className="label">
-            <span>Generation mode</span>
-            <select
-              className="select"
-              name="renderMode"
-              onChange={(event) => setRenderMode(event.target.value as RenderMode)}
-              value={renderMode}
-            >
-              <option value="heavy-worker-beta">Heavy Worker Beta</option>
-              <option value="prompt-movie-beta">Prompt Movie Beta</option>
-              <option value="fast-trailer">Fast Trailer</option>
-            </select>
-          </label>
-          <label className="label">
-            <span>Main persona</span>
-            <input className="input" name="persona" placeholder="Underdog hero with quiet confidence" required />
-          </label>
-          <label className="label wide">
-            <span>Premise</span>
-            <textarea
-              className="textarea"
-              name="premise"
-              placeholder="I want this to feel like the moment an ordinary person decides they are done being underestimated."
-              required
-            />
-          </label>
-          <label className="label wide">
-            <span>Scene direction</span>
-            <textarea
-              className="textarea"
-              name="scenePrompt"
-              placeholder="Slow build, dramatic energy, close-up intensity, city-at-night visuals, ending like a teaser trailer."
-              required
-            />
-          </label>
-          </div>
-        )}
-
-        {backendCapabilities ? (
-          <div className="panel" style={{ marginTop: 16 }}>
-            <strong style={{ display: "block", marginBottom: 10 }}>Backend Readiness</strong>
-            <p className="muted" style={{ margin: "0 0 12px" }}>
-              {backendCapabilities.summary}
-            </p>
-            <div className="pill-row">
-              <span className="pill">Heavy provider: {backendCapabilities.heavyProvider}</span>
-              <span className="pill">Active path: {backendCapabilities.activeHeavyPath}</span>
-              <span className="pill">
-                Real model backend: {backendCapabilities.realModelBackendReady ? "ready" : "not ready"}
-              </span>
-              {backendCapabilities.remoteModelBackendConfigured ? (
-                <span className="pill">
-                  Remote GPU worker: {backendCapabilities.remoteModelBackendReachable ? "reachable" : "offline"}
-                </span>
-              ) : null}
-              {backendCapabilities.remoteModelBackendMode ? (
-                <span className="pill">Remote mode: {backendCapabilities.remoteModelBackendMode}</span>
-              ) : null}
-              {backendCapabilities.remoteModelBackendComfyUiConfigured ? (
-                <span className="pill">Remote ComfyUI: ready</span>
-              ) : null}
-              {backendCapabilities.remoteModelBackendConfigured ? (
-                <span className="pill">
-                  Durable storage: {backendCapabilities.remoteModelBackendDurableStorageConfigured ? "ready" : "missing"}
-                </span>
-              ) : null}
-              <span className="pill">
-                Python: {backendCapabilities.pythonExecutableConfigured ? "configured" : "not configured"}
-              </span>
-              <span className="pill">
-                ComfyUI:
-                {" "}
-                {backendCapabilities.comfyUiConfigured
-                  ? backendCapabilities.comfyUiWorkflowExists
-                    ? backendCapabilities.comfyUiCheckpointReady
-                      ? "ready"
-                      : "checkpoint missing"
-                    : "workflow missing"
-                  : backendCapabilities.comfyUiInstallDetected
-                    ? backendCapabilities.comfyUiVenvReady
-                      ? "installed, url missing"
-                      : "installed, venv incomplete"
-                    : "not configured"}
-              </span>
-              {backendCapabilities.comfyUiInstallDetected ? (
-                <span className="pill">ComfyUI app: installed</span>
-              ) : null}
-              {backendCapabilities.comfyUiVenvReady ? <span className="pill">ComfyUI env: ready</span> : null}
-              {backendCapabilities.comfyUiConfigured ? (
-                <span className="pill">
-                  ComfyUI server: {backendCapabilities.comfyUiServerReachable ? "reachable" : "offline"}
-                </span>
-              ) : null}
-              {isEnsuringBackend ? <span className="pill">Starting local ComfyUI...</span> : null}
-            </div>
-            {backendCapabilities.pythonExecutablePath ? (
-              <p className="muted" style={{ margin: "12px 0 0" }}>
-                Python path: {backendCapabilities.pythonExecutablePath}
-              </p>
-            ) : null}
-            {backendCapabilities.comfyUiCheckpointDir ? (
-              <p className="muted" style={{ margin: "8px 0 0" }}>
-                Checkpoint folder: {backendCapabilities.comfyUiCheckpointDir}
-              </p>
-            ) : null}
-            <p className="muted" style={{ margin: "8px 0 0" }}>
-              {backendCapabilities.comfyUiAvailableCheckpoints.length > 0
-                ? `Detected checkpoints: ${backendCapabilities.comfyUiAvailableCheckpoints.join(", ")}`
-                : "No real ComfyUI checkpoint model detected yet. Drop a .safetensors, .ckpt, or .pt model into the checkpoint folder to activate real image generation."}
-            </p>
-          </div>
-        ) : null}
-
         <div className={`status ${status.tone === "error" ? "error" : ""}`}>{status.message}</div>
 
-        <div className="toolbar" style={{ marginTop: 16 }}>
-          <button className="button" disabled={isSubmitting} type="submit">
+        <div className="generate-row">
+          <button className="button generate-button" disabled={isSubmitting} type="submit">
             {isSubmitting ? "Generating..." : "Generate Movie"}
           </button>
-          <span className="pill">Template runtime: {selected.runtimeLabel}</span>
-          <span className="pill">
-            {renderMode === "heavy-worker-beta"
-              ? "Heavy worker beta"
-              : renderMode === "prompt-movie-beta"
-                ? "Prompt-to-movie beta"
-                : "Fast trailer"}
-          </span>
         </div>
       </section>
     </form>

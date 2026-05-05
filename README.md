@@ -127,3 +127,5 @@ npm run build
 ```
 
 On this Windows machine, `npm run build` has been compiling successfully but sometimes ends with a local `spawn EPERM` after TypeScript. The focused TypeScript and Python checks are the reliable signal for code correctness in the current local setup.
+
+

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getTemplateById } from "@/data/templates";
 import type { MovieProject } from "@/lib/types";
-import { formatCompactNumber } from "@/lib/utils";
 
 function readLocalProjects() {
   const projects: MovieProject[] = [];
@@ -89,12 +88,7 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
             </div>
             <div className="feed-copy">
               <h3>{project.title}</h3>
-              <p>{project.caption}</p>
-              <div className="pill-row">
-                <span className="pill">{project.genre}</span>
-                <span className="pill">{formatCompactNumber(project.metrics.plays)} plays</span>
-                <span className="pill">{formatCompactNumber(project.metrics.shares)} shares</span>
-              </div>
+              <p>{project.creatorName}</p>
             </div>
           </Link>
         );

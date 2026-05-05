@@ -377,6 +377,109 @@ def render_source_clip(source_path: Path, output_path: Path, shot: dict, output_
     )
 
 
+def render_world_composite_clip(
+    reference_path: Path,
+    source_path: Path,
+    output_path: Path,
+    shot: dict,
+    output_spec: dict,
+    duration: float,
+) -> None:
+    width = int(output_spec.get("width", 720))
+    height = int(output_spec.get("height", 1280))
+    fps = int(output_spec.get("fps", 25))
+    offset = float(shot.get("sourceClipOffsetSeconds", 0))
+    shot_kind = shot.get("shotKind", "establishing")
+    subject_framing = shot.get("subjectFraming", "hero")
+    world_activity = shot.get("worldActivity", "medium")
+    frame_count = max(1, round(duration * fps))
+
+    if subject_framing == "world-first" or shot_kind in {"observer", "landmark"}:
+        hero_width = round(width * 0.58)
+        x_expr = "W-w-38+sin(t*0.7)*16"
+        y_expr = "H-h-110+cos(t*0.9)*10"
+        alpha = "0.72"
+        bg_zoom = "1.04+0.00015*on"
+    elif shot_kind == "reaction":
+        hero_width = round(width * 0.84)
+        x_expr = "(W-w)/2+sin(t*0.6)*10"
+        y_expr = "H-h-70+cos(t*0.8)*8"
+        alpha = "0.82"
+        bg_zoom = "1.08+0.0002*on"
+    elif subject_framing == "shared-frame" or shot_kind == "interaction":
+        hero_width = round(width * 0.68)
+        x_expr = "42+sin(t*0.8)*18"
+        y_expr = "H-h-92+cos(t*0.9)*10"
+        alpha = "0.78"
+        bg_zoom = "1.06+0.00018*on"
+    else:
+        hero_width = round(width * 0.74)
+        x_expr = "(W-w)/2+sin(t*0.9)*14"
+        y_expr = "H-h-88+cos(t*0.8)*8"
+        alpha = "0.80"
+        bg_zoom = "1.06+0.0002*on"
+
+    world_lift = "0.045" if world_activity == "high" else "0.028"
+    source_crop_x = "x=(in_w-out_w)/2+sin(t*0.55)*18"
+    source_crop_y = "y=(in_h-out_h)/2+cos(t*0.55)*10"
+
+    filters = [
+        (
+            f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},"
+            f"zoompan=z='{bg_zoom}':x='iw/2-(iw/zoom/2)+sin(on/10)*22':"
+            f"y='ih/2-(ih/zoom/2)+cos(on/13)*14':d={frame_count}:s={width}x{height}:fps={fps},"
+            "eq=saturation=1.12:contrast=1.06:brightness=0.01,"
+            "format=rgba[world]"
+        ),
+        (
+            f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}:{source_crop_x}:{source_crop_y},"
+            "eq=saturation=1.05:contrast=1.08:brightness=-0.015,"
+            "boxblur=0.4:0.4,"
+            f"scale={hero_width}:-2,"
+            f"format=rgba,colorchannelmixer=aa={alpha}[hero]"
+        ),
+        (
+            f"color=c=black@0.0:s={width}x{height}:d={duration},format=rgba,"
+            f"drawbox=x=0:y=0:w=iw:h=ih:color=white@{world_lift}:t=fill[atmosphere]"
+        ),
+        "[world][atmosphere]overlay=0:0:shortest=1[world_lit]",
+        (
+            f"[world_lit][hero]overlay=x='{x_expr}':y='{y_expr}':shortest=1,"
+            "drawbox=x=0:y=0:w=iw:h=ih:color=black@0.18:t=42,"
+            "vignette=PI/5,"
+            f"trim=duration={duration},setpts=PTS-STARTPTS,format=yuv420p[v]"
+        ),
+    ]
+
+    run_ffmpeg(
+        [
+            "-y",
+            "-loop",
+            "1",
+            "-i",
+            str(reference_path),
+            "-ss",
+            str(offset),
+            "-i",
+            str(source_path),
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "[v]",
+            "-t",
+            str(duration),
+            "-r",
+            str(fps),
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            str(output_path),
+        ]
+    )
+
+
 def should_add_motion(shot: dict, index: int, total: int) -> bool:
     if index >= total - 1:
         return False
@@ -396,6 +499,14 @@ def motion_duration(shot: dict) -> float:
     else:
         insert = 1.3
     return min(max(1.0, insert), max(1.0, duration - 1.4))
+
+
+def should_composite_into_world(shot: dict) -> bool:
+    return (
+        shot.get("subjectFraming") in {"hero-in-world", "shared-frame", "world-first"}
+        or shot.get("shotKind") in {"observer", "interaction", "reaction", "landmark"}
+        or shot.get("worldActivity") in {"medium", "high"}
+    )
 
 
 def generate_comfyui_frames(

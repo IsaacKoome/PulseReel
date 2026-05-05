@@ -4,14 +4,15 @@ import { CreateStudio } from "@/components/create-studio";
 export default function CreatePage() {
   return (
     <main className="studio-shell shell">
-      <div className="topbar">
-        <Link className="button-secondary" href="/">
-          Back Home
+      <div className="app-header compact-header">
+        <Link className="brand-mark" href="/">
+          PulseReel
         </Link>
-        <strong>PulseReel Studio</strong>
+        <Link className="button-secondary" href="/">
+          Home
+        </Link>
       </div>
       <CreateStudio />
     </main>
   );
 }
-
