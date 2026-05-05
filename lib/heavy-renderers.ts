@@ -82,18 +82,31 @@ const openModelAdapterProvider: HeavyRenderProvider = {
       };
     }
 
+    const failureMessage =
+      runner.stderr.trim() ||
+      runnerResult?.error ||
+      (runner.exitCode === 0
+        ? "Remote model backend finished without a usable video."
+        : `Runner exited with code ${runner.exitCode}`);
+
     await updateHeavyJobStatus(job.statusPath, {
       provider: "open-model-adapter",
       status: "running",
-      stage: runner.exitCode === 0
-        ? "External model path finished without a usable video, falling back to local heavy renderer"
-        : "External model path failed, falling back to local heavy renderer",
+      stage: hasRemoteBackend
+        ? "Remote model path failed before returning a playable video"
+        : runner.exitCode === 0
+          ? "External model path finished without a usable video, falling back to local heavy renderer"
+          : "External model path failed, falling back to local heavy renderer",
       progress: 36,
-      error:
-        runner.stderr.trim() ||
-        runnerResult?.error ||
-        (runner.exitCode === 0 ? undefined : `Runner exited with code ${runner.exitCode}`),
+      error: failureMessage,
     });
+
+    if (hasRemoteBackend) {
+      throw new Error(
+        `Remote movie worker failed before returning a playable video. ${failureMessage}`,
+      );
+    }
+
     await progress.update(38, "Using local heavy fallback after external model path");
     return localHeavyProvider.render(project, progress, job);
   },

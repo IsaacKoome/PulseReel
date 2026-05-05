@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MoviePlayer } from "@/components/movie-player";
 import { ProjectStatusPoller } from "@/components/project-status-poller";
 import { RecoveredWatchProject } from "@/components/recovered-watch-project";
 import { getTemplateById } from "@/data/templates";
@@ -52,7 +53,11 @@ export default async function WatchPage({
             {isProcessing ? (
               <img alt={`${project.title} poster`} src={project.posterUrl} />
             ) : (
-              <video controls playsInline poster={project.posterUrl} src={project.processedVideoUrl} />
+              <MoviePlayer
+                posterUrl={project.posterUrl}
+                title={project.title}
+                videoUrl={project.processedVideoUrl}
+              />
             )}
           </div>
 

@@ -718,6 +718,31 @@ select {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.watch-video video,
+.watch-video img {
+  width: 100%;
+}
+
+.video-unavailable {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  padding: 28px;
+  text-align: center;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 126, 39, 0.14), transparent 34%),
+    rgba(5, 7, 11, 0.92);
+  color: var(--text);
+}
+
+.video-unavailable p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+}
+
 .poster-card {
   overflow: hidden;
   border-radius: 24px;
