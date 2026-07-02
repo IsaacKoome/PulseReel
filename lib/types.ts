@@ -18,6 +18,8 @@ export type ShotSpec = {
 
 export type HeavyRenderProviderId = "local-heavy-v1" | "open-model-adapter";
 
+export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta" | "seedance-2-fast";
+
 export type MovieProject = {
   id: string;
   slug: string;
@@ -28,7 +30,7 @@ export type MovieProject = {
   premise: string;
   scenePrompt: string;
   persona: string;
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+  renderMode: RenderMode;
   status: "draft" | "processing" | "published" | "failed";
   createdAt: string;
   updatedAt: string;

@@ -1,4 +1,4 @@
-import type { MovieProject } from "@/lib/types";
+import type { MovieProject, RenderMode } from "@/lib/types";
 import {
   createHeavyJobFiles,
   readHeavyJobResult,
@@ -22,7 +22,7 @@ export async function createHeavyProject(input: {
   premise: string;
   scenePrompt: string;
   persona: string;
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+  renderMode: Exclude<RenderMode, "seedance-2-fast">;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
 }, options: { autoStart?: boolean } = {}) {

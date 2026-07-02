@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { RenderMode } from "@/lib/types";
 
 type StatusPayload = {
   slug: string;
   status: "draft" | "processing" | "published" | "failed";
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+  renderMode: RenderMode;
   processedVideoUrl?: string;
   workerJob?: {
     id: string;

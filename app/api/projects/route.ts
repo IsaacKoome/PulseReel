@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createHeavyProject, startHeavyGeneration } from "@/lib/heavy-worker";
 import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
+import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ const schema = z.object({
   scenePrompt: z.string().min(10),
   persona: z.string().min(2),
   renderMode: z
-    .enum(["fast-trailer", "prompt-movie-beta", "heavy-worker-beta"])
+    .enum(["fast-trailer", "prompt-movie-beta", "heavy-worker-beta", "seedance-2-fast"])
     .default("prompt-movie-beta"),
 });
 
@@ -101,7 +102,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (isVercelRuntime() && !process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()) {
+    if (
+      isVercelRuntime() &&
+      parsed.data.renderMode !== "seedance-2-fast" &&
+      !process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()
+    ) {
       return NextResponse.json(
         {
           error:
@@ -109,6 +114,34 @@ export async function POST(request: Request) {
         },
         { status: 503 },
       );
+    }
+
+    if (parsed.data.renderMode === "seedance-2-fast") {
+      const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
+        video,
+        selfie instanceof File && selfie.size > 0 ? selfie : undefined,
+      );
+
+      const project = await createSeedanceProject({
+        creatorName: parsed.data.creatorName,
+        title: parsed.data.title,
+        templateId: parsed.data.templateId,
+        genre: parsed.data.genre,
+        premise: parsed.data.premise,
+        scenePrompt: parsed.data.scenePrompt,
+        persona: parsed.data.persona,
+        sourceVideoUrl,
+        sourceImageUrl,
+      });
+
+      await addProject(project);
+
+      return NextResponse.json({
+        slug: project.slug,
+        status: project.status,
+        executionPath: "seedance-2-fast",
+        project,
+      });
     }
 
     const shouldUseHeavyWorker =

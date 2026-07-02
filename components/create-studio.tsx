@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
-import type { MovieProject } from "@/lib/types";
-
-type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+import type { MovieProject, RenderMode } from "@/lib/types";
 
 type StatusState = {
   tone: "idle" | "success" | "error";
@@ -25,7 +23,7 @@ export function CreateStudio() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
-  const [renderMode] = useState<RenderMode>("heavy-worker-beta");
+  const [renderMode, setRenderMode] = useState<RenderMode>("seedance-2-fast");
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -590,6 +588,34 @@ export function CreateStudio() {
               <span>{template.name}</span>
             </label>
           ))}
+        </div>
+
+        <div className="studio-section-title compact">
+          <span>4</span>
+          <h2>Model</h2>
+        </div>
+
+        <div className="simple-template-list compact-list">
+          <label className={`template-option ${renderMode === "seedance-2-fast" ? "active" : ""}`}>
+            <input
+              checked={renderMode === "seedance-2-fast"}
+              name="modelChoice"
+              onChange={() => setRenderMode("seedance-2-fast")}
+              type="radio"
+              value="seedance-2-fast"
+            />
+            <span>Seedance AI</span>
+          </label>
+          <label className={`template-option ${renderMode === "heavy-worker-beta" ? "active" : ""}`}>
+            <input
+              checked={renderMode === "heavy-worker-beta"}
+              name="modelChoice"
+              onChange={() => setRenderMode("heavy-worker-beta")}
+              type="radio"
+              value="heavy-worker-beta"
+            />
+            <span>Local worker</span>
+          </label>
         </div>
 
         <div className={`status ${status.tone === "error" ? "error" : ""}`}>{status.message}</div>

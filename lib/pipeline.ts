@@ -7,7 +7,7 @@ import sharp from "sharp";
 import { v4 as uuid } from "uuid";
 import { getTemplateById } from "@/data/templates";
 import { assetUrlToPath, getRuntimeAssetDir, isVercelRuntime, runtimeAssetUrl } from "@/lib/runtime-storage";
-import type { MovieProject, ShotSpec, StoryBeat } from "@/lib/types";
+import type { MovieProject, RenderMode, ShotSpec, StoryBeat } from "@/lib/types";
 import { slugify } from "@/lib/utils";
 
 const VIDEO_SIZE = { width: 720, height: 1280 };
@@ -58,7 +58,7 @@ type ProjectInput = {
   premise: string;
   scenePrompt: string;
   persona: string;
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+  renderMode: RenderMode;
   videoFile: File;
   imageFile?: File | null;
 };
@@ -253,7 +253,7 @@ function buildShotPlan(input: {
   scenePrompt: string;
   persona: string;
   templateId: string;
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+  renderMode: RenderMode;
 }) {
   const plan = inferScenePlan(input);
   const template = getTemplateById(input.templateId);
@@ -1087,7 +1087,7 @@ function shouldInsertSourceMotion(
   shot: ShotSpec,
   index: number,
   total: number,
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta",
+  renderMode: RenderMode,
 ) {
   if (index >= total - 1) {
     return false;
@@ -1231,7 +1231,7 @@ async function processVideo(input: {
   scenePrompt: string;
   persona: string;
   templateId: string;
-  renderMode: "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta";
+  renderMode: RenderMode;
 }) {
   const sourcePath = assetUrlToPath(input.sourceVideoUrl) ?? path.join(process.cwd(), "public", input.sourceVideoUrl.replace(/^\//, ""));
   const heroSourcePath = input.sourceImageUrl
@@ -1355,7 +1355,7 @@ export async function createMovieProjectDraft(
   input: Omit<ProjectInput, "videoFile" | "imageFile"> & {
     sourceVideoUrl: string;
     sourceImageUrl?: string;
-    status?: "draft" | "processing" | "published";
+    status?: "draft" | "processing" | "published" | "failed";
   },
 ): Promise<MovieProject> {
   await ensurePublicFolders();

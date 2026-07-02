@@ -22,7 +22,9 @@ export default async function WatchPage({
 
   const template = getTemplateById(project.templateId);
   const modeLabel =
-    project.renderMode === "heavy-worker-beta"
+    project.renderMode === "seedance-2-fast"
+      ? "Seedance AI"
+      : project.renderMode === "heavy-worker-beta"
       ? "Heavy worker beta"
       : project.renderMode === "prompt-movie-beta"
         ? "Prompt movie beta"

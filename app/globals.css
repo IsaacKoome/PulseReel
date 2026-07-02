@@ -668,6 +668,10 @@ select {
   gap: 10px;
 }
 
+.compact-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .simple-template-list .template-option {
   display: flex;
   align-items: center;
