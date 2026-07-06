@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createHeavyProject, startHeavyGeneration } from "@/lib/heavy-worker";
+import { createHeavyProject, enqueueHeavyGeneration } from "@/lib/heavy-worker";
 import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       }, { autoStart: !isVercelRuntime() });
 
       if (isVercelRuntime()) {
-        await startHeavyGeneration(project.id);
+        await enqueueHeavyGeneration(project.id);
       }
 
       const finalProject = (await getProjectById(project.id)) ?? project;

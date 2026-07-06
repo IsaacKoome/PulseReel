@@ -9,7 +9,7 @@ from typing import Annotated
 from urllib import parse, request as urlrequest
 
 import boto3
-from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 
 
@@ -167,6 +167,12 @@ def public_video_url(request: Request, filename: str) -> str:
     return str(request.url_for("outputs", path=filename))
 
 
+def public_video_url_from_base(base_url: str, filename: str) -> str:
+    if PUBLIC_BASE_URL:
+        return f"{PUBLIC_BASE_URL}/outputs/{filename}"
+    return f"{base_url.rstrip('/')}/outputs/{filename}"
+
+
 def storage_enabled() -> bool:
     return bool(STORAGE_BUCKET and STORAGE_ACCESS_KEY and STORAGE_SECRET_KEY)
 
@@ -207,6 +213,20 @@ def final_video_url(request: Request, output_path: Path, job_id: str) -> str:
         remote_key = f"{key_prefix}/{job_id}/final.mp4"
         return upload_output_to_storage(output_path, remote_key)
     return public_video_url(request, output_path.name)
+
+
+def final_video_url_from_base(base_url: str, output_path: Path, job_id: str) -> str:
+    if storage_enabled():
+        key_prefix = STORAGE_PREFIX or "jobs"
+        remote_key = f"{key_prefix}/{job_id}/final.mp4"
+        return upload_output_to_storage(output_path, remote_key)
+    return public_video_url_from_base(base_url, output_path.name)
+
+
+def worker_job_status_url(request: Request, job_id: str) -> str:
+    if PUBLIC_BASE_URL:
+        return f"{PUBLIC_BASE_URL}/pulsereel/jobs/{job_id}"
+    return str(request.url_for("job_status", job_id=job_id))
 
 
 def verify_authorization(authorization: str | None) -> None:
@@ -713,6 +733,175 @@ def health() -> dict:
         "comfyuiConfigured": comfyui_enabled(),
         "durableStorageConfigured": storage_enabled(),
     }
+
+
+def async_status_path(job_id: str) -> Path:
+    return JOBS_DIR / job_id / "status.json"
+
+
+def write_async_status(job_id: str, data: dict) -> None:
+    status_path = async_status_path(job_id)
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    status_path.write_text(
+        json.dumps(
+            {
+                "jobId": job_id,
+                "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                **data,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+def read_async_status(job_id: str) -> dict | None:
+    status_path = async_status_path(job_id)
+    if not status_path.exists():
+        return None
+    return json.loads(status_path.read_text(encoding="utf-8"))
+
+
+async def save_job_inputs(
+    request: Request,
+    job_id: str,
+    payload: UploadFile,
+    source_video: UploadFile | None,
+    source_image: UploadFile | None,
+    poster: UploadFile | None,
+) -> tuple[dict, Path | None, dict[int, Path], Path | None]:
+    job_dir = JOBS_DIR / job_id
+    uploads_dir = job_dir / "uploads"
+    if job_dir.exists():
+        shutil.rmtree(job_dir)
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    payload_path = await save_upload(payload, uploads_dir / "payload.json")
+    if not payload_path:
+        raise HTTPException(status_code=400, detail="Missing payload file.")
+
+    payload_json = json.loads(payload_path.read_text(encoding="utf-8"))
+    source_video_path = await save_upload(source_video, uploads_dir / safe_upload_name(source_video, "source-video"))
+    source_image_path = await save_upload(source_image, uploads_dir / safe_upload_name(source_image, "source-image"))
+    await save_upload(poster, uploads_dir / safe_upload_name(poster, "poster"))
+
+    form = await request.form()
+    reference_paths: dict[int, Path] = {}
+    for key, value in form.multi_items():
+      if not key.startswith("reference_") or not hasattr(value, "read"):
+          continue
+      try:
+          index = int(key.replace("reference_", ""))
+      except ValueError:
+          continue
+      filename = safe_upload_name(value, f"{key}.png")
+      saved = await save_upload(value, uploads_dir / f"{key}-{filename}")
+      if saved:
+          reference_paths[index] = saved
+
+    identity_image = source_image_path
+    if identity_image is None and source_video_path is not None:
+        identity_image = uploads_dir / "identity-frame.png"
+        extract_identity_frame(source_video_path, identity_image)
+
+    return payload_json, source_video_path, reference_paths, identity_image
+
+
+def render_queued_job(job_id: str, public_base_url: str) -> None:
+    job_dir = JOBS_DIR / job_id
+    uploads_dir = job_dir / "uploads"
+    payload_path = uploads_dir / "payload.json"
+    try:
+        write_async_status(job_id, {"status": "running", "progress": 18, "stage": "Preparing movie render"})
+        payload_json = json.loads(payload_path.read_text(encoding="utf-8"))
+        source_video_candidates = [
+            item for item in uploads_dir.iterdir()
+            if item.is_file() and item.name != "payload.json" and item.name.startswith("source-video")
+        ]
+        source_video_path = source_video_candidates[0] if source_video_candidates else None
+        source_image_candidates = [
+            item for item in uploads_dir.iterdir()
+            if item.is_file() and item.name.startswith("source-image")
+        ]
+        identity_image = source_image_candidates[0] if source_image_candidates else None
+        if identity_image is None and source_video_path is not None:
+            identity_image = uploads_dir / "identity-frame.png"
+            if not identity_image.exists():
+                extract_identity_frame(source_video_path, identity_image)
+
+        reference_paths: dict[int, Path] = {}
+        for item in uploads_dir.iterdir():
+            if not item.is_file() or not item.name.startswith("reference_"):
+                continue
+            try:
+                index = int(item.name.split("-", 1)[0].replace("reference_", ""))
+            except ValueError:
+                continue
+            reference_paths[index] = item
+
+        write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
+        output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
+        write_async_status(job_id, {"status": "running", "progress": 88, "stage": "Publishing final movie"})
+        video_url = final_video_url_from_base(public_base_url, output_path, job_id)
+        write_async_status(
+            job_id,
+            {
+                "status": "completed",
+                "progress": 100,
+                "stage": "Movie ready",
+                "processedVideoUrl": video_url,
+                "shotPlan": payload_json.get("shots", []),
+            },
+        )
+    except Exception as error:
+        write_async_status(
+            job_id,
+            {
+                "status": "failed",
+                "progress": 0,
+                "stage": "Worker render failed",
+                "error": str(error),
+            },
+        )
+
+
+@app.post("/pulsereel/jobs")
+async def enqueue_job(
+    background_tasks: BackgroundTasks,
+    request: Request,
+    payload: Annotated[UploadFile, File()],
+    protocolVersion: Annotated[str, Form()],
+    jobId: Annotated[str, Form()],
+    authorization: Annotated[str | None, Header()] = None,
+    sourceVideo: Annotated[UploadFile | None, File()] = None,
+    sourceImage: Annotated[UploadFile | None, File()] = None,
+    poster: Annotated[UploadFile | None, File()] = None,
+) -> dict:
+    verify_authorization(authorization)
+
+    if protocolVersion != "pulsereel-heavy-job-v1":
+        raise HTTPException(status_code=400, detail="Unsupported PulseReel protocol version.")
+
+    await save_job_inputs(request, jobId, payload, sourceVideo, sourceImage, poster)
+    write_async_status(jobId, {"status": "queued", "progress": 8, "stage": "Queued on PulseReel worker"})
+    background_tasks.add_task(render_queued_job, jobId, str(request.base_url).rstrip("/"))
+
+    return {
+        "status": "queued",
+        "jobId": jobId,
+        "progress": 8,
+        "stage": "Queued on PulseReel worker",
+        "statusUrl": worker_job_status_url(request, jobId),
+    }
+
+
+@app.get("/pulsereel/jobs/{job_id}", name="job_status")
+def job_status(job_id: str, authorization: Annotated[str | None, Header()] = None) -> dict:
+    verify_authorization(authorization)
+    status = read_async_status(job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Worker job not found.")
+    return status
 
 
 @app.post("/pulsereel/render")

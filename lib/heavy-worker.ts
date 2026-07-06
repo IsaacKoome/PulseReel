@@ -1,6 +1,8 @@
 import type { MovieProject, RenderMode } from "@/lib/types";
 import {
   createHeavyJobFiles,
+  enqueueRemoteModelBackendJob,
+  pollRemoteModelBackendJob,
   readHeavyJobResult,
   readHeavyJobPayload,
   updateHeavyJobStatus,
@@ -49,6 +51,52 @@ export async function createHeavyProject(input: {
     void startHeavyGeneration(project.id);
   }
   return project;
+}
+
+export async function enqueueHeavyGeneration(projectId: string) {
+  const project = await getProjectById(projectId);
+  if (!project?.workerJob?.payloadPath || !project.workerJob.resultPath) {
+    throw new Error("Heavy job files were not prepared.");
+  }
+
+  const statusPath = project.workerJob.payloadPath.replace(/payload\.json$/, "status.json");
+  const queued = await enqueueRemoteModelBackendJob({
+    payloadPath: project.workerJob.payloadPath,
+    resultPath: project.workerJob.resultPath,
+    statusPath,
+  });
+
+  if (!queued) {
+    void startHeavyGeneration(projectId);
+    return project;
+  }
+
+  await updateHeavyJobStatus(statusPath, {
+    provider: project.workerJob.provider,
+    status: queued.status,
+    stage: queued.stage ?? "Remote worker accepted the movie job",
+    progress: queued.progress ?? 12,
+  });
+
+  const updated = await updateProject(projectId, (item) => ({
+    ...item,
+    status: "processing",
+    updatedAt: new Date().toISOString(),
+    workerJob: {
+      id: item.workerJob?.id ?? `job-${item.id}`,
+      provider: item.workerJob?.provider ?? project.workerJob!.provider,
+      status: queued.status,
+      progress: queued.progress ?? 12,
+      stage: queued.stage ?? "Remote worker accepted the movie job",
+      payloadPath: item.workerJob?.payloadPath,
+      resultPath: item.workerJob?.resultPath,
+      remoteJobId: queued.jobId,
+      remoteStatusUrl: queued.statusUrl,
+      startedAt: item.workerJob?.startedAt ?? new Date().toISOString(),
+    },
+  }));
+
+  return updated ?? project;
 }
 
 export async function startHeavyGeneration(projectId: string) {
@@ -192,6 +240,133 @@ export async function getProjectStatus(slug: string) {
   const project = await getProjectBySlug(slug);
   if (!project) {
     return null;
+  }
+
+  if (
+    project.workerJob?.remoteStatusUrl &&
+    project.status === "processing"
+  ) {
+    try {
+      const remote = await pollRemoteModelBackendJob(project.workerJob.remoteStatusUrl);
+
+      if (remote.status === "completed" && remote.processedVideoUrl) {
+        const updated = await updateProject(project.id, (item) => ({
+          ...item,
+          status: "published",
+          processedVideoUrl: remote.processedVideoUrl ?? item.processedVideoUrl,
+          shotPlan: remote.shotPlan ?? item.shotPlan,
+          updatedAt: new Date().toISOString(),
+          workerJob: {
+            id: item.workerJob?.id ?? `job-${item.id}`,
+            provider: item.workerJob?.provider ?? project.workerJob!.provider,
+            status: "completed",
+            progress: 100,
+            stage: "Remote worker movie ready",
+            payloadPath: item.workerJob?.payloadPath,
+            resultPath: item.workerJob?.resultPath,
+            remoteJobId: item.workerJob?.remoteJobId ?? remote.jobId,
+            remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+            startedAt: item.workerJob?.startedAt,
+            completedAt: new Date().toISOString(),
+          },
+        }));
+        if (!updated) {
+          return null;
+        }
+        return {
+          slug: updated.slug,
+          status: updated.status,
+          renderMode: updated.renderMode,
+          processedVideoUrl: updated.processedVideoUrl,
+          workerJob: updated.workerJob,
+        };
+      }
+
+      if (remote.status === "failed") {
+        const updated = await updateProject(project.id, (item) => ({
+          ...item,
+          status: "failed",
+          updatedAt: new Date().toISOString(),
+          workerJob: {
+            id: item.workerJob?.id ?? `job-${item.id}`,
+            provider: item.workerJob?.provider ?? project.workerJob!.provider,
+            status: "failed",
+            progress: item.workerJob?.progress ?? 0,
+            stage: "Remote worker failed",
+            payloadPath: item.workerJob?.payloadPath,
+            resultPath: item.workerJob?.resultPath,
+            remoteJobId: item.workerJob?.remoteJobId ?? remote.jobId,
+            remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+            startedAt: item.workerJob?.startedAt,
+            completedAt: new Date().toISOString(),
+            error: remote.error || "Remote worker failed before returning a playable video.",
+          },
+        }));
+        if (!updated) {
+          return null;
+        }
+        return {
+          slug: updated.slug,
+          status: updated.status,
+          renderMode: updated.renderMode,
+          processedVideoUrl: updated.processedVideoUrl,
+          workerJob: updated.workerJob,
+        };
+      }
+
+      const updated = await updateProject(project.id, (item) => ({
+        ...item,
+        status: "processing",
+        updatedAt: new Date().toISOString(),
+        workerJob: {
+          id: item.workerJob?.id ?? `job-${item.id}`,
+          provider: item.workerJob?.provider ?? project.workerJob!.provider,
+          status: remote.status === "running" ? "running" : "queued",
+          progress: remote.progress ?? item.workerJob?.progress ?? 12,
+          stage: remote.stage ?? item.workerJob?.stage ?? "Remote worker is rendering",
+          payloadPath: item.workerJob?.payloadPath,
+          resultPath: item.workerJob?.resultPath,
+          remoteJobId: item.workerJob?.remoteJobId ?? remote.jobId,
+          remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+          startedAt: item.workerJob?.startedAt,
+        },
+      }));
+      if (updated) {
+        return {
+          slug: updated.slug,
+          status: updated.status,
+          renderMode: updated.renderMode,
+          processedVideoUrl: updated.processedVideoUrl,
+          workerJob: updated.workerJob,
+        };
+      }
+    } catch (error) {
+      const updated = await updateProject(project.id, (item) => ({
+        ...item,
+        workerJob: {
+          id: item.workerJob?.id ?? `job-${item.id}`,
+          provider: item.workerJob?.provider ?? project.workerJob!.provider,
+          status: item.workerJob?.status ?? "running",
+          progress: item.workerJob?.progress ?? 12,
+          stage: "Waiting for remote worker status",
+          payloadPath: item.workerJob?.payloadPath,
+          resultPath: item.workerJob?.resultPath,
+          remoteJobId: item.workerJob?.remoteJobId,
+          remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+          startedAt: item.workerJob?.startedAt,
+          error: error instanceof Error ? error.message : "Could not reach remote worker status.",
+        },
+      }));
+      if (updated) {
+        return {
+          slug: updated.slug,
+          status: updated.status,
+          renderMode: updated.renderMode,
+          processedVideoUrl: updated.processedVideoUrl,
+          workerJob: updated.workerJob,
+        };
+      }
+    }
   }
 
   if (

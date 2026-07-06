@@ -52,6 +52,8 @@ export type MovieProject = {
     stage: string;
     payloadPath?: string;
     resultPath?: string;
+    remoteJobId?: string;
+    remoteStatusUrl?: string;
     startedAt?: string;
     completedAt?: string;
     error?: string;

@@ -1108,6 +1108,26 @@ type RunnerExecutionResult = {
   command: string;
 };
 
+export type RemoteQueuedJob = {
+  status: "queued" | "running";
+  jobId: string;
+  statusUrl: string;
+  progress?: number;
+  stage?: string;
+};
+
+export type RemoteJobStatus = {
+  status?: "queued" | "running" | "completed" | "failed";
+  jobId?: string;
+  statusUrl?: string;
+  progress?: number;
+  stage?: string;
+  processedVideoUrl?: string;
+  videoBase64?: string;
+  shotPlan?: HeavyJobResult["shotPlan"];
+  error?: string;
+};
+
 async function appendFileIfExists(formData: FormData, fieldName: string, filePath?: string) {
   if (!filePath) {
     return;
@@ -1119,6 +1139,100 @@ async function appendFileIfExists(formData: FormData, fieldName: string, filePat
     formData.append(fieldName, blob, path.basename(filePath));
   } catch {
     return;
+  }
+}
+
+async function buildRemoteJobFormData(payloadPath: string) {
+  const payload = await readHeavyJobPayload(payloadPath);
+  const formData = new FormData();
+  formData.append("payload", new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "payload.json");
+  formData.append("protocolVersion", payload.protocolVersion);
+  formData.append("jobId", payload.jobId);
+
+  await appendFileIfExists(formData, "sourceVideo", payload.assets.sourceVideoPath);
+  await appendFileIfExists(formData, "sourceImage", payload.assets.sourceImagePath);
+  await appendFileIfExists(formData, "poster", payload.assets.posterPath);
+
+  for (const shot of payload.shotReferences) {
+    await appendFileIfExists(formData, `reference_${shot.index}`, shot.referencePngPath);
+  }
+
+  return { payload, formData };
+}
+
+function remoteHeaders() {
+  const token = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN?.trim();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
+function remoteJobsUrl(renderUrl: string) {
+  const url = new URL(renderUrl);
+  url.pathname = url.pathname.replace(/\/pulsereel\/render\/?$/, "/pulsereel/jobs");
+  if (!url.pathname.endsWith("/pulsereel/jobs")) {
+    url.pathname = `${url.pathname.replace(/\/$/, "")}/jobs`;
+  }
+  return url.toString();
+}
+
+export async function enqueueRemoteModelBackendJob(input: {
+  payloadPath: string;
+  resultPath: string;
+  statusPath: string;
+}): Promise<RemoteQueuedJob | null> {
+  const remoteUrl = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim();
+  if (!remoteUrl) {
+    return null;
+  }
+
+  const { formData } = await buildRemoteJobFormData(input.payloadPath);
+  const endpoint = remoteJobsUrl(remoteUrl);
+  const response = await fetch(endpoint, {
+    method: "POST",
+    body: formData,
+    headers: remoteHeaders(),
+  });
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Remote model backend returned ${response.status}: ${responseText}`);
+  }
+
+  let remoteResult: RemoteJobStatus;
+  try {
+    remoteResult = JSON.parse(responseText);
+  } catch {
+    throw new Error("Remote model backend did not return JSON when queueing the job.");
+  }
+
+  if (!remoteResult.jobId || !remoteResult.statusUrl) {
+    throw new Error("Remote model backend did not return a jobId and statusUrl.");
+  }
+
+  return {
+    status: remoteResult.status === "running" ? "running" : "queued",
+    jobId: remoteResult.jobId,
+    statusUrl: remoteResult.statusUrl,
+    progress: remoteResult.progress,
+    stage: remoteResult.stage,
+  };
+}
+
+export async function pollRemoteModelBackendJob(statusUrl: string): Promise<RemoteJobStatus> {
+  const response = await fetch(statusUrl, {
+    method: "GET",
+    headers: remoteHeaders(),
+    cache: "no-store",
+  });
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Remote model status returned ${response.status}: ${responseText}`);
+  }
+
+  try {
+    return JSON.parse(responseText) as RemoteJobStatus;
+  } catch {
+    throw new Error("Remote model status did not return JSON.");
   }
 }
 
@@ -1142,20 +1256,7 @@ async function executeRemoteModelBackend(input: {
   }
 
   const token = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN?.trim();
-  const payload = await readHeavyJobPayload(input.payloadPath);
-  const formData = new FormData();
-  formData.append("payload", new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "payload.json");
-  formData.append("protocolVersion", payload.protocolVersion);
-  formData.append("jobId", payload.jobId);
-
-  await appendFileIfExists(formData, "sourceVideo", payload.assets.sourceVideoPath);
-  await appendFileIfExists(formData, "sourceImage", payload.assets.sourceImagePath);
-  await appendFileIfExists(formData, "poster", payload.assets.posterPath);
-
-  for (const shot of payload.shotReferences) {
-    await appendFileIfExists(formData, `reference_${shot.index}`, shot.referencePngPath);
-  }
-
+  const { payload, formData } = await buildRemoteJobFormData(input.payloadPath);
   const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
   const response = await fetch(remoteUrl, {
     method: "POST",
