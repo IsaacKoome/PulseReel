@@ -53,7 +53,11 @@ export default async function WatchPage({
 
           <div className="watch-video" style={{ marginTop: 18 }}>
             {isProcessing ? (
-              <img alt={`${project.title} poster`} src={project.posterUrl} />
+              <div className="render-placeholder">
+                <span className="eyebrow-copy">Rendering</span>
+                <strong>{project.title}</strong>
+                <p>Your movie is being finished by the worker. This page will refresh when it is ready.</p>
+              </div>
             ) : (
               <MoviePlayer
                 posterUrl={project.posterUrl}
@@ -107,8 +111,10 @@ export default async function WatchPage({
         </section>
 
         <section className="watch-card glass">
-          <div className="poster-card">
-            <img alt={`${project.title} poster`} src={project.posterUrl} />
+          <div className="poster-card poster-fallback">
+            <span>PulseReel Original</span>
+            <strong>{project.title}</strong>
+            <p>{template.name}</p>
           </div>
 
           <div className="panel" style={{ marginTop: 18 }}>
