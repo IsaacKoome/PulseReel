@@ -53,8 +53,8 @@ export async function createHeavyProject(input: {
   return project;
 }
 
-export async function enqueueHeavyGeneration(projectId: string) {
-  const project = await getProjectById(projectId);
+export async function enqueueHeavyGeneration(projectOrId: MovieProject | string) {
+  const project = typeof projectOrId === "string" ? await getProjectById(projectOrId) : projectOrId;
   if (!project?.workerJob?.payloadPath || !project.workerJob.resultPath) {
     throw new Error("Heavy job files were not prepared.");
   }
@@ -67,7 +67,7 @@ export async function enqueueHeavyGeneration(projectId: string) {
   });
 
   if (!queued) {
-    void startHeavyGeneration(projectId);
+    void startHeavyGeneration(project.id);
     return project;
   }
 
@@ -78,7 +78,7 @@ export async function enqueueHeavyGeneration(projectId: string) {
     progress: queued.progress ?? 12,
   });
 
-  const updated = await updateProject(projectId, (item) => ({
+  const updated = await updateProject(project.id, (item) => ({
     ...item,
     status: "processing",
     updatedAt: new Date().toISOString(),

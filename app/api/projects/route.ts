@@ -167,11 +167,12 @@ export async function POST(request: Request) {
         sourceImageUrl,
       }, { autoStart: !isVercelRuntime() });
 
+      let finalProject = project;
       if (isVercelRuntime()) {
-        await enqueueHeavyGeneration(project.id);
+        finalProject = await enqueueHeavyGeneration(project);
       }
 
-      const finalProject = (await getProjectById(project.id)) ?? project;
+      finalProject = (await getProjectById(project.id)) ?? finalProject;
 
       return NextResponse.json({
         slug: finalProject.slug,
