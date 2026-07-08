@@ -1174,6 +1174,17 @@ function remoteJobsUrl(renderUrl: string) {
   return url.toString();
 }
 
+export function remoteStatusUrlForJob(jobId: string) {
+  const remoteUrl = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim();
+  if (!remoteUrl) {
+    return null;
+  }
+
+  const jobsUrl = new URL(remoteJobsUrl(remoteUrl));
+  jobsUrl.pathname = `${jobsUrl.pathname.replace(/\/$/, "")}/${encodeURIComponent(jobId)}`;
+  return jobsUrl.toString();
+}
+
 export async function enqueueRemoteModelBackendJob(input: {
   payloadPath: string;
   resultPath: string;

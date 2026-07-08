@@ -5,6 +5,7 @@ import {
   pollRemoteModelBackendJob,
   readHeavyJobResult,
   readHeavyJobPayload,
+  remoteStatusUrlForJob,
   updateHeavyJobStatus,
   writeHeavyJobResult,
 } from "@/lib/heavy-job-runner";
@@ -242,12 +243,16 @@ export async function getProjectStatus(slug: string) {
     return null;
   }
 
+  const derivedRemoteStatusUrl =
+    project.workerJob?.remoteStatusUrl ??
+    (project.workerJob?.id ? remoteStatusUrlForJob(project.workerJob.id) : null);
+
   if (
-    project.workerJob?.remoteStatusUrl &&
+    derivedRemoteStatusUrl &&
     project.status === "processing"
   ) {
     try {
-      const remote = await pollRemoteModelBackendJob(project.workerJob.remoteStatusUrl);
+      const remote = await pollRemoteModelBackendJob(derivedRemoteStatusUrl);
 
       if (remote.status === "completed" && remote.processedVideoUrl) {
         const updated = await updateProject(project.id, (item) => ({
@@ -265,7 +270,7 @@ export async function getProjectStatus(slug: string) {
             payloadPath: item.workerJob?.payloadPath,
             resultPath: item.workerJob?.resultPath,
             remoteJobId: item.workerJob?.remoteJobId ?? remote.jobId,
-            remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+            remoteStatusUrl: item.workerJob?.remoteStatusUrl ?? derivedRemoteStatusUrl,
             startedAt: item.workerJob?.startedAt,
             completedAt: new Date().toISOString(),
           },
@@ -296,7 +301,7 @@ export async function getProjectStatus(slug: string) {
             payloadPath: item.workerJob?.payloadPath,
             resultPath: item.workerJob?.resultPath,
             remoteJobId: item.workerJob?.remoteJobId ?? remote.jobId,
-            remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+            remoteStatusUrl: item.workerJob?.remoteStatusUrl ?? derivedRemoteStatusUrl,
             startedAt: item.workerJob?.startedAt,
             completedAt: new Date().toISOString(),
             error: remote.error || "Remote worker failed before returning a playable video.",
@@ -327,7 +332,7 @@ export async function getProjectStatus(slug: string) {
           payloadPath: item.workerJob?.payloadPath,
           resultPath: item.workerJob?.resultPath,
           remoteJobId: item.workerJob?.remoteJobId ?? remote.jobId,
-          remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+          remoteStatusUrl: item.workerJob?.remoteStatusUrl ?? derivedRemoteStatusUrl,
           startedAt: item.workerJob?.startedAt,
         },
       }));
@@ -352,7 +357,7 @@ export async function getProjectStatus(slug: string) {
           payloadPath: item.workerJob?.payloadPath,
           resultPath: item.workerJob?.resultPath,
           remoteJobId: item.workerJob?.remoteJobId,
-          remoteStatusUrl: item.workerJob?.remoteStatusUrl,
+          remoteStatusUrl: item.workerJob?.remoteStatusUrl ?? derivedRemoteStatusUrl ?? undefined,
           startedAt: item.workerJob?.startedAt,
           error: error instanceof Error ? error.message : "Could not reach remote worker status.",
         },
