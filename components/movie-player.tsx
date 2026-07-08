@@ -3,6 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 
+function withDownloadFlag(videoUrl: string) {
+  try {
+    const url = new URL(videoUrl);
+    url.searchParams.set("download", "1");
+    return url.toString();
+  } catch {
+    const separator = videoUrl.includes("?") ? "&" : "?";
+    return `${videoUrl}${separator}download=1`;
+  }
+}
+
 export function MoviePlayer({
   title,
   posterUrl,
@@ -29,16 +40,28 @@ export function MoviePlayer({
     );
   }
 
+  const downloadUrl = withDownloadFlag(videoUrl);
+
   return (
-    <video
-      controls
-      playsInline
-      poster={posterUrl}
-      preload="metadata"
-      src={videoUrl}
-      onError={() => setHasPlaybackError(true)}
-    >
-      {title}
-    </video>
+    <div className="movie-player">
+      <video
+        controls
+        playsInline
+        poster={posterUrl}
+        preload="auto"
+        src={videoUrl}
+        onError={() => setHasPlaybackError(true)}
+      >
+        {title}
+      </video>
+      <div className="movie-actions">
+        <a className="button-secondary" href={videoUrl} target="_blank" rel="noreferrer">
+          Open movie
+        </a>
+        <a className="button" href={downloadUrl} download={`${title}.mp4`} target="_blank" rel="noreferrer">
+          Download movie
+        </a>
+      </div>
+    </div>
   );
 }

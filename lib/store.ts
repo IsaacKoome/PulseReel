@@ -104,3 +104,14 @@ export async function updateProject(projectId: string, updater: (project: MovieP
   await saveProjects(projects);
   return updated;
 }
+
+export async function deleteProjectBySlug(slug: string) {
+  const projects = await getProjects();
+  const remaining = projects.filter((project) => project.slug !== slug);
+  if (remaining.length === projects.length) {
+    return false;
+  }
+
+  await saveProjects(remaining);
+  return true;
+}

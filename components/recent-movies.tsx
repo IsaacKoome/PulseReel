@@ -32,6 +32,7 @@ function readLocalProjects() {
 export function RecentMovies({ initialProjects }: { initialProjects: MovieProject[] }) {
   const [localProjects, setLocalProjects] = useState<MovieProject[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalProjects(readLocalProjects());
@@ -66,31 +67,64 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
     );
   }
 
+  async function deleteMovie(project: MovieProject) {
+    const confirmed = window.confirm(`Delete "${project.title}" from PulseReel?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingSlug(project.slug);
+    try {
+      const response = await fetch(`/api/projects/${project.slug}`, { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error("Could not delete movie.");
+      }
+
+      window.localStorage.removeItem(`pulsereel:project:${project.slug}`);
+      setLocalProjects((items) => items.filter((item) => item.slug !== project.slug));
+      window.location.reload();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not delete movie.");
+    } finally {
+      setDeletingSlug(null);
+    }
+  }
+
   return (
     <>
       {projects.map((project) => {
         const template = getTemplateById(project.templateId);
         return (
-          <Link className="feed-card glass" href={`/watch/${project.slug}`} key={project.id}>
-            <div className="feed-art" style={{ background: `linear-gradient(140deg, ${template.palette[0]}, ${template.palette[1]} 52%, ${template.palette[2]})` }}>
-              <div
-                style={{
-                  position: "absolute",
-                  inset: "auto 18px 18px",
-                  zIndex: 2,
-                }}
-              >
-                <strong style={{ fontSize: "1.2rem" }}>{project.title}</strong>
-                <p className="muted" style={{ margin: "6px 0 0" }}>
-                  {project.creatorName}
-                </p>
+          <article className="feed-card glass movie-card" key={project.id}>
+            <Link className="movie-card-link" href={`/watch/${project.slug}`}>
+              <div className="feed-art" style={{ background: `linear-gradient(140deg, ${template.palette[0]}, ${template.palette[1]} 52%, ${template.palette[2]})` }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "auto 18px 18px",
+                    zIndex: 2,
+                  }}
+                >
+                  <strong style={{ fontSize: "1.2rem" }}>{project.title}</strong>
+                  <p className="muted" style={{ margin: "6px 0 0" }}>
+                    {project.creatorName}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="feed-copy">
-              <h3>{project.title}</h3>
-              <p>{project.creatorName}</p>
-            </div>
-          </Link>
+              <div className="feed-copy">
+                <h3>{project.title}</h3>
+                <p>{project.creatorName}</p>
+              </div>
+            </Link>
+            <button
+              className="delete-movie-button"
+              disabled={deletingSlug === project.slug}
+              onClick={() => deleteMovie(project)}
+              type="button"
+            >
+              {deletingSlug === project.slug ? "Deleting..." : "Delete"}
+            </button>
+          </article>
         );
       })}
     </>

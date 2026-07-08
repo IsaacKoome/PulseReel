@@ -442,6 +442,38 @@ select {
   display: grid;
 }
 
+.movie-card {
+  position: relative;
+}
+
+.movie-card-link {
+  display: grid;
+}
+
+.delete-movie-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 4;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(5, 7, 11, 0.72);
+  color: #fecaca;
+  cursor: pointer;
+}
+
+.delete-movie-button:hover {
+  background: rgba(127, 29, 29, 0.86);
+  color: #fff;
+}
+
+.delete-movie-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .feed-copy {
   padding: 16px 18px 18px;
   display: grid;
@@ -725,6 +757,23 @@ select {
 .watch-video video,
 .watch-video img {
   width: 100%;
+}
+
+.movie-player {
+  display: grid;
+  gap: 12px;
+}
+
+.movie-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 4px 4px;
+}
+
+.movie-actions .button,
+.movie-actions .button-secondary {
+  min-height: 42px;
 }
 
 .render-placeholder,

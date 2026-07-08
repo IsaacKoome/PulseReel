@@ -10,7 +10,7 @@ from urllib import parse, request as urlrequest
 
 import boto3
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -38,7 +38,27 @@ JOBS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="PulseReel GPU Worker", version="0.1.0")
-app.mount("/outputs", StaticFiles(directory=str(OUTPUT_DIR)), name="outputs")
+
+
+@app.get("/outputs/{filename:path}", name="outputs")
+def output_file(filename: str, request: Request):
+    output_path = (OUTPUT_DIR / filename).resolve()
+    try:
+        output_path.relative_to(OUTPUT_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Output not found.")
+
+    if not output_path.exists() or not output_path.is_file():
+        raise HTTPException(status_code=404, detail="Output not found.")
+
+    headers = {
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "Accept-Ranges": "bytes",
+    }
+    if request.query_params.get("download") == "1":
+        headers["Content-Disposition"] = f'attachment; filename="{output_path.name}"'
+
+    return FileResponse(output_path, media_type="video/mp4", headers=headers)
 
 
 def run_ffmpeg(args: list[str]) -> None:
