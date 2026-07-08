@@ -460,8 +460,8 @@ def render_world_composite_clip(
         bg_zoom = "1.06+0.0002*on"
 
     world_lift = "0.045" if world_activity == "high" else "0.028"
-    source_crop_x = "x=(in_w-out_w)/2+sin(t*0.55)*18"
-    source_crop_y = "y=(in_h-out_h)/2+cos(t*0.55)*10"
+    source_crop_x = "(in_w-out_w)/2+sin(t*0.55)*18"
+    source_crop_y = "(in_h-out_h)/2+cos(t*0.55)*10"
 
     filters = [
         (
@@ -521,24 +521,34 @@ def render_world_composite_clip(
 
 
 def should_add_motion(shot: dict, index: int, total: int) -> bool:
+    if total <= 1:
+        return True
     if index >= total - 1:
-        return False
+        return (
+            shot.get("shotKind") in {"reaction", "landmark"}
+            or shot.get("subjectFraming") in {"hero-in-world", "shared-frame"}
+        )
     return (
-        shot.get("worldActivity") == "high"
-        or shot.get("shotKind") in {"observer", "interaction", "action"}
-        or index % 4 == 2
+        shot.get("subjectFraming") in {"hero-in-world", "shared-frame", "world-first"}
+        or shot.get("worldActivity") in {"medium", "high"}
+        or shot.get("shotKind") in {"observer", "interaction", "action", "reaction", "landmark"}
+        or index % 3 == 1
     )
 
 
 def motion_duration(shot: dict) -> float:
     duration = float(shot.get("durationSeconds", 5))
-    if shot.get("shotKind") == "interaction":
-        insert = 2.2
+    if shot.get("shotKind") == "reaction":
+        insert = 2.4
+    elif shot.get("shotKind") == "interaction":
+        insert = 2.6
     elif shot.get("worldActivity") == "high" or shot.get("shotKind") == "observer":
-        insert = 1.8
+        insert = 2.2
+    elif shot.get("subjectFraming") in {"hero-in-world", "shared-frame", "world-first"}:
+        insert = 2.0
     else:
-        insert = 1.3
-    return min(max(1.0, insert), max(1.0, duration - 1.4))
+        insert = 1.5
+    return min(max(1.2, insert), max(1.0, duration - 0.9))
 
 
 def should_composite_into_world(shot: dict) -> bool:
@@ -698,7 +708,10 @@ def render_movie(
 
         if source_video and insert_duration:
             motion_output = renders_dir / f"{index + 1:02d}-{shot.get('shotId', uuid.uuid4().hex)}-motion.mp4"
-            render_source_clip(source_video, motion_output, shot, output_spec, insert_duration)
+            if should_composite_into_world(shot):
+                render_world_composite_clip(reference_path, source_video, motion_output, shot, output_spec, insert_duration)
+            else:
+                render_source_clip(source_video, motion_output, shot, output_spec, insert_duration)
             segment_paths.append(motion_output)
 
     if not segment_paths and source_video:

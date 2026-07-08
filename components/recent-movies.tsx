@@ -33,6 +33,7 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
   const [localProjects, setLocalProjects] = useState<MovieProject[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
+  const [deletedSlugs, setDeletedSlugs] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setLocalProjects(readLocalProjects());
@@ -46,10 +47,10 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
     });
 
     return [...bySlug.values()]
-      .filter((project) => project.status === "published")
+      .filter((project) => project.status === "published" && !deletedSlugs.has(project.slug))
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
       .slice(0, 6);
-  }, [initialProjects, localProjects]);
+  }, [deletedSlugs, initialProjects, localProjects]);
 
   if (!loaded && initialProjects.length === 0) {
     return null;
@@ -82,7 +83,7 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
 
       window.localStorage.removeItem(`pulsereel:project:${project.slug}`);
       setLocalProjects((items) => items.filter((item) => item.slug !== project.slug));
-      window.location.reload();
+      setDeletedSlugs((slugs) => new Set(slugs).add(project.slug));
     } catch (error) {
       alert(error instanceof Error ? error.message : "Could not delete movie.");
     } finally {
