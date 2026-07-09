@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { RenderMode } from "@/lib/types";
+import type { HeavyRenderProviderId, RenderMode } from "@/lib/types";
 
 type StatusPayload = {
   slug: string;
@@ -10,7 +10,7 @@ type StatusPayload = {
   processedVideoUrl?: string;
   workerJob?: {
     id: string;
-    provider: "local-heavy-v1" | "open-model-adapter";
+    provider: HeavyRenderProviderId;
     status: "queued" | "running" | "completed" | "failed";
     progress: number;
     stage: string;

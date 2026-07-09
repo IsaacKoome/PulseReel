@@ -1,3 +1,5 @@
+import { promises as fs } from "fs";
+import path from "path";
 import type { HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
 import {
   executeHeavyRunnerCommand,
@@ -13,6 +15,20 @@ type ProgressReporter = {
     stage: string,
     status?: NonNullable<MovieProject["workerJob"]>["status"],
   ) => Promise<void>;
+};
+
+type ExternalProviderConfig = {
+  provider: "replicate" | "minimax";
+  id: HeavyRenderProviderId;
+  label: string;
+  description: string;
+  preferredMotionBackend: HeavyJobPayload["modelHints"]["preferredMotionBackend"];
+  tokenEnv: string;
+  modelEnv: string;
+  defaultModel?: string;
+  configuredStage: string;
+  missingStage: string;
+  notes: string[];
 };
 
 export type HeavyRenderResult = {
@@ -44,6 +60,87 @@ const localHeavyProvider: HeavyRenderProvider = {
     return result;
   },
 };
+
+function envValue(key: string) {
+  return process.env[key]?.trim() || "";
+}
+
+function externalProviderPrompt(project: MovieProject, payload: HeavyJobPayload) {
+  const shotLines = payload.shotReferences
+    .map((shot, index) => {
+      const cast = shot.supportingCast.length ? ` Supporting cast: ${shot.supportingCast.join(", ")}.` : "";
+      const activity = shot.backgroundAction ? ` Background action: ${shot.backgroundAction}.` : "";
+      return `${index + 1}. ${shot.title}: ${shot.prompt}. ${shot.cameraGoal}. ${shot.heroAction}.${activity}${cast}`;
+    })
+    .join("\n");
+
+  return [
+    `Create a vertical live-action short movie for PulseReel.`,
+    `Main character: ${project.creatorName}, preserved from the uploaded/recorded reference video.`,
+    `Story: ${project.scenePrompt}`,
+    `World: ${payload.worldSpec.setting}. ${payload.worldSpec.atmosphere}`,
+    `Identity anchor: ${payload.characterBible.identityAnchor}`,
+    `Continuity: keep the same face, outfit feel, body language, and cinematic mood across all shots.`,
+    `Avoid replacing the creator with a different person. Avoid text glitches and poster-card-only shots.`,
+    `Shot plan:\n${shotLines}`,
+  ].join("\n\n");
+}
+
+async function writeExternalProviderRequest(
+  project: MovieProject,
+  job: Parameters<HeavyRenderProvider["render"]>[2],
+  config: ExternalProviderConfig,
+) {
+  const providerDir = path.join(job.payload.jobRoot, "provider-requests");
+  await fs.mkdir(providerDir, { recursive: true });
+
+  const model = envValue(config.modelEnv) || config.defaultModel;
+  const configured = Boolean(envValue(config.tokenEnv) && model);
+  const prompt = externalProviderPrompt(project, job.payload);
+  const requestPath = path.join(providerDir, `${config.provider}.json`);
+  const request = {
+    provider: config.provider,
+    model,
+    configured,
+    prompt,
+    output: job.payload.outputSpec,
+    identity: {
+      sourceVideoUrl: job.payload.assets.sourceVideoUrl,
+      sourceImageUrl: job.payload.assets.sourceImageUrl,
+      sourceVideoPath: job.payload.assets.sourceVideoPath,
+      sourceImagePath: job.payload.assets.sourceImagePath,
+    },
+    shots: job.payload.shotReferences.map((shot) => ({
+      id: shot.shotId,
+      title: shot.title,
+      prompt: shot.prompt,
+      durationSeconds: shot.durationSeconds,
+      cameraGoal: shot.cameraGoal,
+      heroAction: shot.heroAction,
+      backgroundAction: shot.backgroundAction,
+      referencePngPath: shot.referencePngPath,
+      subjectFraming: shot.subjectFraming,
+      worldActivity: shot.worldActivity,
+    })),
+    notes: config.notes,
+  };
+
+  await fs.writeFile(requestPath, JSON.stringify(request, null, 2), "utf8");
+
+  job.payload.modelHints.preferredMotionBackend = config.preferredMotionBackend;
+  job.payload.modelHints.externalProvider = {
+    provider: config.provider,
+    configured,
+    model,
+    tokenEnv: config.tokenEnv,
+    requestPath,
+    prompt,
+    notes: config.notes,
+  };
+  await fs.writeFile(job.payloadPath, JSON.stringify(job.payload, null, 2), "utf8");
+
+  return { configured, model, requestPath };
+}
 
 const openModelAdapterProvider: HeavyRenderProvider = {
   id: "open-model-adapter",
@@ -112,9 +209,74 @@ const openModelAdapterProvider: HeavyRenderProvider = {
   },
 };
 
+function createExternalProvider(config: ExternalProviderConfig): HeavyRenderProvider {
+  return {
+    id: config.id,
+    label: config.label,
+    description: config.description,
+    async render(project, progress, job) {
+      await progress.update(12, `Preparing ${config.label} request bundle`);
+      const providerRequest = await writeExternalProviderRequest(project, job, config);
+      await updateHeavyJobStatus(job.statusPath, {
+        provider: config.id,
+        status: "running",
+        stage: providerRequest.configured ? config.configuredStage : config.missingStage,
+        progress: providerRequest.configured ? 24 : 18,
+      });
+
+      await progress.update(
+        providerRequest.configured ? 28 : 22,
+        providerRequest.configured
+          ? `${config.label} payload ready for ${providerRequest.model}`
+          : `${config.label} is not fully configured, using the stable worker fallback`,
+      );
+
+      return openModelAdapterProvider.render(project, progress, job);
+    },
+  };
+}
+
+const replicateVideoProvider = createExternalProvider({
+  provider: "replicate",
+  id: "replicate-video-adapter",
+  label: "Replicate Video Adapter",
+  description:
+    "Low-cost hosted-video lane. It prepares Replicate-ready shot and identity payloads, then routes through the existing worker contract until a concrete model schema is selected.",
+  preferredMotionBackend: "replicate-hosted-video",
+  tokenEnv: "PULSEREEL_REPLICATE_API_TOKEN",
+  modelEnv: "PULSEREEL_REPLICATE_MODEL",
+  configuredStage: "Replicate video provider configured; dispatching through the model-worker contract",
+  missingStage: "Replicate provider selected but token/model are missing; falling back to the stable worker",
+  notes: [
+    "Best first paid/low-cost experiment path because it avoids managing a GPU server.",
+    "Use a model that accepts image/video reference inputs for identity preservation.",
+    "The remote worker should translate this request into the exact Replicate model input schema.",
+  ],
+});
+
+const minimaxSubjectProvider = createExternalProvider({
+  provider: "minimax",
+  id: "minimax-subject-adapter",
+  label: "MiniMax Subject Adapter",
+  description:
+    "Identity-first subject-reference lane. This is the target path for keeping Isaac/the creator inside generated scenes once MiniMax access is available.",
+  preferredMotionBackend: "minimax-subject-reference",
+  tokenEnv: "PULSEREEL_MINIMAX_API_KEY",
+  modelEnv: "PULSEREEL_MINIMAX_MODEL",
+  configuredStage: "MiniMax subject-reference provider configured; dispatching through the model-worker contract",
+  missingStage: "MiniMax provider selected but API key/model are missing; falling back to the stable worker",
+  notes: [
+    "Best fit for PulseReel's identity-first dream because subject-reference is designed to preserve a person across generated shots.",
+    "Keep prompts short, visual, and continuity-focused for stronger subject consistency.",
+    "The remote worker should translate this request into the exact MiniMax API payload once credentials are available.",
+  ],
+});
+
 const providers: Record<HeavyRenderProviderId, HeavyRenderProvider> = {
   "local-heavy-v1": localHeavyProvider,
   "open-model-adapter": openModelAdapterProvider,
+  "replicate-video-adapter": replicateVideoProvider,
+  "minimax-subject-adapter": minimaxSubjectProvider,
 };
 
 export function getHeavyRenderProvider(providerId?: HeavyRenderProviderId) {

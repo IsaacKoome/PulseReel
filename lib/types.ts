@@ -16,7 +16,11 @@ export type ShotSpec = {
   worldActivity?: "low" | "medium" | "high";
 };
 
-export type HeavyRenderProviderId = "local-heavy-v1" | "open-model-adapter";
+export type HeavyRenderProviderId =
+  | "local-heavy-v1"
+  | "open-model-adapter"
+  | "replicate-video-adapter"
+  | "minimax-subject-adapter";
 
 export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta" | "seedance-2-fast";
 

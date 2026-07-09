@@ -35,6 +35,10 @@ export type BackendCapabilities = {
   remoteModelBackendMode?: string;
   remoteModelBackendComfyUiConfigured: boolean;
   remoteModelBackendDurableStorageConfigured: boolean;
+  replicateConfigured: boolean;
+  replicateModel?: string;
+  minimaxConfigured: boolean;
+  minimaxModel?: string;
   comfyUiInstallDetected: boolean;
   comfyUiVenvReady: boolean;
   comfyUiConfigured: boolean;
@@ -45,7 +49,14 @@ export type BackendCapabilities = {
   comfyUiAvailableCheckpoints: string[];
   comfyUiCanAutoStart: boolean;
   realModelBackendReady: boolean;
-  activeHeavyPath: "fast-local" | "python-bridge" | "custom-backend-command" | "remote-model-backend" | "comfyui-backend";
+  activeHeavyPath:
+    | "fast-local"
+    | "python-bridge"
+    | "custom-backend-command"
+    | "remote-model-backend"
+    | "replicate-provider"
+    | "minimax-provider"
+    | "comfyui-backend";
   summary: string;
 };
 
@@ -120,6 +131,10 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const pythonExecutable = detectPythonExecutable();
   const customBackendCommand = process.env.PULSEREEL_MODEL_BACKEND_COMMAND?.trim();
   const remoteModelBackendUrl = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim();
+  const replicateToken = process.env.PULSEREEL_REPLICATE_API_TOKEN?.trim();
+  const replicateModel = process.env.PULSEREEL_REPLICATE_MODEL?.trim();
+  const minimaxKey = process.env.PULSEREEL_MINIMAX_API_KEY?.trim();
+  const minimaxModel = process.env.PULSEREEL_MINIMAX_MODEL?.trim();
   const comfyUiUrl = process.env.PULSEREEL_COMFYUI_URL?.trim();
   const comfyUiWorkflow = process.env.PULSEREEL_COMFYUI_WORKFLOW_TEMPLATE?.trim();
   const comfyUiRoot = path.join(process.cwd(), "tools", "ComfyUI");
@@ -130,6 +145,8 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const pythonBridgeReady = pythonExecutableConfigured;
   const customBackendCommandConfigured = Boolean(customBackendCommand);
   const remoteModelBackendConfigured = Boolean(remoteModelBackendUrl);
+  const replicateConfigured = Boolean(replicateToken && replicateModel);
+  const minimaxConfigured = Boolean(minimaxKey && minimaxModel);
   const remoteModelBackendHealth = remoteModelBackendConfigured
     ? await fetchRemoteWorkerHealth(remoteModelBackendUrl!)
     : {
@@ -172,12 +189,18 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     existsSync(path.join(process.cwd(), "scripts", "start-comfyui.ps1"));
   const realModelBackendReady =
     customBackendCommandConfigured ||
+    replicateConfigured ||
+    minimaxConfigured ||
     (remoteModelBackendConfigured && remoteModelBackendHealth.reachable) ||
     (comfyUiConfigured && comfyUiWorkflowExists && comfyUiServerReachable && comfyUiCheckpointReady);
 
   const activeHeavyPath =
     customBackendCommandConfigured
       ? "custom-backend-command"
+      : heavyProvider === "minimax-subject-adapter" && minimaxConfigured
+        ? "minimax-provider"
+      : heavyProvider === "replicate-video-adapter" && replicateConfigured
+        ? "replicate-provider"
       : remoteModelBackendConfigured
         ? "remote-model-backend"
       : comfyUiConfigured && comfyUiWorkflowExists && comfyUiServerReachable && comfyUiCheckpointReady
@@ -189,6 +212,10 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const summary =
     activeHeavyPath === "comfyui-backend"
       ? "Real ComfyUI backend is configured for heavy generation."
+      : activeHeavyPath === "minimax-provider"
+        ? "MiniMax subject-reference provider is configured for identity-first video experiments."
+      : activeHeavyPath === "replicate-provider"
+        ? "Replicate hosted-video provider is configured for low-cost real-model experiments."
       : activeHeavyPath === "custom-backend-command"
         ? "Custom model backend command is configured for heavy generation."
         : activeHeavyPath === "remote-model-backend"
@@ -214,6 +241,10 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     remoteModelBackendMode: remoteModelBackendHealth.mode,
     remoteModelBackendComfyUiConfigured: remoteModelBackendHealth.comfyuiConfigured,
     remoteModelBackendDurableStorageConfigured: remoteModelBackendHealth.durableStorageConfigured,
+    replicateConfigured,
+    replicateModel: replicateModel || undefined,
+    minimaxConfigured,
+    minimaxModel: minimaxModel || undefined,
     comfyUiInstallDetected,
     comfyUiVenvReady,
     comfyUiConfigured,
