@@ -20,6 +20,9 @@ const schema = z.object({
   renderMode: z
     .enum(["fast-trailer", "prompt-movie-beta", "heavy-worker-beta", "seedance-2-fast"])
     .default("prompt-movie-beta"),
+  heavyProvider: z
+    .enum(["local-heavy-v1", "open-model-adapter", "replicate-video-adapter", "minimax-subject-adapter"])
+    .optional(),
 });
 
 function titleFromPrompt(prompt: string) {
@@ -81,6 +84,7 @@ export async function POST(request: Request) {
           ...autoFillFromPrompt(quickPrompt, templateIdValue),
           templateId: templateIdValue,
           renderMode: formData.get("renderMode"),
+          heavyProvider: formData.get("heavyProvider") || undefined,
         }
       : {
       creatorName: formData.get("creatorName"),
@@ -91,6 +95,7 @@ export async function POST(request: Request) {
       scenePrompt: formData.get("scenePrompt"),
       persona: formData.get("persona"),
       renderMode: formData.get("renderMode"),
+      heavyProvider: formData.get("heavyProvider") || undefined,
         };
 
     const parsed = schema.safeParse(rawValues);
@@ -163,6 +168,7 @@ export async function POST(request: Request) {
         scenePrompt: parsed.data.scenePrompt,
         persona: parsed.data.persona,
         renderMode: parsed.data.renderMode,
+        heavyProvider: parsed.data.heavyProvider,
         sourceVideoUrl,
         sourceImageUrl,
       }, { autoStart: !isVercelRuntime() });

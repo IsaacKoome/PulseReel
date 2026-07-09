@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
 import type { MovieProject, RenderMode } from "@/lib/types";
 
+type ModelChoice = "seedance-2-fast" | "local-heavy-v1" | "replicate-video-adapter";
+
 type StatusState = {
   tone: "idle" | "success" | "error";
   message: string;
@@ -23,7 +25,7 @@ export function CreateStudio() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
-  const [renderMode, setRenderMode] = useState<RenderMode>("seedance-2-fast");
+  const [modelChoice, setModelChoice] = useState<ModelChoice>("local-heavy-v1");
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -394,7 +396,11 @@ export function CreateStudio() {
     formData.set("video", finalVideo);
     formData.set("templateId", selectedTemplate);
     formData.set("genre", genre);
+    const renderMode: RenderMode = modelChoice === "seedance-2-fast" ? "seedance-2-fast" : "heavy-worker-beta";
     formData.set("renderMode", renderMode);
+    if (modelChoice !== "seedance-2-fast") {
+      formData.set("heavyProvider", modelChoice);
+    }
     formData.set("quickPrompt", quickPrompt);
     if (selfieFile) {
       formData.set("selfie", selfieFile);
@@ -596,25 +602,35 @@ export function CreateStudio() {
         </div>
 
         <div className="simple-template-list compact-list">
-          <label className={`template-option ${renderMode === "seedance-2-fast" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""}`}>
             <input
-              checked={renderMode === "seedance-2-fast"}
+              checked={modelChoice === "seedance-2-fast"}
               name="modelChoice"
-              onChange={() => setRenderMode("seedance-2-fast")}
+              onChange={() => setModelChoice("seedance-2-fast")}
               type="radio"
               value="seedance-2-fast"
             />
             <span>Seedance AI</span>
           </label>
-          <label className={`template-option ${renderMode === "heavy-worker-beta" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "local-heavy-v1" ? "active" : ""}`}>
             <input
-              checked={renderMode === "heavy-worker-beta"}
+              checked={modelChoice === "local-heavy-v1"}
               name="modelChoice"
-              onChange={() => setRenderMode("heavy-worker-beta")}
+              onChange={() => setModelChoice("local-heavy-v1")}
               type="radio"
-              value="heavy-worker-beta"
+              value="local-heavy-v1"
             />
             <span>Local worker</span>
+          </label>
+          <label className={`template-option ${modelChoice === "replicate-video-adapter" ? "active" : ""}`}>
+            <input
+              checked={modelChoice === "replicate-video-adapter"}
+              name="modelChoice"
+              onChange={() => setModelChoice("replicate-video-adapter")}
+              type="radio"
+              value="replicate-video-adapter"
+            />
+            <span>Replicate AI</span>
           </label>
         </div>
 

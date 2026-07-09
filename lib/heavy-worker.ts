@@ -1,4 +1,4 @@
-import type { MovieProject, RenderMode } from "@/lib/types";
+import type { HeavyRenderProviderId, MovieProject, RenderMode } from "@/lib/types";
 import {
   createHeavyJobFiles,
   enqueueRemoteModelBackendJob,
@@ -26,12 +26,14 @@ export async function createHeavyProject(input: {
   scenePrompt: string;
   persona: string;
   renderMode: Exclude<RenderMode, "seedance-2-fast">;
+  heavyProvider?: HeavyRenderProviderId;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
 }, options: { autoStart?: boolean } = {}) {
-  const provider = getHeavyRenderProvider();
+  const { heavyProvider, ...projectInput } = input;
+  const provider = getHeavyRenderProvider(heavyProvider);
   const project = await createMovieProjectDraft({
-    ...input,
+    ...projectInput,
     status: "processing",
   });
 
