@@ -9,6 +9,7 @@ PulseReel is a local-first AI movie creator prototype. It takes a short creator 
 - Generate a 60-second vertical movie with cinematic pacing, shot variation, captions, poster framing, audio bed, and source-motion inserts.
 - Use Heavy Worker Beta to queue a separate backend job while keeping the create/watch/status flow stable.
 - Fall back automatically to the local Python/FFmpeg runner when a real ComfyUI checkpoint is not ready.
+- Switch the heavy provider toward Replicate or MiniMax without changing the create/watch flow.
 
 ## Where it is going
 
@@ -16,6 +17,8 @@ The current local runner creates a convincing cinematic illusion from still plat
 
 - ComfyUI checkpoint for image generation.
 - Optional IPAdapter and CLIP Vision models for stronger identity preservation.
+- Replicate-hosted video models for low-cost real-model experiments through the remote worker.
+- MiniMax/Hailuo subject-reference generation for the identity-first target path.
 - Future video or animation nodes for true generated motion.
 - A hosted GPU worker for production deployments such as Vercel.
 - Durable cloud storage for finished movies and public playback at scale.
@@ -53,7 +56,25 @@ PULSEREEL_COMFYUI_IPADAPTER_MODEL=
 PULSEREEL_COMFYUI_CLIP_VISION_MODEL=
 PULSEREEL_REMOTE_MODEL_BACKEND_URL=
 PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN=
+PULSEREEL_REPLICATE_API_TOKEN=
+PULSEREEL_REPLICATE_MODEL=
+PULSEREEL_REPLICATE_INPUT_TEMPLATE=
+PULSEREEL_MINIMAX_API_KEY=
+PULSEREEL_MINIMAX_MODEL=
 ```
+
+Heavy provider choices:
+
+```text
+PULSEREEL_HEAVY_PROVIDER=open-model-adapter
+PULSEREEL_HEAVY_PROVIDER=replicate-video-adapter
+PULSEREEL_HEAVY_PROVIDER=minimax-subject-adapter
+PULSEREEL_HEAVY_PROVIDER=local-heavy-v1
+```
+
+The Replicate adapter now prepares provider-specific request bundles, forwards the token privately from Vercel to the remote worker, and lets the worker call Replicate, download the returned MP4, and publish it through the normal watch page. Set `PULSEREEL_REPLICATE_MODEL` to an `owner/model` slug or `version:<id>`. The first recommended PulseReel experiment is `minimax/video-01` because it is a MiniMax/Hailuo video model with prompt/image support. If your chosen model uses custom input names, set `PULSEREEL_REPLICATE_INPUT_TEMPLATE` as JSON with placeholders like `{{PROMPT}}`, `{{SOURCE_IMAGE_URL}}`, `{{SOURCE_VIDEO_URL}}`, `{{WIDTH}}`, `{{HEIGHT}}`, and `{{DURATION_SECONDS}}`.
+
+MiniMax currently remains a prepared adapter path for the next identity/subject-reference integration.
 
 ## Production GPU worker
 
@@ -127,5 +148,3 @@ npm run build
 ```
 
 On this Windows machine, `npm run build` has been compiling successfully but sometimes ends with a local `spawn EPERM` after TypeScript. The focused TypeScript and Python checks are the reliable signal for code correctness in the current local setup.
-
-

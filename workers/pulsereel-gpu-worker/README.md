@@ -101,6 +101,30 @@ The worker now also consumes richer continuity metadata from PulseReel:
 
 This helps the model backend keep the hero, world, and sequence flow more consistent instead of treating each shot like a disconnected poster.
 
+## Replicate Hosted Video
+
+For the low-cost hosted-video experiment, set these on Vercel:
+
+```text
+PULSEREEL_HEAVY_PROVIDER=replicate-video-adapter
+PULSEREEL_REPLICATE_API_TOKEN=your-replicate-token
+PULSEREEL_REPLICATE_MODEL=minimax/video-01
+```
+
+Keep your normal worker URL configured:
+
+```text
+PULSEREEL_REMOTE_MODEL_BACKEND_URL=https://your-worker-domain/pulsereel/render
+```
+
+Vercel forwards the Replicate token privately to this worker for Replicate jobs. The worker calls Replicate, downloads the returned MP4, and returns the same `processedVideoUrl` shape the app already understands.
+
+If a chosen Replicate model uses different input field names, set `PULSEREEL_REPLICATE_INPUT_TEMPLATE` on the worker machine or service:
+
+```text
+PULSEREEL_REPLICATE_INPUT_TEMPLATE={"prompt":"{{PROMPT}}","first_frame_image":"{{SOURCE_IMAGE_URL}}","prompt_optimizer":true}
+```
+
 `GET /health` also reports whether ComfyUI and durable storage are configured, which makes it easier to sanity-check a deployment before pointing Vercel at it.
 
 ## Where To Add Real Models

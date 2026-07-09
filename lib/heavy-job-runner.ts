@@ -28,7 +28,10 @@ export type HeavyJobPayload = {
   };
   modelHints: {
     workflow: "shot-to-video";
-    preferredMotionBackend: "open-source-local";
+    preferredMotionBackend:
+      | "open-source-local"
+      | "replicate-hosted-video"
+      | "minimax-subject-reference";
     fallbackBehavior: "use-local-motion-runner";
     qualityPriority: "motion-consistency-over-photorealism";
     bridgeTarget: "node-runner" | "python-runner";
@@ -37,6 +40,15 @@ export type HeavyJobPayload = {
     pythonBridgeScript: string;
     comfyUiUrlEnv: "PULSEREEL_COMFYUI_URL";
     comfyUiWorkflowEnv: "PULSEREEL_COMFYUI_WORKFLOW_TEMPLATE";
+    externalProvider?: {
+      provider: "replicate" | "minimax";
+      configured: boolean;
+      model?: string;
+      tokenEnv: string;
+      requestPath: string;
+      prompt: string;
+      notes: string[];
+    };
   };
   assets: {
     sourceVideoUrl: string;
@@ -997,7 +1009,14 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
       fallbackBehavior: "use-local-motion-runner",
       qualityPriority: "motion-consistency-over-photorealism",
       bridgeTarget: process.env.PULSEREEL_PYTHON_EXECUTABLE ? "python-runner" : "node-runner",
-      recommendedBackends: ["ComfyUI", "Wan 2.1", "CogVideoX", "Stable Video Diffusion"],
+      recommendedBackends: [
+        "MiniMax Hailuo subject reference",
+        "Replicate hosted video models",
+        "ComfyUI",
+        "Wan 2.1",
+        "CogVideoX",
+        "Stable Video Diffusion",
+      ],
       backendCommandTemplateEnv: "PULSEREEL_MODEL_BACKEND_COMMAND",
       pythonBridgeScript: path.join(process.cwd(), "scripts", "python-motion-bridge.py"),
       comfyUiUrlEnv: "PULSEREEL_COMFYUI_URL",
@@ -1160,9 +1179,30 @@ async function buildRemoteJobFormData(payloadPath: string) {
   return { payload, formData };
 }
 
-function remoteHeaders() {
+async function remoteHeaders(payloadPath?: string) {
   const token = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN?.trim();
-  return token ? { Authorization: `Bearer ${token}` } : undefined;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const replicateToken = process.env.PULSEREEL_REPLICATE_API_TOKEN?.trim();
+  if (replicateToken && payloadPath) {
+    try {
+      const payload = await readHeavyJobPayload(payloadPath);
+      if (payload.modelHints.externalProvider?.provider === "replicate") {
+        headers["X-PulseReel-Replicate-Token"] = replicateToken;
+        const inputTemplate = process.env.PULSEREEL_REPLICATE_INPUT_TEMPLATE?.trim();
+        if (inputTemplate) {
+          headers["X-PulseReel-Replicate-Input-Template"] = inputTemplate;
+        }
+      }
+    } catch {
+      // If the payload cannot be inspected, keep the normal worker headers.
+    }
+  }
+
+  return Object.keys(headers).length ? headers : undefined;
 }
 
 function remoteJobsUrl(renderUrl: string) {
@@ -1200,7 +1240,7 @@ export async function enqueueRemoteModelBackendJob(input: {
   const response = await fetch(endpoint, {
     method: "POST",
     body: formData,
-    headers: remoteHeaders(),
+    headers: await remoteHeaders(input.payloadPath),
   });
   const responseText = await response.text();
 
@@ -1231,7 +1271,7 @@ export async function enqueueRemoteModelBackendJob(input: {
 export async function pollRemoteModelBackendJob(statusUrl: string): Promise<RemoteJobStatus> {
   const response = await fetch(statusUrl, {
     method: "GET",
-    headers: remoteHeaders(),
+    headers: await remoteHeaders(),
     cache: "no-store",
   });
   const responseText = await response.text();
@@ -1266,13 +1306,11 @@ async function executeRemoteModelBackend(input: {
     return null;
   }
 
-  const token = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN?.trim();
   const { payload, formData } = await buildRemoteJobFormData(input.payloadPath);
-  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
   const response = await fetch(remoteUrl, {
     method: "POST",
     body: formData,
-    headers,
+    headers: await remoteHeaders(input.payloadPath),
   });
   const responseText = await response.text();
 

@@ -1,4 +1,6 @@
+import base64
 import json
+import mimetypes
 import os
 import shutil
 import subprocess
@@ -33,6 +35,9 @@ STORAGE_SECRET_KEY = os.environ.get("PULSEREEL_WORKER_STORAGE_SECRET_KEY", "").s
 STORAGE_PUBLIC_BASE_URL = os.environ.get("PULSEREEL_WORKER_STORAGE_PUBLIC_BASE_URL", "").rstrip("/")
 STORAGE_PREFIX = os.environ.get("PULSEREEL_WORKER_STORAGE_PREFIX", "jobs").strip().strip("/")
 ENABLE_AUDIO_BED = os.environ.get("PULSEREEL_WORKER_ENABLE_AUDIO_BED", "1").strip() != "0"
+REPLICATE_API_TOKEN = os.environ.get("PULSEREEL_REPLICATE_API_TOKEN", "").strip()
+REPLICATE_MODEL = os.environ.get("PULSEREEL_REPLICATE_MODEL", "").strip()
+REPLICATE_INPUT_TEMPLATE = os.environ.get("PULSEREEL_REPLICATE_INPUT_TEMPLATE", "").strip()
 
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -614,6 +619,183 @@ def generate_comfyui_frames(
     return rendered_frames
 
 
+def is_replicate_job(payload: dict) -> bool:
+    external_provider = payload.get("modelHints", {}).get("externalProvider", {})
+    return external_provider.get("provider") == "replicate"
+
+
+def replicate_model_for_payload(payload: dict) -> str:
+    external_provider = payload.get("modelHints", {}).get("externalProvider", {})
+    return str(external_provider.get("model") or REPLICATE_MODEL).strip()
+
+
+def normalize_replicate_model(model: str) -> str:
+    normalized = model.replace("version:", "", 1).strip() if model.startswith("version:") else model.strip()
+    return normalized.lower()
+
+
+def file_to_data_uri(file_path: Path | None) -> str:
+    if not file_path or not file_path.exists():
+        return ""
+    mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+    encoded = base64.b64encode(file_path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def first_reference_image(references: dict[int, Path]) -> Path | None:
+    if not references:
+        return None
+    first_key = sorted(references.keys())[0]
+    return references[first_key]
+
+
+def build_replicate_prompt(payload: dict) -> str:
+    external_provider = payload.get("modelHints", {}).get("externalProvider", {})
+    if external_provider.get("prompt"):
+        return str(external_provider["prompt"])
+    shots = payload.get("shots", [])
+    shot_lines = [str(shot.get("prompt", "")) for shot in shots if shot.get("prompt")]
+    return " ".join(shot_lines) or "Create a cinematic vertical short film from the provided identity reference."
+
+
+def build_replicate_input(
+    payload: dict,
+    references: dict[int, Path],
+    identity_image: Path | None,
+    source_video: Path | None,
+    input_template: str | None = None,
+) -> dict:
+    prompt = build_replicate_prompt(payload)
+    image_data_uri = file_to_data_uri(identity_image) or file_to_data_uri(first_reference_image(references))
+    video_data_uri = file_to_data_uri(source_video)
+    output_spec = payload.get("outputSpec", {})
+    replacements = {
+        "PROMPT": prompt,
+        "SOURCE_IMAGE_URL": image_data_uri,
+        "SOURCE_VIDEO_URL": video_data_uri,
+        "IDENTITY_IMAGE": image_data_uri,
+        "SOURCE_VIDEO": video_data_uri,
+        "WIDTH": output_spec.get("width", 720),
+        "HEIGHT": output_spec.get("height", 1280),
+        "DURATION_SECONDS": min(8, int(float(output_spec.get("totalDurationSeconds", 5)))),
+        "ASPECT_RATIO": "9:16",
+    }
+
+    template_value = (input_template or REPLICATE_INPUT_TEMPLATE).strip()
+    if template_value:
+        template = json.loads(template_value)
+        return apply_placeholders(template, replacements)
+
+    model = normalize_replicate_model(replicate_model_for_payload(payload))
+    if model == "minimax/video-01":
+        request_input = {
+            "prompt": prompt,
+            "prompt_optimizer": True,
+        }
+        if image_data_uri:
+            request_input["first_frame_image"] = image_data_uri
+        return request_input
+
+    request_input = {"prompt": prompt, "aspect_ratio": "9:16", "duration": replacements["DURATION_SECONDS"]}
+    if image_data_uri:
+        request_input["image"] = image_data_uri
+        request_input["input_image"] = image_data_uri
+        request_input["start_image"] = image_data_uri
+        request_input["first_frame_image"] = image_data_uri
+    return request_input
+
+
+def replicate_prediction_request(token: str, model: str, request_input: dict) -> dict:
+    headers = {
+        "Authorization": f"Token {token}",
+        "Content-Type": "application/json",
+        "Prefer": "wait=60",
+    }
+    if model.startswith("version:"):
+        body = {"version": model.replace("version:", "", 1).strip(), "input": request_input}
+        endpoint = "https://api.replicate.com/v1/predictions"
+    else:
+        if "/" not in model:
+            raise RuntimeError("PULSEREEL_REPLICATE_MODEL must be an owner/model slug or version:<id>.")
+        endpoint = f"https://api.replicate.com/v1/models/{model}/predictions"
+        body = {"input": request_input}
+
+    req = urlrequest.Request(endpoint, data=json.dumps(body).encode("utf-8"), method="POST", headers=headers)
+    with urlrequest.urlopen(req, timeout=180) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def poll_replicate_prediction(token: str, prediction: dict, timeout_seconds: int = 900) -> dict:
+    status = prediction.get("status")
+    get_url = prediction.get("urls", {}).get("get")
+    started = time.time()
+    while status not in {"succeeded", "failed", "canceled"}:
+        if not get_url:
+            raise RuntimeError("Replicate did not return a prediction status URL.")
+        if time.time() - started > timeout_seconds:
+            raise RuntimeError("Timed out waiting for Replicate video generation.")
+        time.sleep(4)
+        req = urlrequest.Request(get_url, method="GET", headers={"Authorization": f"Token {token}"})
+        with urlrequest.urlopen(req, timeout=120) as response:
+            prediction = json.loads(response.read().decode("utf-8"))
+        status = prediction.get("status")
+
+    if status != "succeeded":
+        error = prediction.get("error") or f"Replicate prediction ended with status {status}."
+        raise RuntimeError(str(error))
+    return prediction
+
+
+def find_output_url(value) -> str:
+    if isinstance(value, str) and value.startswith("http"):
+        return value
+    if isinstance(value, list):
+        for item in value:
+            found = find_output_url(item)
+            if found:
+                return found
+    if isinstance(value, dict):
+        for item in value.values():
+            found = find_output_url(item)
+            if found:
+                return found
+    return ""
+
+
+def download_replicate_output(output_url: str, destination: Path) -> None:
+    with urlrequest.urlopen(output_url, timeout=900) as response:
+        destination.write_bytes(response.read())
+
+
+def render_replicate_movie(
+    job_dir: Path,
+    payload: dict,
+    source_video: Path | None,
+    references: dict[int, Path],
+    identity_image: Path | None,
+    replicate_token: str | None,
+    input_template: str | None = None,
+) -> Path | None:
+    if not is_replicate_job(payload):
+        return None
+
+    token = (replicate_token or REPLICATE_API_TOKEN).strip()
+    model = replicate_model_for_payload(payload)
+    if not token or not model:
+        return None
+
+    request_input = build_replicate_input(payload, references, identity_image, source_video, input_template)
+    prediction = replicate_prediction_request(token, model, request_input)
+    prediction = poll_replicate_prediction(token, prediction)
+    output_url = find_output_url(prediction.get("output"))
+    if not output_url:
+        raise RuntimeError("Replicate finished but did not return a video URL.")
+
+    output_path = OUTPUT_DIR / f"{payload.get('jobId', uuid.uuid4().hex)}-replicate.mp4"
+    download_replicate_output(output_url, output_path)
+    return output_path
+
+
 def concat_segments(segment_paths: list[Path], output_path: Path, output_spec: dict) -> None:
     concat_list = output_path.with_suffix(".txt")
     fps = int(output_spec.get("fps", 25))
@@ -840,7 +1022,12 @@ async def save_job_inputs(
     return payload_json, source_video_path, reference_paths, identity_image
 
 
-def render_queued_job(job_id: str, public_base_url: str) -> None:
+def render_queued_job(
+    job_id: str,
+    public_base_url: str,
+    replicate_token: str | None = None,
+    replicate_input_template: str | None = None,
+) -> None:
     job_dir = JOBS_DIR / job_id
     uploads_dir = job_dir / "uploads"
     payload_path = uploads_dir / "payload.json"
@@ -872,8 +1059,23 @@ def render_queued_job(job_id: str, public_base_url: str) -> None:
                 continue
             reference_paths[index] = item
 
-        write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
-        output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
+        if is_replicate_job(payload_json) and (replicate_token or REPLICATE_API_TOKEN) and replicate_model_for_payload(payload_json):
+            write_async_status(job_id, {"status": "running", "progress": 36, "stage": "Sending scene to Replicate"})
+            output_path = render_replicate_movie(
+                job_dir,
+                payload_json,
+                source_video_path,
+                reference_paths,
+                identity_image,
+                replicate_token,
+                replicate_input_template,
+            )
+        else:
+            write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
+            output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
+        if output_path is None:
+            write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
+            output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
         write_async_status(job_id, {"status": "running", "progress": 88, "stage": "Publishing final movie"})
         video_url = final_video_url_from_base(public_base_url, output_path, job_id)
         write_async_status(
@@ -906,6 +1108,8 @@ async def enqueue_job(
     protocolVersion: Annotated[str, Form()],
     jobId: Annotated[str, Form()],
     authorization: Annotated[str | None, Header()] = None,
+    x_pulsereel_replicate_token: Annotated[str | None, Header()] = None,
+    x_pulsereel_replicate_input_template: Annotated[str | None, Header()] = None,
     sourceVideo: Annotated[UploadFile | None, File()] = None,
     sourceImage: Annotated[UploadFile | None, File()] = None,
     poster: Annotated[UploadFile | None, File()] = None,
@@ -917,7 +1121,13 @@ async def enqueue_job(
 
     await save_job_inputs(request, jobId, payload, sourceVideo, sourceImage, poster)
     write_async_status(jobId, {"status": "queued", "progress": 8, "stage": "Queued on PulseReel worker"})
-    background_tasks.add_task(render_queued_job, jobId, str(request.base_url).rstrip("/"))
+    background_tasks.add_task(
+        render_queued_job,
+        jobId,
+        str(request.base_url).rstrip("/"),
+        x_pulsereel_replicate_token,
+        x_pulsereel_replicate_input_template,
+    )
 
     return {
         "status": "queued",
@@ -944,6 +1154,8 @@ async def render(
     protocolVersion: Annotated[str, Form()],
     jobId: Annotated[str, Form()],
     authorization: Annotated[str | None, Header()] = None,
+    x_pulsereel_replicate_token: Annotated[str | None, Header()] = None,
+    x_pulsereel_replicate_input_template: Annotated[str | None, Header()] = None,
     sourceVideo: Annotated[UploadFile | None, File()] = None,
     sourceImage: Annotated[UploadFile | None, File()] = None,
     poster: Annotated[UploadFile | None, File()] = None,
@@ -988,7 +1200,17 @@ async def render(
         extract_identity_frame(source_video_path, identity_image)
 
     try:
-        output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
+        output_path = render_replicate_movie(
+            job_dir,
+            payload_json,
+            source_video_path,
+            reference_paths,
+            identity_image,
+            x_pulsereel_replicate_token,
+            x_pulsereel_replicate_input_template,
+        )
+        if output_path is None:
+            output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
     except Exception as error:
         return {
             "status": "failed",
