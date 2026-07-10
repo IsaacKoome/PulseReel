@@ -51,6 +51,9 @@ export type MovieProject = {
   workerJob?: {
     id: string;
     provider: HeavyRenderProviderId;
+    providerUsed?: HeavyRenderProviderId | string;
+    model?: string;
+    fallbackReason?: string;
     status: "queued" | "running" | "completed" | "failed";
     progress: number;
     stage: string;

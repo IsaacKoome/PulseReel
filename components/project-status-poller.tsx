@@ -11,6 +11,9 @@ type StatusPayload = {
   workerJob?: {
     id: string;
     provider: HeavyRenderProviderId;
+    providerUsed?: HeavyRenderProviderId | string;
+    model?: string;
+    fallbackReason?: string;
     status: "queued" | "running" | "completed" | "failed";
     progress: number;
     stage: string;
@@ -72,6 +75,11 @@ export function ProjectStatusPoller({
     return status.workerJob?.stage || "Queued for generation.";
   }, [status]);
 
+  const requestedProvider = status.workerJob?.provider ?? "local-heavy-v1";
+  const usedProvider =
+    status.workerJob?.providerUsed ??
+    (status.status === "published" || status.workerJob?.status === "completed" ? requestedProvider : "pending");
+
   return (
     <div className={`panel ${status.status === "failed" ? "status error" : ""}`} style={{ marginTop: 18 }}>
       <h3 style={{ marginTop: 0 }}>Heavy Worker Status</h3>
@@ -80,10 +88,17 @@ export function ProjectStatusPoller({
       </p>
       <div className="pill-row">
         <span className="pill">Status: {status.status}</span>
-        <span className="pill">Provider: {status.workerJob?.provider ?? "local-heavy-v1"}</span>
+        <span className="pill">Requested: {requestedProvider}</span>
+        <span className="pill">Used: {usedProvider}</span>
+        {status.workerJob?.model ? <span className="pill">Model: {status.workerJob.model}</span> : null}
         <span className="pill">Worker: {status.workerJob?.status ?? "queued"}</span>
         <span className="pill">Progress: {status.workerJob?.progress ?? 0}%</span>
       </div>
+      {status.workerJob?.fallbackReason ? (
+        <p className="muted" style={{ margin: "10px 0 0" }}>
+          Fallback: {status.workerJob.fallbackReason}
+        </p>
+      ) : null}
       {hasMounted && status.workerJob?.startedAt ? (
         <p className="muted" style={{ margin: "10px 0 0" }}>
           Started: {new Date(status.workerJob.startedAt).toLocaleString()}

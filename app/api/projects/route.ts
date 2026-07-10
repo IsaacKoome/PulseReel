@@ -5,6 +5,7 @@ import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
+import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -158,6 +159,7 @@ export async function POST(request: Request) {
         video,
         selfie instanceof File && selfie.size > 0 ? selfie : undefined,
       );
+      const heavyProvider = parsed.data.heavyProvider as HeavyRenderProviderId | undefined;
 
       const project = await createHeavyProject({
         creatorName: parsed.data.creatorName,
@@ -168,7 +170,7 @@ export async function POST(request: Request) {
         scenePrompt: parsed.data.scenePrompt,
         persona: parsed.data.persona,
         renderMode: parsed.data.renderMode,
-        heavyProvider: parsed.data.heavyProvider,
+        heavyProvider,
         sourceVideoUrl,
         sourceImageUrl,
       }, { autoStart: !isVercelRuntime() });
