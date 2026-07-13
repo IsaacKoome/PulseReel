@@ -28,6 +28,7 @@ type ExternalProviderConfig = {
   defaultModel?: string;
   configuredStage: string;
   missingStage: string;
+  allowLocalFallback?: boolean;
   notes: string[];
 };
 
@@ -217,6 +218,33 @@ function createExternalProvider(config: ExternalProviderConfig): HeavyRenderProv
     async render(project, progress, job) {
       await progress.update(12, `Preparing ${config.label} request bundle`);
       const providerRequest = await writeExternalProviderRequest(project, job, config);
+      const strictProvider = config.allowLocalFallback === false;
+      const hasRemoteBackend = Boolean(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim());
+
+      if (strictProvider && !providerRequest.configured) {
+        const message = `${config.label} was selected, but ${config.tokenEnv} and ${config.modelEnv} are not both configured. Local fallback is disabled for this provider.`;
+        await updateHeavyJobStatus(job.statusPath, {
+          provider: config.id,
+          status: "failed",
+          stage: message,
+          progress: 18,
+          error: message,
+        });
+        throw new Error(message);
+      }
+
+      if (strictProvider && !hasRemoteBackend) {
+        const message = `${config.label} was selected, but PULSEREEL_REMOTE_MODEL_BACKEND_URL is not configured. Local fallback is disabled for this provider.`;
+        await updateHeavyJobStatus(job.statusPath, {
+          provider: config.id,
+          status: "failed",
+          stage: message,
+          progress: 20,
+          error: message,
+        });
+        throw new Error(message);
+      }
+
       await updateHeavyJobStatus(job.statusPath, {
         provider: config.id,
         status: "running",
@@ -228,7 +256,9 @@ function createExternalProvider(config: ExternalProviderConfig): HeavyRenderProv
         providerRequest.configured ? 28 : 22,
         providerRequest.configured
           ? `${config.label} payload ready for ${providerRequest.model}`
-          : `${config.label} is not fully configured, using the stable worker fallback`,
+          : strictProvider
+            ? `${config.label} is not fully configured. Add ${config.tokenEnv} and ${config.modelEnv}.`
+            : `${config.label} is not fully configured, using the stable worker fallback`,
       );
 
       return openModelAdapterProvider.render(project, progress, job);
@@ -241,12 +271,13 @@ const replicateVideoProvider = createExternalProvider({
   id: "replicate-video-adapter",
   label: "Replicate Video Adapter",
   description:
-    "Low-cost hosted-video lane. It prepares Replicate-ready shot and identity payloads, then routes through the existing worker contract until a concrete model schema is selected.",
+    "Low-cost hosted-video lane. When selected, PulseReel sends the job to Replicate only and surfaces Replicate errors instead of silently falling back.",
   preferredMotionBackend: "replicate-hosted-video",
   tokenEnv: "PULSEREEL_REPLICATE_API_TOKEN",
   modelEnv: "PULSEREEL_REPLICATE_MODEL",
   configuredStage: "Replicate video provider configured; dispatching through the model-worker contract",
-  missingStage: "Replicate provider selected but token/model are missing; falling back to the stable worker",
+  missingStage: "Replicate provider selected but token/model are missing; local fallback is disabled",
+  allowLocalFallback: false,
   notes: [
     "Best first paid/low-cost experiment path because it avoids managing a GPU server.",
     "Use a model that accepts image/video reference inputs for identity preservation.",

@@ -781,8 +781,12 @@ def render_replicate_movie(
 
     token = (replicate_token or REPLICATE_API_TOKEN).strip()
     model = replicate_model_for_payload(payload)
-    if not token or not model:
-        return None
+    if not token:
+        raise RuntimeError(
+            "Replicate AI was selected, but PULSEREEL_REPLICATE_API_TOKEN was not provided to the worker."
+        )
+    if not model:
+        raise RuntimeError("Replicate AI was selected, but PULSEREEL_REPLICATE_MODEL is not configured.")
 
     request_input = build_replicate_input(payload, references, identity_image, source_video, input_template)
     prediction = replicate_prediction_request(token, model, request_input)
@@ -1059,7 +1063,7 @@ def render_queued_job(
                 continue
             reference_paths[index] = item
 
-        if is_replicate_job(payload_json) and (replicate_token or REPLICATE_API_TOKEN) and replicate_model_for_payload(payload_json):
+        if is_replicate_job(payload_json):
             write_async_status(job_id, {"status": "running", "progress": 36, "stage": "Sending scene to Replicate"})
             output_path = render_replicate_movie(
                 job_dir,
@@ -1074,8 +1078,7 @@ def render_queued_job(
             write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
             output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
         if output_path is None:
-            write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
-            output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
+            raise RuntimeError("Selected renderer did not return a movie.")
         write_async_status(job_id, {"status": "running", "progress": 88, "stage": "Publishing final movie"})
         video_url = final_video_url_from_base(public_base_url, output_path, job_id)
         write_async_status(
@@ -1200,17 +1203,20 @@ async def render(
         extract_identity_frame(source_video_path, identity_image)
 
     try:
-        output_path = render_replicate_movie(
-            job_dir,
-            payload_json,
-            source_video_path,
-            reference_paths,
-            identity_image,
-            x_pulsereel_replicate_token,
-            x_pulsereel_replicate_input_template,
-        )
-        if output_path is None:
+        if is_replicate_job(payload_json):
+            output_path = render_replicate_movie(
+                job_dir,
+                payload_json,
+                source_video_path,
+                reference_paths,
+                identity_image,
+                x_pulsereel_replicate_token,
+                x_pulsereel_replicate_input_template,
+            )
+        else:
             output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
+        if output_path is None:
+            raise RuntimeError("Selected renderer did not return a movie.")
     except Exception as error:
         return {
             "status": "failed",

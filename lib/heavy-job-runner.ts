@@ -1205,13 +1205,61 @@ async function remoteHeaders(payloadPath?: string) {
   return Object.keys(headers).length ? headers : undefined;
 }
 
-function remoteJobsUrl(renderUrl: string) {
-  const url = new URL(renderUrl);
-  url.pathname = url.pathname.replace(/\/pulsereel\/render\/?$/, "/pulsereel/jobs");
-  if (!url.pathname.endsWith("/pulsereel/jobs")) {
-    url.pathname = `${url.pathname.replace(/\/$/, "")}/jobs`;
+function remoteEndpointUrl(remoteUrl: string, endpoint: "jobs" | "render") {
+  const url = new URL(remoteUrl);
+  const pathname = url.pathname.replace(/\/$/, "");
+
+  if (!pathname) {
+    url.pathname = `/pulsereel/${endpoint}`;
+    return url.toString();
   }
+
+  if (endpoint === "jobs" && pathname.endsWith("/pulsereel/render")) {
+    url.pathname = pathname.replace(/\/pulsereel\/render$/, "/pulsereel/jobs");
+    return url.toString();
+  }
+
+  if (endpoint === "render" && pathname.endsWith("/pulsereel/jobs")) {
+    url.pathname = pathname.replace(/\/pulsereel\/jobs$/, "/pulsereel/render");
+    return url.toString();
+  }
+
+  if (pathname.endsWith(`/pulsereel/${endpoint}`)) {
+    url.pathname = pathname;
+    return url.toString();
+  }
+
+  url.pathname = `${pathname}/${endpoint}`;
   return url.toString();
+}
+
+function remoteJobsUrl(remoteUrl: string) {
+  return remoteEndpointUrl(remoteUrl, "jobs");
+}
+
+function remoteRenderUrl(remoteUrl: string) {
+  return remoteEndpointUrl(remoteUrl, "render");
+}
+
+function remoteBackendErrorMessage(status: number, responseText: string, endpoint: string) {
+  const isHtml = /<!doctype html/i.test(responseText) || /<html/i.test(responseText);
+  const isCloudflareError = /cloudflare|bad gateway|5xx-error-landing/i.test(responseText);
+
+  if (isHtml || isCloudflareError) {
+    let healthUrl = `${endpoint.replace(/\/$/, "")}/health`;
+    let host = endpoint;
+
+    try {
+      healthUrl = new URL("/health", endpoint).toString();
+      host = new URL(endpoint).host;
+    } catch {
+      // Keep the raw endpoint if URL parsing fails.
+    }
+
+    return `Remote worker is unreachable (${status}) at ${host}. Start the PulseReel worker on this PC, keep the Cloudflare tunnel connected, then open ${healthUrl} before trying again.`;
+  }
+
+  return `Remote model backend returned ${status}: ${responseText}`;
 }
 
 export function remoteStatusUrlForJob(jobId: string) {
@@ -1245,7 +1293,7 @@ export async function enqueueRemoteModelBackendJob(input: {
   const responseText = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Remote model backend returned ${response.status}: ${responseText}`);
+    throw new Error(remoteBackendErrorMessage(response.status, responseText, endpoint));
   }
 
   let remoteResult: RemoteJobStatus;
@@ -1277,7 +1325,7 @@ export async function pollRemoteModelBackendJob(statusUrl: string): Promise<Remo
   const responseText = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Remote model status returned ${response.status}: ${responseText}`);
+    throw new Error(remoteBackendErrorMessage(response.status, responseText, statusUrl));
   }
 
   try {
@@ -1307,7 +1355,8 @@ async function executeRemoteModelBackend(input: {
   }
 
   const { payload, formData } = await buildRemoteJobFormData(input.payloadPath);
-  const response = await fetch(remoteUrl, {
+  const endpoint = remoteRenderUrl(remoteUrl);
+  const response = await fetch(endpoint, {
     method: "POST",
     body: formData,
     headers: await remoteHeaders(input.payloadPath),
@@ -1318,8 +1367,8 @@ async function executeRemoteModelBackend(input: {
     return {
       exitCode: 1,
       stdout: responseText,
-      stderr: `Remote model backend returned ${response.status}: ${responseText}`,
-      command: `POST ${remoteUrl}`,
+      stderr: remoteBackendErrorMessage(response.status, responseText, endpoint),
+      command: `POST ${endpoint}`,
     };
   }
 
@@ -1338,7 +1387,7 @@ async function executeRemoteModelBackend(input: {
       exitCode: 1,
       stdout: responseText,
       stderr: "Remote model backend did not return JSON.",
-      command: `POST ${remoteUrl}`,
+      command: `POST ${endpoint}`,
     };
   }
 
@@ -1354,7 +1403,7 @@ async function executeRemoteModelBackend(input: {
       exitCode: 1,
       stdout: responseText,
       stderr: remoteResult.error || "Remote model backend failed.",
-      command: `POST ${remoteUrl}`,
+      command: `POST ${endpoint}`,
     };
   }
 
@@ -1366,7 +1415,7 @@ async function executeRemoteModelBackend(input: {
       exitCode: 1,
       stdout: responseText,
       stderr: "Remote model backend returned no processedVideoUrl or videoBase64.",
-      command: `POST ${remoteUrl}`,
+      command: `POST ${endpoint}`,
     };
   }
 
@@ -1383,7 +1432,7 @@ async function executeRemoteModelBackend(input: {
     exitCode: 0,
     stdout: responseText,
     stderr: "",
-    command: `POST ${remoteUrl}`,
+    command: `POST ${endpoint}`,
   };
 }
 

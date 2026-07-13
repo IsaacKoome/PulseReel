@@ -11,6 +11,14 @@ type StatusState = {
   message: string;
 };
 
+function cleanStudioError(message: string) {
+  if (/<!doctype html|<html|cloudflare|bad gateway|5xx-error-landing/i.test(message)) {
+    return "Remote worker is offline or unreachable. Start the PulseReel worker on your PC, confirm the worker health URL opens, then try again.";
+  }
+
+  return message;
+}
+
 export function CreateStudio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
@@ -441,7 +449,10 @@ export function CreateStudio() {
     } catch (error) {
       setStatus({
         tone: "error",
-        message: error instanceof Error ? error.message : "Something went wrong while creating your movie.",
+        message:
+          error instanceof Error
+            ? cleanStudioError(error.message)
+            : "Something went wrong while creating your movie.",
       });
     } finally {
       setIsSubmitting(false);
