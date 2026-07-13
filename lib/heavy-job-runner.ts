@@ -1181,7 +1181,10 @@ async function buildRemoteJobFormData(payloadPath: string) {
 
 async function remoteHeaders(payloadPath?: string) {
   const token = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_TOKEN?.trim();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "User-Agent": "PulseReel-Vercel/1.0",
+  };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -1202,7 +1205,7 @@ async function remoteHeaders(payloadPath?: string) {
     }
   }
 
-  return Object.keys(headers).length ? headers : undefined;
+  return headers;
 }
 
 function remoteEndpointUrl(remoteUrl: string, endpoint: "jobs" | "render") {

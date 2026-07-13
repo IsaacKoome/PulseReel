@@ -92,7 +92,11 @@ async function fetchRemoteWorkerHealth(remoteModelBackendUrl: string) {
 
     const response = await fetch(renderUrl.toString(), {
       cache: "no-store",
-      signal: AbortSignal.timeout(2000),
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "PulseReel-Vercel/1.0",
+      },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
