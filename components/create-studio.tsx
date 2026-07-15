@@ -33,7 +33,7 @@ export function CreateStudio() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
-  const [modelChoice, setModelChoice] = useState<ModelChoice>("local-heavy-v1");
+  const [modelChoice, setModelChoice] = useState<ModelChoice>("replicate-video-adapter");
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -613,15 +613,15 @@ export function CreateStudio() {
         </div>
 
         <div className="simple-template-list compact-list">
-          <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "replicate-video-adapter" ? "active" : ""}`}>
             <input
-              checked={modelChoice === "seedance-2-fast"}
+              checked={modelChoice === "replicate-video-adapter"}
               name="modelChoice"
-              onChange={() => setModelChoice("seedance-2-fast")}
+              onChange={() => setModelChoice("replicate-video-adapter")}
               type="radio"
-              value="seedance-2-fast"
+              value="replicate-video-adapter"
             />
-            <span>Seedance AI</span>
+            <span>Replicate AI · Recommended</span>
           </label>
           <label className={`template-option ${modelChoice === "local-heavy-v1" ? "active" : ""}`}>
             <input
@@ -633,17 +633,25 @@ export function CreateStudio() {
             />
             <span>Local worker</span>
           </label>
-          <label className={`template-option ${modelChoice === "replicate-video-adapter" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""}`}>
             <input
-              checked={modelChoice === "replicate-video-adapter"}
+              checked={modelChoice === "seedance-2-fast"}
               name="modelChoice"
-              onChange={() => setModelChoice("replicate-video-adapter")}
+              onChange={() => setModelChoice("seedance-2-fast")}
               type="radio"
-              value="replicate-video-adapter"
+              value="seedance-2-fast"
             />
-            <span>Replicate AI</span>
+            <span>Seedance AI</span>
           </label>
         </div>
+
+        <p className="model-capability-note">
+          {modelChoice === "replicate-video-adapter"
+            ? "Recommended. The current MiniMax identity model creates a realistic 6-second silent clip."
+            : modelChoice === "local-heavy-v1"
+              ? "Prototype renderer. It assembles a movie locally but is not a hosted generative video model."
+              : "Hosted Seedance generation requires separate provider credit."}
+        </p>
 
         <div className={`status ${status.tone === "error" ? "error" : ""}`}>{status.message}</div>
 
