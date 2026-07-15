@@ -686,7 +686,9 @@ def build_replicate_input(
     model: str | None = None,
 ) -> dict:
     prompt = build_replicate_prompt(payload)
-    image_data_uri = file_to_data_uri(identity_image) or file_to_data_uri(first_reference_image(references))
+    identity_data_uri = file_to_data_uri(identity_image)
+    reference_image_data_uri = file_to_data_uri(first_reference_image(references))
+    image_data_uri = identity_data_uri or reference_image_data_uri
     video_data_uri = file_to_data_uri(source_video)
     output_spec = payload.get("outputSpec", {})
     replacements = {
@@ -701,20 +703,28 @@ def build_replicate_input(
         "ASPECT_RATIO": "9:16",
     }
 
+    normalized_model = normalize_replicate_model(model or replicate_model_for_payload(payload))
     template_value = (input_template or REPLICATE_INPUT_TEMPLATE).strip()
     if template_value:
         template = json.loads(template_value)
-        return apply_placeholders(template, replacements)
+        request_input = apply_placeholders(template, replacements)
+        if (
+            normalized_model == "minimax/video-01"
+            and request_input.get("subject_reference")
+            and request_input.get("first_frame_image")
+        ):
+            request_input.pop("first_frame_image")
+        return request_input
 
-    normalized_model = normalize_replicate_model(model or replicate_model_for_payload(payload))
     if normalized_model == "minimax/video-01":
         request_input = {
             "prompt": prompt,
             "prompt_optimizer": True,
         }
-        if image_data_uri:
-            request_input["first_frame_image"] = image_data_uri
-            request_input["subject_reference"] = image_data_uri
+        if identity_data_uri:
+            request_input["subject_reference"] = identity_data_uri
+        elif reference_image_data_uri:
+            request_input["first_frame_image"] = reference_image_data_uri
         return request_input
 
     request_input = {"prompt": prompt, "aspect_ratio": "9:16", "duration": replacements["DURATION_SECONDS"]}

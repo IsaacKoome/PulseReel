@@ -45,8 +45,44 @@ class ReplicateRoutingTests(unittest.TestCase):
                 model="minimax/video-01",
             )
 
+        self.assertTrue(request_input["subject_reference"].startswith("data:image/png;base64,"))
+        self.assertNotIn("first_frame_image", request_input)
+
+    def test_minimax_input_uses_scene_reference_only_as_first_frame(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            reference_path = Path(temporary_dir) / "scene.png"
+            reference_path.write_bytes(b"scene-image")
+
+            request_input = build_replicate_input(
+                self.payload,
+                {0: reference_path},
+                None,
+                None,
+                model="minimax/video-01",
+            )
+
         self.assertTrue(request_input["first_frame_image"].startswith("data:image/png;base64,"))
-        self.assertEqual(request_input["subject_reference"], request_input["first_frame_image"])
+        self.assertNotIn("subject_reference", request_input)
+
+    def test_minimax_template_cannot_send_both_image_modes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            identity_path = Path(temporary_dir) / "identity.png"
+            identity_path.write_bytes(b"identity-image")
+
+            request_input = build_replicate_input(
+                self.payload,
+                {},
+                identity_path,
+                None,
+                input_template=(
+                    '{"subject_reference":"{{IDENTITY_IMAGE}}",'
+                    '"first_frame_image":"{{SOURCE_IMAGE_URL}}"}'
+                ),
+                model="minimax/video-01",
+            )
+
+        self.assertIn("subject_reference", request_input)
+        self.assertNotIn("first_frame_image", request_input)
 
     def test_source_uploads_receive_discoverable_canonical_names(self) -> None:
         upload = SimpleNamespace(filename="creator-clip.WEBM")
