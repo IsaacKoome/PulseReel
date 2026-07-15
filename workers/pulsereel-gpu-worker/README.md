@@ -117,7 +117,7 @@ Keep your normal worker URL configured:
 PULSEREEL_REMOTE_MODEL_BACKEND_URL=https://your-worker-domain/pulsereel/render
 ```
 
-Vercel forwards the Replicate token privately to this worker for Replicate jobs. The worker calls Replicate, downloads the returned MP4, and returns the same `processedVideoUrl` shape the app already understands.
+Vercel forwards the Replicate token and selected model privately to this worker for Replicate jobs. The worker calls Replicate, downloads the returned MP4, and returns the same `processedVideoUrl` shape the app already understands.
 
 If a chosen Replicate model uses different input field names, set `PULSEREEL_REPLICATE_INPUT_TEMPLATE` on the worker machine or service:
 

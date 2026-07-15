@@ -32,7 +32,7 @@ export type HeavyJobPayload = {
       | "open-source-local"
       | "replicate-hosted-video"
       | "minimax-subject-reference";
-    fallbackBehavior: "use-local-motion-runner";
+    fallbackBehavior: "use-local-motion-runner" | "fail-provider-job";
     qualityPriority: "motion-consistency-over-photorealism";
     bridgeTarget: "node-runner" | "python-runner";
     recommendedBackends: string[];
@@ -1189,12 +1189,26 @@ async function remoteHeaders(payloadPath?: string) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const replicateToken = process.env.PULSEREEL_REPLICATE_API_TOKEN?.trim();
-  if (replicateToken && payloadPath) {
+  if (payloadPath) {
     try {
       const payload = await readHeavyJobPayload(payloadPath);
-      if (payload.modelHints.externalProvider?.provider === "replicate") {
-        headers["X-PulseReel-Replicate-Token"] = replicateToken;
+      const isReplicatePayload =
+        payload.provider === "replicate-video-adapter" ||
+        payload.modelHints.preferredMotionBackend === "replicate-hosted-video" ||
+        payload.modelHints.externalProvider?.provider === "replicate";
+
+      if (isReplicatePayload) {
+        const replicateToken = process.env.PULSEREEL_REPLICATE_API_TOKEN?.trim();
+        const replicateModel =
+          payload.modelHints.externalProvider?.model ||
+          process.env.PULSEREEL_REPLICATE_MODEL?.trim();
+
+        if (replicateToken) {
+          headers["X-PulseReel-Replicate-Token"] = replicateToken;
+        }
+        if (replicateModel) {
+          headers["X-PulseReel-Replicate-Model"] = replicateModel;
+        }
         const inputTemplate = process.env.PULSEREEL_REPLICATE_INPUT_TEMPLATE?.trim();
         if (inputTemplate) {
           headers["X-PulseReel-Replicate-Input-Template"] = inputTemplate;

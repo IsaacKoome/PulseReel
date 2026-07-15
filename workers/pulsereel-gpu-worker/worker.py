@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 from urllib import parse, request as urlrequest
+from urllib.error import HTTPError
 
 import boto3
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
@@ -100,6 +101,13 @@ def safe_upload_name(upload: UploadFile | None, fallback: str) -> str:
     if not upload or not upload.filename:
         return fallback
     return Path(upload.filename).name.replace("/", "_").replace("\\", "_")
+
+
+def canonical_upload_name(prefix: str, upload: UploadFile | None, fallback_suffix: str) -> str:
+    suffix = Path(upload.filename).suffix.lower() if upload and upload.filename else fallback_suffix
+    if not suffix or len(suffix) > 10 or not suffix.replace(".", "").isalnum():
+        suffix = fallback_suffix
+    return f"{prefix}{suffix}"
 
 
 async def save_upload(upload: UploadFile | None, destination: Path) -> Path | None:
@@ -619,14 +627,25 @@ def generate_comfyui_frames(
     return rendered_frames
 
 
+def selected_render_provider(payload: dict) -> str:
+    model_hints = payload.get("modelHints", {})
+    external_provider = model_hints.get("externalProvider", {})
+    if (
+        payload.get("provider") == "replicate-video-adapter"
+        or model_hints.get("preferredMotionBackend") == "replicate-hosted-video"
+        or external_provider.get("provider") == "replicate"
+    ):
+        return "replicate"
+    return "local-heavy-v1"
+
+
 def is_replicate_job(payload: dict) -> bool:
-    external_provider = payload.get("modelHints", {}).get("externalProvider", {})
-    return external_provider.get("provider") == "replicate"
+    return selected_render_provider(payload) == "replicate"
 
 
-def replicate_model_for_payload(payload: dict) -> str:
+def replicate_model_for_payload(payload: dict, forwarded_model: str | None = None) -> str:
     external_provider = payload.get("modelHints", {}).get("externalProvider", {})
-    return str(external_provider.get("model") or REPLICATE_MODEL).strip()
+    return str(external_provider.get("model") or forwarded_model or REPLICATE_MODEL).strip()
 
 
 def normalize_replicate_model(model: str) -> str:
@@ -664,6 +683,7 @@ def build_replicate_input(
     identity_image: Path | None,
     source_video: Path | None,
     input_template: str | None = None,
+    model: str | None = None,
 ) -> dict:
     prompt = build_replicate_prompt(payload)
     image_data_uri = file_to_data_uri(identity_image) or file_to_data_uri(first_reference_image(references))
@@ -686,14 +706,15 @@ def build_replicate_input(
         template = json.loads(template_value)
         return apply_placeholders(template, replacements)
 
-    model = normalize_replicate_model(replicate_model_for_payload(payload))
-    if model == "minimax/video-01":
+    normalized_model = normalize_replicate_model(model or replicate_model_for_payload(payload))
+    if normalized_model == "minimax/video-01":
         request_input = {
             "prompt": prompt,
             "prompt_optimizer": True,
         }
         if image_data_uri:
             request_input["first_frame_image"] = image_data_uri
+            request_input["subject_reference"] = image_data_uri
         return request_input
 
     request_input = {"prompt": prompt, "aspect_ratio": "9:16", "duration": replacements["DURATION_SECONDS"]}
@@ -703,6 +724,20 @@ def build_replicate_input(
         request_input["start_image"] = image_data_uri
         request_input["first_frame_image"] = image_data_uri
     return request_input
+
+
+def replicate_request_json(req: urlrequest.Request, timeout_seconds: int) -> dict:
+    try:
+        with urlrequest.urlopen(req, timeout=timeout_seconds) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        response_text = error.read().decode("utf-8", errors="replace")
+        try:
+            response_payload = json.loads(response_text)
+            detail = response_payload.get("detail") or response_payload.get("error") or response_text
+        except json.JSONDecodeError:
+            detail = response_text
+        raise RuntimeError(f"Replicate API returned {error.code}: {detail}") from error
 
 
 def replicate_prediction_request(token: str, model: str, request_input: dict) -> dict:
@@ -721,8 +756,7 @@ def replicate_prediction_request(token: str, model: str, request_input: dict) ->
         body = {"input": request_input}
 
     req = urlrequest.Request(endpoint, data=json.dumps(body).encode("utf-8"), method="POST", headers=headers)
-    with urlrequest.urlopen(req, timeout=180) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return replicate_request_json(req, 180)
 
 
 def poll_replicate_prediction(token: str, prediction: dict, timeout_seconds: int = 900) -> dict:
@@ -736,8 +770,7 @@ def poll_replicate_prediction(token: str, prediction: dict, timeout_seconds: int
             raise RuntimeError("Timed out waiting for Replicate video generation.")
         time.sleep(4)
         req = urlrequest.Request(get_url, method="GET", headers={"Authorization": f"Token {token}"})
-        with urlrequest.urlopen(req, timeout=120) as response:
-            prediction = json.loads(response.read().decode("utf-8"))
+        prediction = replicate_request_json(req, 120)
         status = prediction.get("status")
 
     if status != "succeeded":
@@ -775,12 +808,13 @@ def render_replicate_movie(
     identity_image: Path | None,
     replicate_token: str | None,
     input_template: str | None = None,
+    replicate_model: str | None = None,
 ) -> Path | None:
     if not is_replicate_job(payload):
         return None
 
     token = (replicate_token or REPLICATE_API_TOKEN).strip()
-    model = replicate_model_for_payload(payload)
+    model = replicate_model_for_payload(payload, replicate_model)
     if not token:
         raise RuntimeError(
             "Replicate AI was selected, but PULSEREEL_REPLICATE_API_TOKEN was not provided to the worker."
@@ -788,7 +822,14 @@ def render_replicate_movie(
     if not model:
         raise RuntimeError("Replicate AI was selected, but PULSEREEL_REPLICATE_MODEL is not configured.")
 
-    request_input = build_replicate_input(payload, references, identity_image, source_video, input_template)
+    request_input = build_replicate_input(
+        payload,
+        references,
+        identity_image,
+        source_video,
+        input_template,
+        model,
+    )
     prediction = replicate_prediction_request(token, model, request_input)
     prediction = poll_replicate_prediction(token, prediction)
     output_url = find_output_url(prediction.get("output"))
@@ -1000,9 +1041,15 @@ async def save_job_inputs(
         raise HTTPException(status_code=400, detail="Missing payload file.")
 
     payload_json = json.loads(payload_path.read_text(encoding="utf-8"))
-    source_video_path = await save_upload(source_video, uploads_dir / safe_upload_name(source_video, "source-video"))
-    source_image_path = await save_upload(source_image, uploads_dir / safe_upload_name(source_image, "source-image"))
-    await save_upload(poster, uploads_dir / safe_upload_name(poster, "poster"))
+    source_video_path = await save_upload(
+        source_video,
+        uploads_dir / canonical_upload_name("source-video", source_video, ".webm"),
+    )
+    source_image_path = await save_upload(
+        source_image,
+        uploads_dir / canonical_upload_name("source-image", source_image, ".png"),
+    )
+    await save_upload(poster, uploads_dir / canonical_upload_name("poster", poster, ".svg"))
 
     form = await request.form()
     reference_paths: dict[int, Path] = {}
@@ -1031,6 +1078,7 @@ def render_queued_job(
     public_base_url: str,
     replicate_token: str | None = None,
     replicate_input_template: str | None = None,
+    replicate_model: str | None = None,
 ) -> None:
     job_dir = JOBS_DIR / job_id
     uploads_dir = job_dir / "uploads"
@@ -1048,6 +1096,9 @@ def render_queued_job(
             if item.is_file() and item.name.startswith("source-image")
         ]
         identity_image = source_image_candidates[0] if source_image_candidates else None
+        saved_identity_frame = uploads_dir / "identity-frame.png"
+        if identity_image is None and saved_identity_frame.exists():
+            identity_image = saved_identity_frame
         if identity_image is None and source_video_path is not None:
             identity_image = uploads_dir / "identity-frame.png"
             if not identity_image.exists():
@@ -1073,6 +1124,7 @@ def render_queued_job(
                 identity_image,
                 replicate_token,
                 replicate_input_template,
+                replicate_model,
             )
         else:
             write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
@@ -1112,6 +1164,7 @@ async def enqueue_job(
     jobId: Annotated[str, Form()],
     authorization: Annotated[str | None, Header()] = None,
     x_pulsereel_replicate_token: Annotated[str | None, Header()] = None,
+    x_pulsereel_replicate_model: Annotated[str | None, Header()] = None,
     x_pulsereel_replicate_input_template: Annotated[str | None, Header()] = None,
     sourceVideo: Annotated[UploadFile | None, File()] = None,
     sourceImage: Annotated[UploadFile | None, File()] = None,
@@ -1130,6 +1183,7 @@ async def enqueue_job(
         str(request.base_url).rstrip("/"),
         x_pulsereel_replicate_token,
         x_pulsereel_replicate_input_template,
+        x_pulsereel_replicate_model,
     )
 
     return {
@@ -1158,6 +1212,7 @@ async def render(
     jobId: Annotated[str, Form()],
     authorization: Annotated[str | None, Header()] = None,
     x_pulsereel_replicate_token: Annotated[str | None, Header()] = None,
+    x_pulsereel_replicate_model: Annotated[str | None, Header()] = None,
     x_pulsereel_replicate_input_template: Annotated[str | None, Header()] = None,
     sourceVideo: Annotated[UploadFile | None, File()] = None,
     sourceImage: Annotated[UploadFile | None, File()] = None,
@@ -1179,9 +1234,15 @@ async def render(
         raise HTTPException(status_code=400, detail="Missing payload file.")
 
     payload_json = json.loads(payload_path.read_text(encoding="utf-8"))
-    source_video_path = await save_upload(sourceVideo, uploads_dir / safe_upload_name(sourceVideo, "source-video"))
-    source_image_path = await save_upload(sourceImage, uploads_dir / safe_upload_name(sourceImage, "source-image"))
-    await save_upload(poster, uploads_dir / safe_upload_name(poster, "poster"))
+    source_video_path = await save_upload(
+        sourceVideo,
+        uploads_dir / canonical_upload_name("source-video", sourceVideo, ".webm"),
+    )
+    source_image_path = await save_upload(
+        sourceImage,
+        uploads_dir / canonical_upload_name("source-image", sourceImage, ".png"),
+    )
+    await save_upload(poster, uploads_dir / canonical_upload_name("poster", poster, ".svg"))
 
     form = await request.form()
     reference_paths: dict[int, Path] = {}
@@ -1212,6 +1273,7 @@ async def render(
                 identity_image,
                 x_pulsereel_replicate_token,
                 x_pulsereel_replicate_input_template,
+                x_pulsereel_replicate_model,
             )
         else:
             output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)
