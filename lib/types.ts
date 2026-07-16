@@ -20,6 +20,7 @@ export type HeavyRenderProviderId =
   | "local-heavy-v1"
   | "open-model-adapter"
   | "replicate-video-adapter"
+  | "replicate-kling-v3-omni"
   | "minimax-subject-adapter";
 
 export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta" | "seedance-2-fast";

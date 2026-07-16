@@ -1,11 +1,15 @@
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from worker import (
     build_replicate_input,
     canonical_upload_name,
+    identity_frame_rank,
     replicate_model_for_payload,
     selected_render_provider,
 )
@@ -25,6 +29,10 @@ class ReplicateRoutingTests(unittest.TestCase):
 
     def test_payload_provider_selects_replicate_without_external_metadata(self) -> None:
         self.assertEqual(selected_render_provider(self.payload), "replicate")
+
+    def test_kling_profile_selects_replicate_without_external_metadata(self) -> None:
+        payload = {**self.payload, "provider": "replicate-kling-v3-omni"}
+        self.assertEqual(selected_render_provider(payload), "replicate")
 
     def test_forwarded_model_is_used_when_payload_has_no_model_metadata(self) -> None:
         self.assertEqual(
@@ -83,6 +91,51 @@ class ReplicateRoutingTests(unittest.TestCase):
 
         self.assertIn("subject_reference", request_input)
         self.assertNotIn("first_frame_image", request_input)
+
+    def test_kling_input_requests_identity_audio_and_fifteen_seconds(self) -> None:
+        payload = {
+            **self.payload,
+            "provider": "replicate-kling-v3-omni",
+            "shots": [
+                {"prompt": "The creator enters a harbor."},
+                {"prompt": "The creator meets fishermen."},
+                {"prompt": "The creator boards a ship."},
+                {"prompt": "The creator faces the horizon."},
+            ],
+            "styleBible": {"scoreMood": "an adventurous orchestral score"},
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            identity_path = Path(temporary_dir) / "identity.png"
+            identity_path.write_bytes(b"identity-image")
+            with patch.dict(
+                os.environ,
+                {"PULSEREEL_KLING_DURATION_SECONDS": "15", "PULSEREEL_KLING_MODE": "standard"},
+            ):
+                request_input = build_replicate_input(
+                    payload,
+                    {},
+                    identity_path,
+                    None,
+                    model="kwaivgi/kling-v3-omni-video",
+                )
+
+        self.assertEqual(request_input["duration"], 15)
+        self.assertEqual(request_input["aspect_ratio"], "9:16")
+        self.assertEqual(request_input["mode"], "standard")
+        self.assertTrue(request_input["generate_audio"])
+        self.assertEqual(len(request_input["reference_images"]), 1)
+        self.assertIn("<<<image_1>>>", request_input["prompt"])
+        shots = json.loads(request_input["multi_prompt"])
+        self.assertEqual(len(shots), 3)
+        self.assertEqual(sum(shot["duration"] for shot in shots), 15)
+        self.assertTrue(all("<<<image_1>>>" in shot["prompt"] for shot in shots))
+
+    def test_identity_frame_rank_penalizes_blur_and_bad_exposure(self) -> None:
+        clear_well_lit = identity_frame_rank(4.0, 130.0)
+        blurry = identity_frame_rank(8.0, 130.0)
+        too_dark = identity_frame_rank(4.0, 20.0)
+        self.assertLess(clear_well_lit, blurry)
+        self.assertLess(clear_well_lit, too_dark)
 
     def test_source_uploads_receive_discoverable_canonical_names(self) -> None:
         upload = SimpleNamespace(filename="creator-clip.WEBM")

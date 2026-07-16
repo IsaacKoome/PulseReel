@@ -22,7 +22,13 @@ const schema = z.object({
     .enum(["fast-trailer", "prompt-movie-beta", "heavy-worker-beta", "seedance-2-fast"])
     .default("prompt-movie-beta"),
   heavyProvider: z
-    .enum(["local-heavy-v1", "open-model-adapter", "replicate-video-adapter", "minimax-subject-adapter"])
+    .enum([
+      "local-heavy-v1",
+      "open-model-adapter",
+      "replicate-video-adapter",
+      "replicate-kling-v3-omni",
+      "minimax-subject-adapter",
+    ])
     .optional(),
 });
 

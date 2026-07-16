@@ -119,6 +119,13 @@ PULSEREEL_REMOTE_MODEL_BACKEND_URL=https://your-worker-domain/pulsereel/render
 
 Vercel forwards the Replicate token and selected model privately to this worker for Replicate jobs. The worker calls Replicate, downloads the returned MP4, and returns the same `processedVideoUrl` shape the app already understands.
 
+The studio also exposes an experimental **Replicate Pro · Kling** profile. It reuses the same Replicate token and defaults to `kwaivgi/kling-v3-omni-video`, requesting a 15-second 9:16 multi-shot movie with identity reference images and native audio. MiniMax remains the recommended default until Kling identity consistency and per-run cost have been evaluated. Optional worker overrides are:
+
+```text
+PULSEREEL_KLING_MODE=standard
+PULSEREEL_KLING_DURATION_SECONDS=15
+```
+
 If a chosen Replicate model uses different input field names, set `PULSEREEL_REPLICATE_INPUT_TEMPLATE` on the worker machine or service:
 
 ```text

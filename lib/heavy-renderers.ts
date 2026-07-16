@@ -128,7 +128,12 @@ async function writeExternalProviderRequest(
 
   await fs.writeFile(requestPath, JSON.stringify(request, null, 2), "utf8");
 
+  job.payload.provider = config.id;
   job.payload.modelHints.preferredMotionBackend = config.preferredMotionBackend;
+  job.payload.modelHints.fallbackBehavior =
+    config.allowLocalFallback === false
+      ? "fail-provider-job"
+      : "use-local-motion-runner";
   job.payload.modelHints.externalProvider = {
     provider: config.provider,
     configured,
@@ -285,6 +290,26 @@ const replicateVideoProvider = createExternalProvider({
   ],
 });
 
+const replicateKlingProvider = createExternalProvider({
+  provider: "replicate",
+  id: "replicate-kling-v3-omni",
+  label: "Replicate Pro · Kling V3 Omni",
+  description:
+    "Experimental 15-second identity-reference lane with native audio through Replicate-hosted Kling V3 Omni.",
+  preferredMotionBackend: "replicate-hosted-video",
+  tokenEnv: "PULSEREEL_REPLICATE_API_TOKEN",
+  modelEnv: "PULSEREEL_KLING_REPLICATE_MODEL",
+  defaultModel: "kwaivgi/kling-v3-omni-video",
+  configuredStage: "Kling V3 Omni configured; dispatching a 15-second native-audio identity movie",
+  missingStage: "Kling V3 Omni selected but the Replicate token is missing; local fallback is disabled",
+  allowLocalFallback: false,
+  notes: [
+    "Experimental higher-cost lane; keep MiniMax Video-01 as the default until identity consistency is verified.",
+    "Send the creator identity as reference_images and name it as <<<image_1>>> in every shot prompt.",
+    "Request portrait 9:16, native audio, and a 15-second multi-shot movie.",
+  ],
+});
+
 const minimaxSubjectProvider = createExternalProvider({
   provider: "minimax",
   id: "minimax-subject-adapter",
@@ -307,6 +332,7 @@ const providers: Record<HeavyRenderProviderId, HeavyRenderProvider> = {
   "local-heavy-v1": localHeavyProvider,
   "open-model-adapter": openModelAdapterProvider,
   "replicate-video-adapter": replicateVideoProvider,
+  "replicate-kling-v3-omni": replicateKlingProvider,
   "minimax-subject-adapter": minimaxSubjectProvider,
 };
 

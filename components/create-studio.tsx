@@ -4,11 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
 import type { MovieProject, RenderMode } from "@/lib/types";
 
-type ModelChoice = "seedance-2-fast" | "local-heavy-v1" | "replicate-video-adapter";
+type ModelChoice =
+  | "seedance-2-fast"
+  | "local-heavy-v1"
+  | "replicate-video-adapter"
+  | "replicate-kling-v3-omni";
 
 type StatusState = {
   tone: "idle" | "success" | "error";
   message: string;
+};
+
+const cameraVideoConstraints: MediaTrackConstraints = {
+  facingMode: "user",
+  width: { ideal: 720 },
+  height: { ideal: 1280 },
+  frameRate: { ideal: 24, max: 30 },
 };
 
 function cleanStudioError(message: string) {
@@ -199,12 +210,7 @@ export function CreateStudio() {
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 480 },
-            height: { ideal: 640 },
-            frameRate: { ideal: 15, max: 24 },
-          },
+          video: cameraVideoConstraints,
           audio: false,
         });
         if (!isMounted) {
@@ -236,12 +242,7 @@ export function CreateStudio() {
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 480 },
-          height: { ideal: 640 },
-          frameRate: { ideal: 15, max: 24 },
-        },
+        video: cameraVideoConstraints,
         audio: false,
       });
       streamRef.current = stream;
@@ -308,7 +309,7 @@ export function CreateStudio() {
       mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
         ? "video/webm;codecs=vp9"
         : "video/webm",
-      videoBitsPerSecond: 700_000,
+      videoBitsPerSecond: 2_200_000,
     });
 
     chunksRef.current = [];
@@ -366,14 +367,17 @@ export function CreateStudio() {
     context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       if (!blob) return;
-      const file = new File([blob], "pulsereel-selfie.png", { type: "image/png" });
+      const file = new File([blob], "pulsereel-identity.jpg", { type: "image/jpeg" });
       if (selfieUrl) {
         URL.revokeObjectURL(selfieUrl);
       }
       setSelfieFile(file);
       setSelfieUrl(URL.createObjectURL(file));
-      setStatus({ tone: "success", message: "Selfie captured." });
-    }, "image/png");
+      setStatus({
+        tone: "success",
+        message: "Identity selfie captured. PulseReel will use this clear frame to preserve your face.",
+      });
+    }, "image/jpeg", 0.9);
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -466,6 +470,10 @@ export function CreateStudio() {
           <span>1</span>
           <h2>Your clip</h2>
         </div>
+        <p className="capture-guidance">
+          Face the camera in even light, keep your full face visible, and hold still briefly. For the strongest identity,
+          capture an Identity selfie as well as the 10-second clip.
+        </p>
         <div className="camera-shell">
           <div className="camera-stage">
             {previewUrl ? (
@@ -553,7 +561,7 @@ export function CreateStudio() {
               </button>
             )}
             <button className="button-secondary" type="button" onClick={captureSelfie}>
-              Selfie
+              Identity selfie
             </button>
           </div>
 
@@ -633,6 +641,16 @@ export function CreateStudio() {
             />
             <span>Local worker</span>
           </label>
+          <label className={`template-option ${modelChoice === "replicate-kling-v3-omni" ? "active" : ""}`}>
+            <input
+              checked={modelChoice === "replicate-kling-v3-omni"}
+              name="modelChoice"
+              onChange={() => setModelChoice("replicate-kling-v3-omni")}
+              type="radio"
+              value="replicate-kling-v3-omni"
+            />
+            <span>Replicate Pro · Kling</span>
+          </label>
           <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""}`}>
             <input
               checked={modelChoice === "seedance-2-fast"}
@@ -648,6 +666,8 @@ export function CreateStudio() {
         <p className="model-capability-note">
           {modelChoice === "replicate-video-adapter"
             ? "Recommended. The current MiniMax identity model creates a realistic 6-second silent clip."
+            : modelChoice === "replicate-kling-v3-omni"
+              ? "Experimental. Kling V3 Omni requests a 15-second portrait movie with native audio and costs more per run."
             : modelChoice === "local-heavy-v1"
               ? "Prototype renderer. It assembles a movie locally but is not a hosted generative video model."
               : "Hosted Seedance generation requires separate provider credit."}

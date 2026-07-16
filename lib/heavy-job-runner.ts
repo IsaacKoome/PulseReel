@@ -985,6 +985,9 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
         : undefined,
   }));
 
+  const isReplicateProvider =
+    provider === "replicate-video-adapter" || provider === "replicate-kling-v3-omni";
+
   const payload: HeavyJobPayload = {
     protocolVersion: "pulsereel-heavy-job-v1",
     jobId: project.workerJob?.id ?? `job-${project.id}`,
@@ -1005,8 +1008,8 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
     },
     modelHints: {
       workflow: "shot-to-video",
-      preferredMotionBackend: "open-source-local",
-      fallbackBehavior: "use-local-motion-runner",
+      preferredMotionBackend: isReplicateProvider ? "replicate-hosted-video" : "open-source-local",
+      fallbackBehavior: isReplicateProvider ? "fail-provider-job" : "use-local-motion-runner",
       qualityPriority: "motion-consistency-over-photorealism",
       bridgeTarget: process.env.PULSEREEL_PYTHON_EXECUTABLE ? "python-runner" : "node-runner",
       recommendedBackends: [
@@ -1194,14 +1197,17 @@ async function remoteHeaders(payloadPath?: string) {
       const payload = await readHeavyJobPayload(payloadPath);
       const isReplicatePayload =
         payload.provider === "replicate-video-adapter" ||
+        payload.provider === "replicate-kling-v3-omni" ||
         payload.modelHints.preferredMotionBackend === "replicate-hosted-video" ||
         payload.modelHints.externalProvider?.provider === "replicate";
 
       if (isReplicatePayload) {
         const replicateToken = process.env.PULSEREEL_REPLICATE_API_TOKEN?.trim();
         const replicateModel =
-          payload.modelHints.externalProvider?.model ||
-          process.env.PULSEREEL_REPLICATE_MODEL?.trim();
+          payload.provider === "replicate-kling-v3-omni"
+            ? process.env.PULSEREEL_KLING_REPLICATE_MODEL?.trim() || "kwaivgi/kling-v3-omni-video"
+            : payload.modelHints.externalProvider?.model ||
+              process.env.PULSEREEL_REPLICATE_MODEL?.trim();
 
         if (replicateToken) {
           headers["X-PulseReel-Replicate-Token"] = replicateToken;
@@ -1209,7 +1215,10 @@ async function remoteHeaders(payloadPath?: string) {
         if (replicateModel) {
           headers["X-PulseReel-Replicate-Model"] = replicateModel;
         }
-        const inputTemplate = process.env.PULSEREEL_REPLICATE_INPUT_TEMPLATE?.trim();
+        const inputTemplate =
+          payload.provider === "replicate-kling-v3-omni"
+            ? process.env.PULSEREEL_KLING_REPLICATE_INPUT_TEMPLATE?.trim()
+            : process.env.PULSEREEL_REPLICATE_INPUT_TEMPLATE?.trim();
         if (inputTemplate) {
           headers["X-PulseReel-Replicate-Input-Template"] = inputTemplate;
         }

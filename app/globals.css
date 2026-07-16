@@ -711,6 +711,13 @@ select {
   line-height: 1.5;
 }
 
+.capture-guidance {
+  margin: -2px 0 14px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
 .simple-template-list .template-option {
   display: flex;
   align-items: center;

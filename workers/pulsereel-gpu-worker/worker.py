@@ -2,6 +2,7 @@ import base64
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -39,6 +40,7 @@ ENABLE_AUDIO_BED = os.environ.get("PULSEREEL_WORKER_ENABLE_AUDIO_BED", "1").stri
 REPLICATE_API_TOKEN = os.environ.get("PULSEREEL_REPLICATE_API_TOKEN", "").strip()
 REPLICATE_MODEL = os.environ.get("PULSEREEL_REPLICATE_MODEL", "").strip()
 REPLICATE_INPUT_TEMPLATE = os.environ.get("PULSEREEL_REPLICATE_INPUT_TEMPLATE", "").strip()
+KLING_V3_OMNI_MODEL = "kwaivgi/kling-v3-omni-video"
 
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -271,19 +273,92 @@ def verify_authorization(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid worker token.")
 
 
-def extract_identity_frame(source_video_path: Path, destination: Path) -> None:
-    run_ffmpeg(
+def identity_frame_rank(blur_score: float, brightness: float) -> float:
+    exposure_penalty = 0.0
+    if brightness < 55:
+        exposure_penalty = (55 - brightness) / 6
+    elif brightness > 205:
+        exposure_penalty = (brightness - 205) / 6
+    else:
+        exposure_penalty = abs(brightness - 130) / 500
+    return blur_score + exposure_penalty
+
+
+def identity_frame_quality(frame_path: Path) -> float | None:
+    process = subprocess.run(
         [
-            "-y",
-            "-ss",
-            "0.8",
+            FFMPEG,
+            "-hide_banner",
             "-i",
-            str(source_video_path),
-            "-frames:v",
-            "1",
-            str(destination),
-        ]
+            str(frame_path),
+            "-vf",
+            "blurdetect,signalstats,metadata=print",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        text=True,
     )
+    if process.returncode != 0:
+        return None
+
+    diagnostic_text = f"{process.stdout}\n{process.stderr}"
+    blur_match = re.search(r"blur mean:\s*([0-9.]+)", diagnostic_text)
+    brightness_match = re.search(r"lavfi\.signalstats\.YAVG=([0-9.]+)", diagnostic_text)
+    if not blur_match or not brightness_match:
+        return None
+    return identity_frame_rank(float(blur_match.group(1)), float(brightness_match.group(1)))
+
+
+def extract_identity_frame(source_video_path: Path, destination: Path) -> None:
+    candidates_dir = destination.parent / f".{destination.stem}-candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    scored_candidates: list[tuple[float, Path]] = []
+
+    try:
+        for index, offset in enumerate((0.8, 2.4, 4.0, 5.6, 7.2, 8.8)):
+            candidate = candidates_dir / f"frame-{index}.png"
+            process = subprocess.run(
+                [
+                    FFMPEG,
+                    "-y",
+                    "-ss",
+                    str(offset),
+                    "-i",
+                    str(source_video_path),
+                    "-frames:v",
+                    "1",
+                    str(candidate),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if process.returncode != 0 or not candidate.exists() or candidate.stat().st_size == 0:
+                continue
+            quality = identity_frame_quality(candidate)
+            if quality is not None:
+                scored_candidates.append((quality, candidate))
+
+        if scored_candidates:
+            _, selected = min(scored_candidates, key=lambda item: item[0])
+            shutil.copyfile(selected, destination)
+            return
+
+        run_ffmpeg(
+            [
+                "-y",
+                "-ss",
+                "0.8",
+                "-i",
+                str(source_video_path),
+                "-frames:v",
+                "1",
+                str(destination),
+            ]
+        )
+    finally:
+        shutil.rmtree(candidates_dir, ignore_errors=True)
 
 
 def build_model_prompt(payload: dict, shot: dict) -> str:
@@ -632,6 +707,7 @@ def selected_render_provider(payload: dict) -> str:
     external_provider = model_hints.get("externalProvider", {})
     if (
         payload.get("provider") == "replicate-video-adapter"
+        or payload.get("provider") == "replicate-kling-v3-omni"
         or model_hints.get("preferredMotionBackend") == "replicate-hosted-video"
         or external_provider.get("provider") == "replicate"
     ):
@@ -677,6 +753,85 @@ def build_replicate_prompt(payload: dict) -> str:
     return " ".join(shot_lines) or "Create a cinematic vertical short film from the provided identity reference."
 
 
+def kling_duration_seconds() -> int:
+    try:
+        requested = int(os.environ.get("PULSEREEL_KLING_DURATION_SECONDS", "15"))
+    except ValueError:
+        requested = 15
+    return min(15, max(3, requested))
+
+
+def kling_mode() -> str:
+    requested = os.environ.get("PULSEREEL_KLING_MODE", "standard").strip().lower()
+    return requested if requested in {"standard", "pro", "4k"} else "standard"
+
+
+def distributed_shot_durations(total_duration: int, shot_count: int) -> list[int]:
+    if shot_count <= 0:
+        return []
+    base = total_duration // shot_count
+    durations = [base] * shot_count
+    for index in range(total_duration - (base * shot_count)):
+        durations[index] += 1
+    return durations
+
+
+def selected_story_shots(payload: dict, maximum: int = 3) -> list[dict]:
+    shots = [shot for shot in payload.get("shots", []) if shot.get("prompt")]
+    if len(shots) <= maximum:
+        return shots
+    indices = [0, len(shots) // 2, len(shots) - 1]
+    return [shots[index] for index in indices]
+
+
+def build_kling_input(payload: dict, identity_data_uri: str, reference_image_data_uri: str) -> dict:
+    duration = kling_duration_seconds()
+    reference_data_uri = identity_data_uri or reference_image_data_uri
+    identity_phrase = (
+        "<<<image_1>>> is the same main character in every shot. Preserve this person's face, skin tone, "
+        "body proportions, and recognizable identity."
+        if reference_data_uri
+        else "Keep the same main character and appearance in every shot."
+    )
+    story_prompt = str(payload.get("story", {}).get("scenePrompt") or build_replicate_prompt(payload)).strip()
+    score_mood = str(payload.get("styleBible", {}).get("scoreMood", "cinematic atmospheric score")).strip()
+    overall_prompt = (
+        f"Create a coherent vertical live-action movie. {identity_phrase} Story: {story_prompt} "
+        f"Use photorealistic people, natural skin texture, believable background characters, realistic physics, "
+        f"cinematic lighting, synchronized environmental sounds, movement sounds, and {score_mood}. "
+        "No captions, logos, distorted faces, duplicate people, or unintelligible dialogue."
+    )[:2500]
+
+    selected_shots = selected_story_shots(payload)
+    if not selected_shots:
+        selected_shots = [{"prompt": story_prompt}]
+    shot_durations = distributed_shot_durations(duration, len(selected_shots))
+    multi_prompt = []
+    for shot, shot_duration in zip(selected_shots, shot_durations):
+        shot_prompt = str(shot.get("prompt") or story_prompt).strip()
+        multi_prompt.append(
+            {
+                "prompt": (
+                    f"{identity_phrase} {shot_prompt} Photorealistic live action, natural motion and ambient sound, "
+                    "cinematic portrait framing."
+                )[:900],
+                "duration": shot_duration,
+            }
+        )
+
+    request_input = {
+        "mode": kling_mode(),
+        "prompt": overall_prompt,
+        "duration": duration,
+        "aspect_ratio": "9:16",
+        "multi_prompt": json.dumps(multi_prompt),
+        "generate_audio": True,
+    }
+    if reference_data_uri:
+        request_input["reference_images"] = [reference_data_uri]
+    return request_input
+
+
 def build_replicate_input(
     payload: dict,
     references: dict[int, Path],
@@ -715,6 +870,9 @@ def build_replicate_input(
         ):
             request_input.pop("first_frame_image")
         return request_input
+
+    if normalized_model == KLING_V3_OMNI_MODEL:
+        return build_kling_input(payload, identity_data_uri, reference_image_data_uri)
 
     if normalized_model == "minimax/video-01":
         request_input = {
@@ -1002,6 +1160,8 @@ def health() -> dict:
         "mode": os.environ.get("PULSEREEL_WORKER_MODE", "ffmpeg-starter"),
         "comfyuiConfigured": comfyui_enabled(),
         "durableStorageConfigured": storage_enabled(),
+        "identityFrameSelection": "multi-frame-quality-v1",
+        "replicateProfiles": ["minimax/video-01", KLING_V3_OMNI_MODEL],
     }
 
 
