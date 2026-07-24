@@ -9,6 +9,7 @@ import {
   updateHeavyJobStatus,
   writeHeavyJobResult,
 } from "@/lib/heavy-job-runner";
+import type { RemoteProviderCredentials } from "@/lib/heavy-job-runner";
 import { getHeavyRenderProvider } from "@/lib/heavy-renderers";
 import { createMovieProjectDraft } from "@/lib/pipeline";
 import { addProject, getProjectById, getProjectBySlug, updateProject } from "@/lib/store";
@@ -29,6 +30,11 @@ export async function createHeavyProject(input: {
   heavyProvider?: HeavyRenderProviderId;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
+  visibility?: MovieProject["visibility"];
+  generationFunding?: MovieProject["generationFunding"];
+  costBearer?: MovieProject["costBearer"];
+  estimatedUnitCostUsd?: number;
+  identityConsentAt?: string;
 }, options: { autoStart?: boolean } = {}) {
   const { heavyProvider, ...projectInput } = input;
   const provider = getHeavyRenderProvider(heavyProvider);
@@ -56,7 +62,10 @@ export async function createHeavyProject(input: {
   return project;
 }
 
-export async function enqueueHeavyGeneration(projectOrId: MovieProject | string) {
+export async function enqueueHeavyGeneration(
+  projectOrId: MovieProject | string,
+  providerCredentials?: RemoteProviderCredentials,
+) {
   const project = typeof projectOrId === "string" ? await getProjectById(projectOrId) : projectOrId;
   if (!project?.workerJob?.payloadPath || !project.workerJob.resultPath) {
     throw new Error("Heavy job files were not prepared.");
@@ -67,6 +76,7 @@ export async function enqueueHeavyGeneration(projectOrId: MovieProject | string)
     payloadPath: project.workerJob.payloadPath,
     resultPath: project.workerJob.resultPath,
     statusPath,
+    providerCredentials,
   });
 
   if (!queued) {

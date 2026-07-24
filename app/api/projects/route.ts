@@ -4,8 +4,14 @@ import { createHeavyProject, enqueueHeavyGeneration } from "@/lib/heavy-worker";
 import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
-import { addProject, getProjectById } from "@/lib/store";
+import { addProject, getProjectById, getProjects } from "@/lib/store";
 import type { HeavyRenderProviderId } from "@/lib/types";
+import {
+  estimatedGenerationCostUsd,
+  getCreatorBetaConfig,
+  isManagedProject,
+  isValidCreatorAccessCode,
+} from "@/lib/creator-beta";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,7 +36,14 @@ const schema = z.object({
       "minimax-subject-adapter",
     ])
     .optional(),
+  fundingMode: z.enum(["managed", "creator-byok"]).default("managed"),
 });
+
+function json(body: unknown, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
 
 function titleFromPrompt(prompt: string) {
   const cleaned = prompt
@@ -76,14 +89,20 @@ function autoFillFromPrompt(prompt: string, templateId: string) {
 
 export async function POST(request: Request) {
   try {
+    const beta = getCreatorBetaConfig();
     const formData = await request.formData();
     const video = formData.get("video");
     const selfie = formData.get("selfie");
     const quickPrompt = String(formData.get("quickPrompt") ?? "").trim();
     const templateIdValue = String(formData.get("templateId") ?? "");
+    const requestedFundingMode = String(formData.get("fundingMode") ?? "managed");
+    const replicateApiToken = String(formData.get("replicateApiToken") ?? "").trim();
+    const accessCode = String(formData.get("accessCode") ?? "").trim();
+    const identityConsent = formData.get("identityConsent") === "true";
+    const shareToGallery = formData.get("shareToGallery") === "true";
 
     if (!(video instanceof File) || video.size === 0) {
-      return NextResponse.json({ error: "A video clip is required." }, { status: 400 });
+      return json({ error: "A video clip is required." }, { status: 400 });
     }
 
     const rawValues = quickPrompt
@@ -92,26 +111,108 @@ export async function POST(request: Request) {
           templateId: templateIdValue,
           renderMode: formData.get("renderMode"),
           heavyProvider: formData.get("heavyProvider") || undefined,
+          fundingMode: requestedFundingMode,
         }
       : {
-      creatorName: formData.get("creatorName"),
-      title: formData.get("title"),
-      templateId: formData.get("templateId"),
-      genre: formData.get("genre"),
-      premise: formData.get("premise"),
-      scenePrompt: formData.get("scenePrompt"),
-      persona: formData.get("persona"),
-      renderMode: formData.get("renderMode"),
-      heavyProvider: formData.get("heavyProvider") || undefined,
+          creatorName: formData.get("creatorName"),
+          title: formData.get("title"),
+          templateId: formData.get("templateId"),
+          genre: formData.get("genre"),
+          premise: formData.get("premise"),
+          scenePrompt: formData.get("scenePrompt"),
+          persona: formData.get("persona"),
+          renderMode: formData.get("renderMode"),
+          heavyProvider: formData.get("heavyProvider") || undefined,
+          fundingMode: requestedFundingMode,
         };
 
     const parsed = schema.safeParse(rawValues);
 
     if (!parsed.success) {
-      return NextResponse.json(
+      return json(
         { error: parsed.error.issues[0]?.message || "The form data is incomplete." },
         { status: 400 },
       );
+    }
+
+    const isByok = parsed.data.fundingMode === "creator-byok";
+    if (!beta.enabled && isByok) {
+      return json({ error: "Creator-funded generation is not enabled." }, { status: 403 });
+    }
+    if (!beta.generationEnabled) {
+      return json(
+        { error: "Movie generation is temporarily paused. You can still create a free preview." },
+        { status: 503 },
+      );
+    }
+    if (beta.enabled && !identityConsent) {
+      return json(
+        { error: "Please confirm that you have permission to use the uploaded identity media." },
+        { status: 400 },
+      );
+    }
+    if (beta.enabled && beta.requireAccessCode && !isValidCreatorAccessCode(accessCode)) {
+      return json({ error: "That Creator Beta access code is not valid." }, { status: 403 });
+    }
+    if (beta.enabled && !isByok && !beta.managedGenerationEnabled) {
+      return json(
+        { error: "PulseReel-funded generation is currently paused. Choose Bring your own Replicate key." },
+        { status: 503 },
+      );
+    }
+    if (isByok && replicateApiToken.length < 20) {
+      return json(
+        { error: "Enter a valid Replicate API token for creator-funded generation." },
+        { status: 400 },
+      );
+    }
+
+    const heavyProvider = parsed.data.heavyProvider as HeavyRenderProviderId | undefined;
+    if (
+      isByok &&
+      heavyProvider !== "replicate-video-adapter" &&
+      heavyProvider !== "replicate-kling-v3-omni"
+    ) {
+      return json(
+        { error: "Bring-your-own-key generation currently supports Replicate AI and Replicate Pro." },
+        { status: 400 },
+      );
+    }
+
+    if (beta.enabled && !isByok && beta.managedDailyLimit) {
+      const today = new Date().toISOString().slice(0, 10);
+      const managedToday = (await getProjects()).filter(
+        (project) => project.createdAt.startsWith(today) && isManagedProject(project),
+      ).length;
+      if (managedToday >= beta.managedDailyLimit) {
+        return json(
+          {
+            error:
+              "Today’s PulseReel-funded generation limit has been reached. Try again tomorrow or use your own Replicate key.",
+          },
+          { status: 429 },
+        );
+      }
+    }
+
+    if (isByok && !process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()) {
+      return json(
+        { error: "Creator-funded Replicate generation requires the PulseReel remote worker." },
+        { status: 503 },
+      );
+    }
+    if (isByok && isVercelRuntime()) {
+      try {
+        const remoteWorkerUrl = new URL(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL!);
+        if (remoteWorkerUrl.protocol !== "https:") {
+          return json(
+            { error: "Creator API keys can only be sent to an HTTPS remote worker." },
+            { status: 503 },
+          );
+        }
+      } catch {
+        return json({ error: "The PulseReel remote worker URL is invalid." }, { status: 503 });
+      }
     }
 
     if (
@@ -119,7 +220,7 @@ export async function POST(request: Request) {
       parsed.data.renderMode !== "seedance-2-fast" &&
       !process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()
     ) {
-      return NextResponse.json(
+      return json(
         {
           error:
             "The public Vercel app needs PULSEREEL_REMOTE_MODEL_BACKEND_URL before it can render movies. Local generation works on your PC, but Vercel cannot run the full local FFmpeg/Python/ComfyUI pipeline inside a web request.",
@@ -146,9 +247,16 @@ export async function POST(request: Request) {
         sourceImageUrl,
       });
 
+      if (beta.enabled) {
+        project.visibility = shareToGallery ? "public" : "private";
+        project.generationFunding = "managed";
+        project.costBearer = "pulsereel";
+        project.identityConsentAt = new Date().toISOString();
+      }
+
       await addProject(project);
 
-      return NextResponse.json({
+      return json({
         slug: project.slug,
         status: project.status,
         executionPath: "seedance-2-fast",
@@ -157,6 +265,7 @@ export async function POST(request: Request) {
     }
 
     const shouldUseHeavyWorker =
+      isByok ||
       parsed.data.renderMode === "heavy-worker-beta" ||
       (isVercelRuntime() && Boolean(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()));
 
@@ -165,48 +274,87 @@ export async function POST(request: Request) {
         video,
         selfie instanceof File && selfie.size > 0 ? selfie : undefined,
       );
-      const heavyProvider = parsed.data.heavyProvider as HeavyRenderProviderId | undefined;
-
-      const project = await createHeavyProject({
-        creatorName: parsed.data.creatorName,
-        title: parsed.data.title,
-        templateId: parsed.data.templateId,
-        genre: parsed.data.genre,
-        premise: parsed.data.premise,
-        scenePrompt: parsed.data.scenePrompt,
-        persona: parsed.data.persona,
-        renderMode: parsed.data.renderMode,
-        heavyProvider,
-        sourceVideoUrl,
-        sourceImageUrl,
-      }, { autoStart: !isVercelRuntime() });
+      const project = await createHeavyProject(
+        {
+          creatorName: parsed.data.creatorName,
+          title: parsed.data.title,
+          templateId: parsed.data.templateId,
+          genre: parsed.data.genre,
+          premise: parsed.data.premise,
+          scenePrompt: parsed.data.scenePrompt,
+          persona: parsed.data.persona,
+          renderMode: parsed.data.renderMode,
+          heavyProvider,
+          sourceVideoUrl,
+          sourceImageUrl,
+          ...(beta.enabled
+            ? {
+                visibility: shareToGallery ? ("public" as const) : ("private" as const),
+                generationFunding: parsed.data.fundingMode,
+                costBearer: isByok ? ("creator" as const) : ("pulsereel" as const),
+                estimatedUnitCostUsd: heavyProvider
+                  ? estimatedGenerationCostUsd(heavyProvider)
+                  : undefined,
+                identityConsentAt: new Date().toISOString(),
+              }
+            : {}),
+        },
+        { autoStart: !isVercelRuntime() && !isByok },
+      );
 
       let finalProject = project;
-      if (isVercelRuntime()) {
-        finalProject = await enqueueHeavyGeneration(project);
+      if (isVercelRuntime() || isByok) {
+        finalProject = await enqueueHeavyGeneration(
+          project,
+          isByok
+            ? {
+                replicateToken: replicateApiToken,
+                replicateModel:
+                  heavyProvider === "replicate-kling-v3-omni"
+                    ? process.env.PULSEREEL_KLING_REPLICATE_MODEL?.trim() ||
+                      "kwaivgi/kling-v3-omni-video"
+                    : process.env.PULSEREEL_REPLICATE_MODEL?.trim() || "minimax/video-01",
+              }
+            : undefined,
+        );
       }
 
       finalProject = (await getProjectById(project.id)) ?? finalProject;
 
-      return NextResponse.json({
+      return json({
         slug: finalProject.slug,
         status: finalProject.status,
-        executionPath: isVercelRuntime() ? "remote-heavy-worker" : "local-heavy-worker",
+        executionPath: isVercelRuntime() || isByok ? "remote-heavy-worker" : "local-heavy-worker",
         project: finalProject,
       });
     }
 
     const project = await createMovieProject({
-      ...parsed.data,
+      creatorName: parsed.data.creatorName,
+      title: parsed.data.title,
+      templateId: parsed.data.templateId,
+      genre: parsed.data.genre,
+      premise: parsed.data.premise,
+      scenePrompt: parsed.data.scenePrompt,
+      persona: parsed.data.persona,
+      renderMode: parsed.data.renderMode,
       videoFile: video,
       imageFile: selfie instanceof File && selfie.size > 0 ? selfie : undefined,
+      ...(beta.enabled
+        ? {
+            visibility: shareToGallery ? ("public" as const) : ("private" as const),
+            generationFunding: parsed.data.fundingMode,
+            costBearer: isByok ? ("creator" as const) : ("pulsereel" as const),
+            identityConsentAt: new Date().toISOString(),
+          }
+        : {}),
     });
 
     await addProject(project);
 
-    return NextResponse.json({ slug: project.slug, status: project.status });
+    return json({ slug: project.slug, status: project.status });
   } catch (error) {
-    return NextResponse.json(
+    return json(
       { error: error instanceof Error ? error.message : "The movie pipeline failed." },
       { status: 500 },
     );

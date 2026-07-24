@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
 import type { MovieProject, RenderMode } from "@/lib/types";
+import type { CreatorBetaClientConfig } from "@/lib/creator-beta";
 
 type ModelChoice =
   | "seedance-2-fast"
@@ -30,7 +31,14 @@ function cleanStudioError(message: string) {
   return message;
 }
 
-export function CreateStudio() {
+function previewTitle(prompt: string) {
+  const words = prompt.replace(/[^a-z0-9\s'-]/gi, " ").trim().split(/\s+/).filter(Boolean);
+  return (words.slice(0, 5).join(" ") || "Your PulseReel Story").replace(/\b\w/g, (char) =>
+    char.toUpperCase(),
+  );
+}
+
+export function CreateStudio({ creatorBeta }: { creatorBeta: CreatorBetaClientConfig }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
   const cameraRetryRef = useRef<number | null>(null);
@@ -45,6 +53,14 @@ export function CreateStudio() {
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
   const [modelChoice, setModelChoice] = useState<ModelChoice>("replicate-video-adapter");
+  const [fundingMode, setFundingMode] = useState<"managed" | "creator-byok">(
+    creatorBeta.defaultFunding,
+  );
+  const [replicateApiToken, setReplicateApiToken] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+  const [identityConsent, setIdentityConsent] = useState(false);
+  const [shareToGallery, setShareToGallery] = useState(false);
+  const [showFreePreview, setShowFreePreview] = useState(false);
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -396,6 +412,14 @@ export function CreateStudio() {
       return;
     }
 
+    if (creatorBeta.enabled && !identityConsent) {
+      setStatus({
+        tone: "error",
+        message: "Confirm that you have permission to use the uploaded identity media.",
+      });
+      return;
+    }
+
     if (finalVideo.size > 4_000_000) {
       setStatus({
         tone: "error",
@@ -414,6 +438,17 @@ export function CreateStudio() {
       formData.set("heavyProvider", modelChoice);
     }
     formData.set("quickPrompt", quickPrompt);
+    if (creatorBeta.enabled) {
+      formData.set("fundingMode", fundingMode);
+      formData.set("identityConsent", String(identityConsent));
+      formData.set("shareToGallery", String(shareToGallery));
+      if (fundingMode === "creator-byok") {
+        formData.set("replicateApiToken", replicateApiToken);
+      }
+      if (accessCode) {
+        formData.set("accessCode", accessCode);
+      }
+    }
     if (selfieFile) {
       formData.set("selfie", selfieFile);
     }
@@ -428,6 +463,7 @@ export function CreateStudio() {
       const response = await fetch("/api/projects", {
         method: "POST",
         body: formData,
+        cache: "no-store",
       });
       const responseText = await response.text();
       let payload: { slug?: string; error?: string; project?: MovieProject } = {};
@@ -634,6 +670,7 @@ export function CreateStudio() {
           <label className={`template-option ${modelChoice === "local-heavy-v1" ? "active" : ""}`}>
             <input
               checked={modelChoice === "local-heavy-v1"}
+              disabled={creatorBeta.enabled && fundingMode === "creator-byok"}
               name="modelChoice"
               onChange={() => setModelChoice("local-heavy-v1")}
               type="radio"
@@ -654,6 +691,7 @@ export function CreateStudio() {
           <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""}`}>
             <input
               checked={modelChoice === "seedance-2-fast"}
+              disabled={creatorBeta.enabled && fundingMode === "creator-byok"}
               name="modelChoice"
               onChange={() => setModelChoice("seedance-2-fast")}
               type="radio"
@@ -673,11 +711,167 @@ export function CreateStudio() {
               : "Hosted Seedance generation requires separate provider credit."}
         </p>
 
+        {creatorBeta.enabled ? (
+          <section className="creator-beta-panel" aria-labelledby="creator-beta-title">
+            <div className="creator-beta-heading">
+              <div>
+                <span className="eyebrow">Creator Beta</span>
+                <h3 id="creator-beta-title">Choose who funds this generation</h3>
+              </div>
+              <span className="beta-badge">Private by default</span>
+            </div>
+
+            <div className="funding-choice">
+              <label className={`funding-option ${fundingMode === "creator-byok" ? "active" : ""}`}>
+                <input
+                  checked={fundingMode === "creator-byok"}
+                  name="fundingChoice"
+                  onChange={() => {
+                    setFundingMode("creator-byok");
+                    if (modelChoice === "local-heavy-v1" || modelChoice === "seedance-2-fast") {
+                      setModelChoice("replicate-video-adapter");
+                    }
+                  }}
+                  type="radio"
+                />
+                <strong>Bring your own Replicate key</strong>
+                <span>You pay Replicate directly. PulseReel never stores your key.</span>
+              </label>
+              <label
+                className={`funding-option ${fundingMode === "managed" ? "active" : ""} ${
+                  !creatorBeta.managedGenerationEnabled ? "disabled" : ""
+                }`}
+              >
+                <input
+                  checked={fundingMode === "managed"}
+                  disabled={!creatorBeta.managedGenerationEnabled}
+                  name="fundingChoice"
+                  onChange={() => setFundingMode("managed")}
+                  type="radio"
+                />
+                <strong>PulseReel-funded beta</strong>
+                <span>
+                  {creatorBeta.managedGenerationEnabled
+                    ? creatorBeta.managedDailyLimit
+                      ? `Limited to ${creatorBeta.managedDailyLimit} starts per day across the beta.`
+                      : "Available while the managed beta budget is open."
+                    : "Currently paused to protect the project budget."}
+                </span>
+              </label>
+            </div>
+
+            {fundingMode === "creator-byok" ? (
+              <label className="label">
+                <span>Replicate API token</span>
+                <input
+                  autoComplete="off"
+                  className="input secret-input"
+                  name="creatorReplicateToken"
+                  onChange={(event) => setReplicateApiToken(event.target.value)}
+                  placeholder="r8_..."
+                  required
+                  spellCheck={false}
+                  type="password"
+                  value={replicateApiToken}
+                />
+                <small className="creator-security-note">
+                  Sent once over HTTPS to start this movie. It is not saved in PulseReel or your browser.
+                </small>
+              </label>
+            ) : null}
+
+            {creatorBeta.requireAccessCode ? (
+              <label className="label">
+                <span>Creator Beta access code</span>
+                <input
+                  autoComplete="off"
+                  className="input"
+                  name="creatorAccessCode"
+                  onChange={(event) => setAccessCode(event.target.value)}
+                  required
+                  type="password"
+                  value={accessCode}
+                />
+              </label>
+            ) : null}
+
+            <label className="checkbox-row">
+              <input
+                checked={identityConsent}
+                onChange={(event) => setIdentityConsent(event.target.checked)}
+                type="checkbox"
+              />
+              <span>I own or have permission to use every person’s identity in these uploads.</span>
+            </label>
+            <label className="checkbox-row">
+              <input
+                checked={shareToGallery}
+                onChange={(event) => setShareToGallery(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Publish the finished movie in the public PulseReel gallery.</span>
+            </label>
+
+            <button
+              className="button-secondary creator-preview-button"
+              onClick={() => setShowFreePreview(true)}
+              type="button"
+            >
+              Build free story preview
+            </button>
+            <p className="creator-security-note">
+              The story preview runs in your browser and does not call an AI video provider.
+            </p>
+          </section>
+        ) : null}
+
+        {creatorBeta.enabled && showFreePreview ? (
+          <section className="creator-preview" aria-live="polite">
+            <div
+              className="creator-preview-media"
+              style={{
+                background: `linear-gradient(150deg, ${selected.palette[0]}, ${selected.palette[1]}, ${
+                  selected.palette[2]
+                })`,
+              }}
+            >
+              {selfieUrl ? <img alt="Your captured identity" src={selfieUrl} /> : null}
+              {!selfieUrl && previewUrl ? (
+                <video autoPlay loop muted playsInline src={previewUrl} />
+              ) : null}
+              <div className="creator-preview-overlay">
+                <span>PulseReel story preview</span>
+                <h3>{previewTitle(quickPrompt)}</h3>
+                <p>{selected.name}</p>
+              </div>
+            </div>
+            <div className="creator-preview-copy">
+              <span className="eyebrow">Opening shot</span>
+              <p>{selected.openingShot}</p>
+              <span className="eyebrow">Story hook</span>
+              <p>{selected.hook}</p>
+              <span className="eyebrow">Scene direction</span>
+              <p>
+                {quickPrompt.trim() || "Add your movie idea to generate a tailored scene direction."} Vertical,
+                cinematic, identity-led framing with tactile light and a clear emotional turn.
+              </p>
+            </div>
+          </section>
+        ) : null}
+
         <div className={`status ${status.tone === "error" ? "error" : ""}`}>{status.message}</div>
 
         <div className="generate-row">
-          <button className="button generate-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Generating..." : "Generate Movie"}
+          <button
+            className="button generate-button"
+            disabled={isSubmitting || (creatorBeta.enabled && !creatorBeta.generationEnabled)}
+            type="submit"
+          >
+            {isSubmitting
+              ? "Generating..."
+              : creatorBeta.enabled && !creatorBeta.generationEnabled
+                ? "Generation paused"
+                : "Generate Movie"}
           </button>
         </div>
       </section>

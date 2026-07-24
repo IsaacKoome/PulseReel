@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const projects = await getProjects();
-  const featured = projects.slice(0, 6);
+  const featured = projects.filter((project) => project.visibility !== "private").slice(0, 6);
 
   return (
     <main className="app-home shell">
