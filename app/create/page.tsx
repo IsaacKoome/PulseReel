@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { CreateStudio } from "@/components/create-studio";
-import { getCreatorBetaConfig } from "@/lib/creator-beta";
+import { getEffectiveCreatorBetaConfig } from "@/lib/creator-beta";
 
-export default function CreatePage() {
-  const creatorBeta = getCreatorBetaConfig();
+export const dynamic = "force-dynamic";
+
+export default async function CreatePage() {
+  const creatorBeta = await getEffectiveCreatorBetaConfig();
 
   return (
     <main className="studio-shell shell">

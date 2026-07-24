@@ -50,6 +50,15 @@ Open `/creator-beta/usage` and enter `PULSEREEL_CREATOR_BETA_ADMIN_TOKEN`. The d
 
 These are estimates only. Replicate's billing records are authoritative, and failed jobs may still incur provider cost.
 
+## Switching between Creator Beta and the original MVP
+
+Open `/creator-beta/usage`, enter the admin key, and use **Launch mode**:
+
+- **Creator Beta** keeps BYOK as the default, requires the beta access code, and makes new projects private unless the creator opts into the gallery.
+- **Original MVP** removes the beta gate and uses PulseReel's configured provider credentials. Set a daily generation cap before applying it; the API blocks new managed starts after that UTC-day cap.
+
+The selection is saved in Vercel Blob storage and takes effect on `/create` immediately. It does not require an environment-variable edit or redeployment. If Blob storage is unavailable, PulseReel falls back to runtime-local storage, which is suitable for local development but not a durable Vercel switch.
+
 ## Security and privacy boundaries
 
 - Always use HTTPS in production.

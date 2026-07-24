@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { HeavyRenderProviderId, MovieProject } from "@/lib/types";
+import { getCreatorRuntimeSettings } from "@/lib/creator-settings";
 
 export type CreatorBetaClientConfig = {
   enabled: boolean;
@@ -8,6 +9,7 @@ export type CreatorBetaClientConfig = {
   requireAccessCode: boolean;
   defaultFunding: "managed" | "creator-byok";
   managedDailyLimit: number | null;
+  launchMode: "creator-beta" | "original-mvp";
 };
 
 function enabled(value: string | undefined, fallback: boolean) {
@@ -44,6 +46,30 @@ export function getCreatorBetaConfig(): CreatorBetaClientConfig {
         ? "creator-byok"
         : defaultFunding,
     managedDailyLimit: positiveInteger(process.env.PULSEREEL_MANAGED_DAILY_LIMIT),
+    launchMode: "creator-beta",
+  };
+}
+
+export async function getEffectiveCreatorBetaConfig(): Promise<CreatorBetaClientConfig> {
+  const configured = getCreatorBetaConfig();
+  if (!configured.enabled) return configured;
+
+  const runtime = await getCreatorRuntimeSettings();
+  if (runtime.launchMode === "original-mvp") {
+    return {
+      ...configured,
+      enabled: false,
+      managedGenerationEnabled: true,
+      requireAccessCode: false,
+      defaultFunding: "managed",
+      managedDailyLimit: runtime.managedDailyLimit,
+      launchMode: runtime.launchMode,
+    };
+  }
+
+  return {
+    ...configured,
+    launchMode: runtime.launchMode,
   };
 }
 
