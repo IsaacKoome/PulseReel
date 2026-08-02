@@ -8,7 +8,7 @@ import { addProject, getProjectById, getProjects } from "@/lib/store";
 import type { HeavyRenderProviderId } from "@/lib/types";
 import {
   estimatedGenerationCostUsd,
-  getEffectiveCreatorBetaConfig,
+  getCreatorBetaConfig,
   isManagedProject,
   isValidCreatorAccessCode,
 } from "@/lib/creator-beta";
@@ -89,7 +89,7 @@ function autoFillFromPrompt(prompt: string, templateId: string) {
 
 export async function POST(request: Request) {
   try {
-    const beta = await getEffectiveCreatorBetaConfig();
+    const beta = getCreatorBetaConfig();
     const formData = await request.formData();
     const video = formData.get("video");
     const selfie = formData.get("selfie");
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isByok && beta.managedDailyLimit) {
+    if (beta.enabled && !isByok && beta.managedDailyLimit) {
       const today = new Date().toISOString().slice(0, 10);
       const managedToday = (await getProjects()).filter(
         (project) => project.createdAt.startsWith(today) && isManagedProject(project),
