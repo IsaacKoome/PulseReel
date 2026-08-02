@@ -61,11 +61,6 @@ type ProjectInput = {
   renderMode: RenderMode;
   videoFile: File;
   imageFile?: File | null;
-  visibility?: MovieProject["visibility"];
-  generationFunding?: MovieProject["generationFunding"];
-  costBearer?: MovieProject["costBearer"];
-  estimatedUnitCostUsd?: number;
-  identityConsentAt?: string;
 };
 
 type ScenePlan = {
@@ -1406,11 +1401,6 @@ export async function createMovieProjectDraft(
     processedVideoUrl: input.sourceVideoUrl,
     sourceVideoUrl: input.sourceVideoUrl,
     sourceImageUrl: input.sourceImageUrl,
-    visibility: input.visibility,
-    generationFunding: input.generationFunding,
-    costBearer: input.costBearer,
-    estimatedUnitCostUsd: input.estimatedUnitCostUsd,
-    identityConsentAt: input.identityConsentAt,
     metrics: {
       plays: 120 + Math.floor(Math.random() * 1200),
       likes: 12 + Math.floor(Math.random() * 320),

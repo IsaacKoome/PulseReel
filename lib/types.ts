@@ -49,11 +49,6 @@ export type MovieProject = {
   processedVideoUrl: string;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
-  visibility?: "private" | "public";
-  generationFunding?: "managed" | "creator-byok";
-  costBearer?: "pulsereel" | "creator";
-  estimatedUnitCostUsd?: number;
-  identityConsentAt?: string;
   workerJob?: {
     id: string;
     provider: HeavyRenderProviderId;
