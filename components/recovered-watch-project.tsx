@@ -75,7 +75,6 @@ export function RecoveredWatchProject({ slug }: { slug: string }) {
             <div className="pill-row" style={{ marginBottom: 12 }}>
               <span className="pill">{project.genre}</span>
               <span className="pill">{project.status === "published" ? "Published" : "Processing"}</span>
-              <span className="pill">{project.renderMode}</span>
             </div>
             <p className="body-copy" style={{ marginTop: 0 }}>{project.premise}</p>
           </div>
@@ -87,12 +86,9 @@ export function RecoveredWatchProject({ slug }: { slug: string }) {
           </div>
 
           <div className="panel" style={{ marginTop: 18 }}>
-            <h3>Scene Prompts</h3>
-            <div className="pill-row" style={{ marginTop: 12 }}>
-              {project.scenePrompts.map((prompt) => (
-                <span className="pill" key={prompt}>{prompt}</span>
-              ))}
-            </div>
+            <h3>Make your own movie</h3>
+            <p className="body-copy">Turn a short clip into a cinematic scene starring you.</p>
+            <Link className="button" href="/create">Create Another</Link>
           </div>
         </section>
       </div>

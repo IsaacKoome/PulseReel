@@ -5,6 +5,7 @@ import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
+import { createProjectDeleteCredential } from "@/lib/project-ownership";
 import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -74,6 +75,11 @@ function autoFillFromPrompt(prompt: string, templateId: string) {
   return { creatorName, title, genre, persona, premise, scenePrompt };
 }
 
+function projectForClient<T extends { deleteTokenHash?: string }>(project: T) {
+  const { deleteTokenHash: _deleteTokenHash, ...publicProject } = project;
+  return publicProject;
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -129,6 +135,7 @@ export async function POST(request: Request) {
     }
 
     if (parsed.data.renderMode === "seedance-2-fast") {
+      const deleteCredential = createProjectDeleteCredential();
       const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
         video,
         selfie instanceof File && selfie.size > 0 ? selfie : undefined,
@@ -145,6 +152,7 @@ export async function POST(request: Request) {
         sourceVideoUrl,
         sourceImageUrl,
       });
+      project.deleteTokenHash = deleteCredential.tokenHash;
 
       await addProject(project);
 
@@ -152,7 +160,8 @@ export async function POST(request: Request) {
         slug: project.slug,
         status: project.status,
         executionPath: "seedance-2-fast",
-        project,
+        project: projectForClient(project),
+        deleteToken: deleteCredential.token,
       });
     }
 
@@ -161,6 +170,7 @@ export async function POST(request: Request) {
       (isVercelRuntime() && Boolean(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()));
 
     if (shouldUseHeavyWorker) {
+      const deleteCredential = createProjectDeleteCredential();
       const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
         video,
         selfie instanceof File && selfie.size > 0 ? selfie : undefined,
@@ -179,6 +189,7 @@ export async function POST(request: Request) {
         heavyProvider,
         sourceVideoUrl,
         sourceImageUrl,
+        deleteTokenHash: deleteCredential.tokenHash,
       }, { autoStart: !isVercelRuntime() });
 
       let finalProject = project;
@@ -192,19 +203,27 @@ export async function POST(request: Request) {
         slug: finalProject.slug,
         status: finalProject.status,
         executionPath: isVercelRuntime() ? "remote-heavy-worker" : "local-heavy-worker",
-        project: finalProject,
+        project: projectForClient(finalProject),
+        deleteToken: deleteCredential.token,
       });
     }
 
+    const deleteCredential = createProjectDeleteCredential();
     const project = await createMovieProject({
       ...parsed.data,
       videoFile: video,
       imageFile: selfie instanceof File && selfie.size > 0 ? selfie : undefined,
     });
+    project.deleteTokenHash = deleteCredential.tokenHash;
 
     await addProject(project);
 
-    return NextResponse.json({ slug: project.slug, status: project.status });
+    return NextResponse.json({
+      slug: project.slug,
+      status: project.status,
+      project: projectForClient(project),
+      deleteToken: deleteCredential.token,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "The movie pipeline failed." },

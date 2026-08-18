@@ -29,14 +29,34 @@ function readLocalProjects() {
   return projects;
 }
 
+function readOwnedMovieSlugs() {
+  const slugs = new Set<string>();
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key?.startsWith("pulsereel:delete-token:")) {
+      continue;
+    }
+
+    const token = window.localStorage.getItem(key);
+    if (token) {
+      slugs.add(key.slice("pulsereel:delete-token:".length));
+    }
+  }
+
+  return slugs;
+}
+
 export function RecentMovies({ initialProjects }: { initialProjects: MovieProject[] }) {
   const [localProjects, setLocalProjects] = useState<MovieProject[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [deletedSlugs, setDeletedSlugs] = useState<Set<string>>(() => new Set());
+  const [ownedMovieSlugs, setOwnedMovieSlugs] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setLocalProjects(readLocalProjects());
+    setOwnedMovieSlugs(readOwnedMovieSlugs());
     setLoaded(true);
   }, []);
 
@@ -69,6 +89,11 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
   }
 
   async function deleteMovie(project: MovieProject) {
+    const deleteToken = window.localStorage.getItem(`pulsereel:delete-token:${project.slug}`);
+    if (!deleteToken) {
+      return;
+    }
+
     const confirmed = window.confirm(`Delete "${project.title}" from PulseReel?`);
     if (!confirmed) {
       return;
@@ -76,14 +101,24 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
 
     setDeletingSlug(project.slug);
     try {
-      const response = await fetch(`/api/projects/${project.slug}`, { method: "DELETE" });
+      const response = await fetch(`/api/projects/${project.slug}`, {
+        method: "DELETE",
+        headers: { "X-PulseReel-Delete-Token": deleteToken },
+      });
       if (!response.ok) {
-        throw new Error("Could not delete movie.");
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Could not delete movie.");
       }
 
       window.localStorage.removeItem(`pulsereel:project:${project.slug}`);
+      window.localStorage.removeItem(`pulsereel:delete-token:${project.slug}`);
       setLocalProjects((items) => items.filter((item) => item.slug !== project.slug));
       setDeletedSlugs((slugs) => new Set(slugs).add(project.slug));
+      setOwnedMovieSlugs((slugs) => {
+        const next = new Set(slugs);
+        next.delete(project.slug);
+        return next;
+      });
     } catch (error) {
       alert(error instanceof Error ? error.message : "Could not delete movie.");
     } finally {
@@ -117,14 +152,16 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
                 <p>{project.creatorName}</p>
               </div>
             </Link>
-            <button
-              className="delete-movie-button"
-              disabled={deletingSlug === project.slug}
-              onClick={() => deleteMovie(project)}
-              type="button"
-            >
-              {deletingSlug === project.slug ? "Deleting..." : "Delete"}
-            </button>
+            {ownedMovieSlugs.has(project.slug) ? (
+              <button
+                className="delete-movie-button"
+                disabled={deletingSlug === project.slug}
+                onClick={() => deleteMovie(project)}
+                type="button"
+              >
+                {deletingSlug === project.slug ? "Deleting..." : "Delete"}
+              </button>
+            ) : null}
           </article>
         );
       })}

@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const projects = await getProjects();
-  const featured = projects.slice(0, 6);
+  const featured = projects.slice(0, 6).map((project) => {
+    const { deleteTokenHash: _deleteTokenHash, ...publicProject } = project;
+    return publicProject;
+  });
 
   return (
     <main className="app-home shell">

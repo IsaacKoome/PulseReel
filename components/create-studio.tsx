@@ -430,7 +430,7 @@ export function CreateStudio() {
         body: formData,
       });
       const responseText = await response.text();
-      let payload: { slug?: string; error?: string; project?: MovieProject } = {};
+      let payload: { slug?: string; error?: string; project?: MovieProject; deleteToken?: string } = {};
       try {
         payload = responseText ? JSON.parse(responseText) : {};
       } catch {
@@ -447,6 +447,9 @@ export function CreateStudio() {
 
       if (payload.project) {
         window.localStorage.setItem(`pulsereel:project:${payload.slug}`, JSON.stringify(payload.project));
+      }
+      if (payload.deleteToken) {
+        window.localStorage.setItem(`pulsereel:delete-token:${payload.slug}`, payload.deleteToken);
       }
 
       window.location.href = `/watch/${payload.slug}`;

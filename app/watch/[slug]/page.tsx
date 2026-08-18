@@ -21,14 +21,6 @@ export default async function WatchPage({
   }
 
   const template = getTemplateById(project.templateId);
-  const modeLabel =
-    project.renderMode === "seedance-2-fast"
-      ? "Seedance AI"
-      : project.renderMode === "heavy-worker-beta"
-      ? "Heavy worker beta"
-      : project.renderMode === "prompt-movie-beta"
-        ? "Prompt movie beta"
-        : "Fast trailer";
   const isProcessing = project.status === "processing" || project.status === "draft";
   const isFailed = project.status === "failed";
 
@@ -89,7 +81,6 @@ export default async function WatchPage({
               <span className="pill">
                 {isFailed ? "Failed" : isProcessing ? "Processing" : "Published"}
               </span>
-              <span className="pill">{modeLabel}</span>
             </div>
             <p className="body-copy" style={{ marginTop: 0 }}>
               {project.premise}
@@ -118,82 +109,14 @@ export default async function WatchPage({
           </div>
 
           <div className="panel" style={{ marginTop: 18 }}>
-            <h3>Story Engine</h3>
-            <p className="body-copy">
-              Hook: {project.hook} Opening shot: {project.openingShot}
-            </p>
-          </div>
-
-          <div className="panel" style={{ marginTop: 18 }}>
-            <h3>Scene Prompts</h3>
-            <div className="pill-row" style={{ marginTop: 12 }}>
-              {project.scenePrompts.map((prompt) => (
-                <span className="pill" key={prompt}>
-                  {prompt}
-                </span>
-              ))}
-            </div>
+            <h3>Make your own movie</h3>
+            <p className="body-copy">Turn a short clip into a cinematic scene starring you.</p>
+            <Link className="button" href="/create">
+              Create Another
+            </Link>
           </div>
         </section>
       </div>
-
-      <section className="section" style={{ paddingTop: 20 }}>
-        <div className="section-title">
-          <div>
-            <h2>Narrative Beats</h2>
-            <p>The creator flow automatically expands the premise into a three-part short-film structure.</p>
-          </div>
-          <Link className="button" href="/create">
-            Create Another
-          </Link>
-        </div>
-
-        <div className="beat-grid">
-          {project.beats.map((beat) => (
-            <article className="beat" key={beat.heading}>
-              <strong>{beat.heading}</strong>
-              <p className="body-copy" style={{ margin: 0 }}>
-                {beat.text}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="section-title">
-          <div>
-            <h2>Shot Plan</h2>
-            <p>The heavier beta pipeline breaks the prompt into shot-level direction before rendering the movie.</p>
-          </div>
-        </div>
-
-        <div className="beat-grid">
-          {project.shotPlan.map((shot) => (
-            <article className="beat" key={shot.id}>
-              <strong>
-                {shot.label} · {shot.title}
-              </strong>
-              <p className="body-copy" style={{ margin: "0 0 10px" }}>
-                {shot.prompt}
-              </p>
-              <p className="muted" style={{ margin: "0 0 6px" }}>
-                {shot.composition}
-              </p>
-              {(shot.shotKind || shot.subjectFraming || shot.worldActivity) && (
-                <div className="pill-row" style={{ margin: "0 0 10px" }}>
-                  {shot.shotKind ? <span className="pill">Beat: {shot.shotKind}</span> : null}
-                  {shot.subjectFraming ? <span className="pill">Frame: {shot.subjectFraming}</span> : null}
-                  {shot.worldActivity ? <span className="pill">World: {shot.worldActivity}</span> : null}
-                </div>
-              )}
-              <p className="muted" style={{ margin: 0 }}>
-                {shot.motionHint} {shot.durationSeconds}s
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { HeavyRenderProviderId, RenderMode } from "@/lib/types";
 
 type StatusPayload = {
@@ -31,11 +31,6 @@ export function ProjectStatusPoller({
   initialStatus: StatusPayload;
 }) {
   const [status, setStatus] = useState(initialStatus);
-  const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
 
   useEffect(() => {
     if (status.status === "published" || status.status === "failed") {
@@ -63,47 +58,25 @@ export function ProjectStatusPoller({
     return () => window.clearInterval(interval);
   }, [slug, status.status]);
 
-  const summary = useMemo(() => {
-    if (status.status === "failed") {
-      return status.workerJob?.error || "Heavy generation failed before the movie could finish.";
-    }
-
-    if (status.status === "published") {
-      return "Your movie is ready. Refreshing now.";
-    }
-
-    return status.workerJob?.stage || "Queued for generation.";
-  }, [status]);
-
-  const requestedProvider = status.workerJob?.provider ?? "local-heavy-v1";
-  const usedProvider =
-    status.workerJob?.providerUsed ??
-    (status.status === "published" || status.workerJob?.status === "completed" ? requestedProvider : "pending");
+  const summary =
+    status.status === "failed"
+      ? "Your movie could not be completed. Please return to the studio and try again."
+      : status.status === "published"
+        ? "Your movie is ready. Refreshing now."
+        : "Your movie is being created. This page will update automatically.";
 
   return (
     <div className={`panel ${status.status === "failed" ? "status error" : ""}`} style={{ marginTop: 18 }}>
-      <h3 style={{ marginTop: 0 }}>Heavy Worker Status</h3>
+      <h3 style={{ marginTop: 0 }}>Movie Status</h3>
       <p className="body-copy" style={{ marginTop: 0 }}>
         {summary}
       </p>
       <div className="pill-row">
-        <span className="pill">Status: {status.status}</span>
-        <span className="pill">Requested: {requestedProvider}</span>
-        <span className="pill">Used: {usedProvider}</span>
-        {status.workerJob?.model ? <span className="pill">Model: {status.workerJob.model}</span> : null}
-        <span className="pill">Worker: {status.workerJob?.status ?? "queued"}</span>
-        <span className="pill">Progress: {status.workerJob?.progress ?? 0}%</span>
+        <span className="pill">{status.status === "failed" ? "Not completed" : "In progress"}</span>
+        {status.status !== "failed" ? (
+          <span className="pill">{status.workerJob?.progress ?? 0}%</span>
+        ) : null}
       </div>
-      {status.workerJob?.fallbackReason ? (
-        <p className="muted" style={{ margin: "10px 0 0" }}>
-          Fallback: {status.workerJob.fallbackReason}
-        </p>
-      ) : null}
-      {hasMounted && status.workerJob?.startedAt ? (
-        <p className="muted" style={{ margin: "10px 0 0" }}>
-          Started: {new Date(status.workerJob.startedAt).toLocaleString()}
-        </p>
-      ) : null}
     </div>
   );
 }
