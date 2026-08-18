@@ -29,14 +29,16 @@ export async function createHeavyProject(input: {
   heavyProvider?: HeavyRenderProviderId;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
+  ownerId?: string;
   deleteTokenHash?: string;
 }, options: { autoStart?: boolean } = {}) {
-  const { heavyProvider, deleteTokenHash, ...projectInput } = input;
+  const { heavyProvider, ownerId, deleteTokenHash, ...projectInput } = input;
   const provider = getHeavyRenderProvider(heavyProvider);
   const project = await createMovieProjectDraft({
     ...projectInput,
     status: "processing",
   });
+  project.ownerId = ownerId;
   project.deleteTokenHash = deleteTokenHash;
 
   project.workerJob = {

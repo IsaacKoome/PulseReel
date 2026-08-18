@@ -47,18 +47,31 @@ function readOwnedMovieSlugs() {
   return slugs;
 }
 
-export function RecentMovies({ initialProjects }: { initialProjects: MovieProject[] }) {
+export function RecentMovies({
+  initialProjects,
+  accountOwnedSlugs = [],
+  maxProjects = 6,
+  includeBrowserProjects = true,
+}: {
+  initialProjects: MovieProject[];
+  accountOwnedSlugs?: string[];
+  maxProjects?: number;
+  includeBrowserProjects?: boolean;
+}) {
   const [localProjects, setLocalProjects] = useState<MovieProject[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [deletedSlugs, setDeletedSlugs] = useState<Set<string>>(() => new Set());
-  const [ownedMovieSlugs, setOwnedMovieSlugs] = useState<Set<string>>(() => new Set());
+  const [ownedMovieSlugs, setOwnedMovieSlugs] = useState<Set<string>>(
+    () => new Set(accountOwnedSlugs),
+  );
 
   useEffect(() => {
-    setLocalProjects(readLocalProjects());
-    setOwnedMovieSlugs(readOwnedMovieSlugs());
+    setLocalProjects(includeBrowserProjects ? readLocalProjects() : []);
+    const browserOwnedSlugs = readOwnedMovieSlugs();
+    setOwnedMovieSlugs(new Set([...accountOwnedSlugs, ...browserOwnedSlugs]));
     setLoaded(true);
-  }, []);
+  }, [accountOwnedSlugs, includeBrowserProjects]);
 
   const projects = useMemo(() => {
     const bySlug = new Map<string, MovieProject>();
@@ -69,8 +82,8 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
     return [...bySlug.values()]
       .filter((project) => project.status === "published" && !deletedSlugs.has(project.slug))
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-      .slice(0, 6);
-  }, [deletedSlugs, initialProjects, localProjects]);
+      .slice(0, maxProjects);
+  }, [deletedSlugs, initialProjects, localProjects, maxProjects]);
 
   if (!loaded && initialProjects.length === 0) {
     return null;
@@ -90,7 +103,8 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
 
   async function deleteMovie(project: MovieProject) {
     const deleteToken = window.localStorage.getItem(`pulsereel:delete-token:${project.slug}`);
-    if (!deleteToken) {
+    const accountOwned = accountOwnedSlugs.includes(project.slug);
+    if (!deleteToken && !accountOwned) {
       return;
     }
 
@@ -103,7 +117,7 @@ export function RecentMovies({ initialProjects }: { initialProjects: MovieProjec
     try {
       const response = await fetch(`/api/projects/${project.slug}`, {
         method: "DELETE",
-        headers: { "X-PulseReel-Delete-Token": deleteToken },
+        headers: deleteToken ? { "X-PulseReel-Delete-Token": deleteToken } : undefined,
       });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;

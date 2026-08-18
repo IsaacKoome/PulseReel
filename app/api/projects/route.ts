@@ -6,6 +6,8 @@ import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
 import { createProjectDeleteCredential } from "@/lib/project-ownership";
+import { isAuthEnabled } from "@/lib/auth/config";
+import { getCurrentUser } from "@/lib/auth/user";
 import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -75,13 +77,25 @@ function autoFillFromPrompt(prompt: string, templateId: string) {
   return { creatorName, title, genre, persona, premise, scenePrompt };
 }
 
-function projectForClient<T extends { deleteTokenHash?: string }>(project: T) {
-  const { deleteTokenHash: _deleteTokenHash, ...publicProject } = project;
+function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string }>(project: T) {
+  const {
+    deleteTokenHash: _deleteTokenHash,
+    ownerId: _ownerId,
+    ...publicProject
+  } = project;
   return publicProject;
 }
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser();
+    if (isAuthEnabled() && !user) {
+      return NextResponse.json(
+        { error: "Sign in before creating a movie." },
+        { status: 401 },
+      );
+    }
+
     const formData = await request.formData();
     const video = formData.get("video");
     const selfie = formData.get("selfie");
@@ -152,6 +166,7 @@ export async function POST(request: Request) {
         sourceVideoUrl,
         sourceImageUrl,
       });
+      project.ownerId = user?.id;
       project.deleteTokenHash = deleteCredential.tokenHash;
 
       await addProject(project);
@@ -189,6 +204,7 @@ export async function POST(request: Request) {
         heavyProvider,
         sourceVideoUrl,
         sourceImageUrl,
+        ownerId: user?.id,
         deleteTokenHash: deleteCredential.tokenHash,
       }, { autoStart: !isVercelRuntime() });
 
@@ -214,6 +230,7 @@ export async function POST(request: Request) {
       videoFile: video,
       imageFile: selfie instanceof File && selfie.size > 0 ? selfie : undefined,
     });
+    project.ownerId = user?.id;
     project.deleteTokenHash = deleteCredential.tokenHash;
 
     await addProject(project);

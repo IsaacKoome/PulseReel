@@ -49,6 +49,7 @@ export type MovieProject = {
   processedVideoUrl: string;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
+  ownerId?: string;
   deleteTokenHash?: string;
   workerJob?: {
     id: string;
