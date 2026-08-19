@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "migrate:pulsereel-store": "node --env-file=.env.local scripts/migrate-pulsereel-projects-to-supabase.mjs"
   },
   "dependencies": {
     "@imgly/background-removal-node": "^1.4.5",

@@ -682,6 +682,10 @@ export function CreateStudio() {
           <button className="button generate-button" disabled={isSubmitting} type="submit">
             {isSubmitting ? "Generating..." : "Generate Movie"}
           </button>
+          <p className="generation-consent">
+            By generating, you confirm that you have permission to use every person&apos;s identity in
+            your uploads and agree to the <a href="/terms">Terms</a> and <a href="/identity-safety">Identity safety rules</a>.
+          </p>
         </div>
       </section>
     </form>

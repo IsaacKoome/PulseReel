@@ -19,6 +19,7 @@ flow until all three environment variables are configured.
 5. Add these to Vercel Production and Preview environments:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - Optional public contact shown on policy pages: `NEXT_PUBLIC_PULSEREEL_SUPPORT_EMAIL`
 6. Redeploy and confirm the live site still works. Authentication remains off at this point.
 7. Add `PULSEREEL_AUTH_ENABLED=true` in Vercel and redeploy.
 8. Test Google sign-in, create one movie, confirm it appears under **My Movies**, sign out, and

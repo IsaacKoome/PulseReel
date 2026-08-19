@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { get, put } from "@vercel/blob";
+import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import type { MovieProject } from "@/lib/types";
 import { getRuntimeDataDir, isVercelRuntime } from "@/lib/runtime-storage";
 
@@ -13,6 +14,42 @@ function canUseBlobStore() {
   return isVercelRuntime() && Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+function canUseSupabaseStore() {
+  if (process.env.PULSEREEL_SUPABASE_STORE_ENABLED !== "true") {
+    return false;
+  }
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error(
+      "PULSEREEL_SUPABASE_STORE_ENABLED requires SUPABASE_SERVICE_ROLE_KEY.",
+    );
+  }
+  return true;
+}
+
+function projectRow(project: MovieProject) {
+  return {
+    id: project.id,
+    slug: project.slug,
+    owner_id: project.ownerId ?? null,
+    visibility: project.visibility ?? (project.ownerId ? "unlisted" : "public"),
+    status: project.status,
+    project,
+    created_at: project.createdAt,
+    updated_at: project.updatedAt,
+  };
+}
+
+async function upsertSupabaseProject(project: MovieProject) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("pulse_reel_projects")
+    .upsert(projectRow(project), { onConflict: "id" });
+
+  if (error) {
+    throw new Error(`PulseReel database write failed: ${error.message}`);
+  }
+}
+
 async function ensureStore() {
   await fs.mkdir(dataDir, { recursive: true });
   try {
@@ -23,6 +60,20 @@ async function ensureStore() {
 }
 
 export async function getProjects(): Promise<MovieProject[]> {
+  if (canUseSupabaseStore()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("pulse_reel_projects")
+      .select("project")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(`PulseReel database read failed: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) => row.project as MovieProject);
+  }
+
   if (canUseBlobStore()) {
     for (const access of blobAccessCandidates) {
       try {
@@ -76,6 +127,11 @@ export async function saveProjects(projects: MovieProject[]) {
 }
 
 export async function addProject(project: MovieProject) {
+  if (canUseSupabaseStore()) {
+    await upsertSupabaseProject(project);
+    return project;
+  }
+
   const projects = await getProjects();
   projects.unshift(project);
   await saveProjects(projects);
@@ -93,6 +149,16 @@ export async function getProjectById(projectId: string) {
 }
 
 export async function updateProject(projectId: string, updater: (project: MovieProject) => MovieProject) {
+  if (canUseSupabaseStore()) {
+    const project = await getProjectById(projectId);
+    if (!project) {
+      return null;
+    }
+    const updated = updater(project);
+    await upsertSupabaseProject(updated);
+    return updated;
+  }
+
   const projects = await getProjects();
   const index = projects.findIndex((project) => project.id === projectId);
   if (index === -1) {
@@ -106,6 +172,21 @@ export async function updateProject(projectId: string, updater: (project: MovieP
 }
 
 export async function deleteProjectBySlug(slug: string) {
+  if (canUseSupabaseStore()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("pulse_reel_projects")
+      .delete()
+      .eq("slug", slug)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`PulseReel database deletion failed: ${error.message}`);
+    }
+    return Boolean(data);
+  }
+
   const projects = await getProjects();
   const remaining = projects.filter((project) => project.slug !== slug);
   if (remaining.length === projects.length) {

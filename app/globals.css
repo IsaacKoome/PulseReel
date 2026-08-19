@@ -158,6 +158,105 @@ select {
   color: #fecaca !important;
 }
 
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 44px;
+  padding: 24px 0 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.site-footer a,
+.policy-content a,
+.generation-consent a {
+  color: var(--accent-soft);
+}
+
+.site-footer a:hover,
+.policy-content a:hover,
+.generation-consent a:hover {
+  color: var(--text);
+}
+
+.policy-shell {
+  min-height: 100vh;
+  padding: 28px 0 48px;
+}
+
+.policy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.policy-card {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(26px, 5vw, 54px);
+  border-radius: 28px;
+}
+
+.policy-card h1 {
+  max-width: 14ch;
+  margin: 14px 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.4rem, 6vw, 4.8rem);
+  line-height: 0.98;
+}
+
+.policy-intro {
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+.policy-updated {
+  margin: 22px 0 34px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.policy-content {
+  display: grid;
+  gap: 28px;
+}
+
+.policy-content section {
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.policy-content h2 {
+  margin: 0 0 10px;
+  font-size: 1.3rem;
+}
+
+.policy-content p,
+.policy-content li {
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.policy-content ul,
+.policy-content ol {
+  margin: 10px 0 0;
+  padding-left: 24px;
+}
+
 .home-feed {
   max-width: 980px;
   margin: 0 auto;
@@ -832,6 +931,15 @@ select {
   font-size: 1.05rem;
 }
 
+.generation-consent {
+  margin: 12px auto 0;
+  max-width: 660px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
 .status.error {
   color: #fca5a5;
 }
@@ -994,5 +1102,14 @@ select {
   .header-actions,
   .account-nav {
     flex-wrap: wrap;
+  }
+
+  .site-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-footer nav {
+    justify-content: flex-start;
   }
 }

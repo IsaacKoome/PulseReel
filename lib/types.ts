@@ -50,6 +50,7 @@ export type MovieProject = {
   sourceVideoUrl: string;
   sourceImageUrl?: string;
   ownerId?: string;
+  visibility?: "public" | "unlisted";
   deleteTokenHash?: string;
   workerJob?: {
     id: string;

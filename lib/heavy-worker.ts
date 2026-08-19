@@ -30,15 +30,17 @@ export async function createHeavyProject(input: {
   sourceVideoUrl: string;
   sourceImageUrl?: string;
   ownerId?: string;
+  visibility?: "public" | "unlisted";
   deleteTokenHash?: string;
 }, options: { autoStart?: boolean } = {}) {
-  const { heavyProvider, ownerId, deleteTokenHash, ...projectInput } = input;
+  const { heavyProvider, ownerId, visibility, deleteTokenHash, ...projectInput } = input;
   const provider = getHeavyRenderProvider(heavyProvider);
   const project = await createMovieProjectDraft({
     ...projectInput,
     status: "processing",
   });
   project.ownerId = ownerId;
+  project.visibility = visibility;
   project.deleteTokenHash = deleteTokenHash;
 
   project.workerJob = {

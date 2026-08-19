@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AccountNav } from "@/components/account-nav";
 import { CreateStudio } from "@/components/create-studio";
+import { SiteFooter } from "@/components/site-footer";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
 
@@ -28,6 +29,7 @@ export default async function CreatePage() {
         </div>
       </div>
       <CreateStudio />
+      <SiteFooter />
     </main>
   );
 }

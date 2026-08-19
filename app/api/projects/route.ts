@@ -6,6 +6,12 @@ import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
 import { createProjectDeleteCredential } from "@/lib/project-ownership";
+import {
+  GenerationAccessError,
+  isManagedGeneration,
+  reserveManagedGeneration,
+  updateGenerationReservation,
+} from "@/lib/generation-access";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
 import type { HeavyRenderProviderId } from "@/lib/types";
@@ -87,6 +93,8 @@ function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string
 }
 
 export async function POST(request: Request) {
+  let generationReservationId: string | null = null;
+
   try {
     const user = await getCurrentUser();
     if (isAuthEnabled() && !user) {
@@ -148,6 +156,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (
+      isManagedGeneration({
+        renderMode: parsed.data.renderMode,
+        heavyProvider: parsed.data.heavyProvider,
+      })
+    ) {
+      const provider =
+        parsed.data.renderMode === "seedance-2-fast"
+          ? "seedance-2-fast"
+          : parsed.data.heavyProvider ?? "replicate-video-adapter";
+      generationReservationId = await reserveManagedGeneration(user, provider);
+    }
+
     if (parsed.data.renderMode === "seedance-2-fast") {
       const deleteCredential = createProjectDeleteCredential();
       const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
@@ -167,9 +188,11 @@ export async function POST(request: Request) {
         sourceImageUrl,
       });
       project.ownerId = user?.id;
+      project.visibility = user ? "unlisted" : "public";
       project.deleteTokenHash = deleteCredential.tokenHash;
 
       await addProject(project);
+      await updateGenerationReservation(generationReservationId, "submitted", project.id);
 
       return NextResponse.json({
         slug: project.slug,
@@ -205,6 +228,7 @@ export async function POST(request: Request) {
         sourceVideoUrl,
         sourceImageUrl,
         ownerId: user?.id,
+        visibility: user ? "unlisted" : "public",
         deleteTokenHash: deleteCredential.tokenHash,
       }, { autoStart: !isVercelRuntime() });
 
@@ -214,6 +238,7 @@ export async function POST(request: Request) {
       }
 
       finalProject = (await getProjectById(project.id)) ?? finalProject;
+      await updateGenerationReservation(generationReservationId, "submitted", finalProject.id);
 
       return NextResponse.json({
         slug: finalProject.slug,
@@ -231,9 +256,11 @@ export async function POST(request: Request) {
       imageFile: selfie instanceof File && selfie.size > 0 ? selfie : undefined,
     });
     project.ownerId = user?.id;
+    project.visibility = user ? "unlisted" : "public";
     project.deleteTokenHash = deleteCredential.tokenHash;
 
     await addProject(project);
+    await updateGenerationReservation(generationReservationId, "submitted", project.id);
 
     return NextResponse.json({
       slug: project.slug,
@@ -242,6 +269,15 @@ export async function POST(request: Request) {
       deleteToken: deleteCredential.token,
     });
   } catch (error) {
+    await updateGenerationReservation(generationReservationId, "failed");
+
+    if (error instanceof GenerationAccessError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "The movie pipeline failed." },
       { status: 500 },

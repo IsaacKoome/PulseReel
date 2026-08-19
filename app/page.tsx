@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AccountNav } from "@/components/account-nav";
 import { RecentMovies } from "@/components/recent-movies";
+import { SiteFooter } from "@/components/site-footer";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
 import { getProjects } from "@/lib/store";
@@ -11,14 +12,17 @@ export default async function HomePage() {
   const authEnabled = isAuthEnabled();
   const user = await getCurrentUser();
   const projects = await getProjects();
-  const featured = projects.slice(0, 6).map((project) => {
-    const {
-      deleteTokenHash: _deleteTokenHash,
-      ownerId: _ownerId,
-      ...publicProject
-    } = project;
-    return publicProject;
-  });
+  const featured = projects
+    .filter((project) => project.visibility === "public" || (!project.visibility && !project.ownerId))
+    .slice(0, 6)
+    .map((project) => {
+      const {
+        deleteTokenHash: _deleteTokenHash,
+        ownerId: _ownerId,
+        ...publicProject
+      } = project;
+      return publicProject;
+    });
   const accountOwnedSlugs = user
     ? projects.filter((project) => project.ownerId === user.id).map((project) => project.slug)
     : [];
@@ -55,6 +59,7 @@ export default async function HomePage() {
           />
         </div>
       </section>
+      <SiteFooter />
     </main>
   );
 }
