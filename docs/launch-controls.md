@@ -9,14 +9,18 @@ The inserted beta configuration is deliberately paused and capped at 20 attempts
 
 ## 2. Add server-only Vercel variables
 
-- `SUPABASE_SERVICE_ROLE_KEY` — never prefix this with `NEXT_PUBLIC_`.
+- `SUPABASE_SECRET_KEY` — use a dedicated `sb_secret_...` key and never prefix it with
+  `NEXT_PUBLIC_`. The legacy `SUPABASE_SERVICE_ROLE_KEY` is also accepted during migration.
 - `PULSEREEL_SUPABASE_STORE_ENABLED=true` — switch project metadata from the legacy Blob JSON file.
 - `PULSEREEL_LAUNCH_CONTROLS_ENABLED=true` — enforce one free managed generation per verified account.
 
-Keep the last two flags off until the existing project records have been copied and the database has
-been verified. Replicate routing is unaffected by these flags.
+Keep the launch-controls flag off until the database has been verified and Replicate has been funded.
+When the Supabase store is first enabled, PulseReel copies existing Blob project records into an empty
+database automatically. The legacy Blob file is retained as a rollback source. Replicate routing is
+unaffected by these flags.
 
-With the required values present in `.env.local`, copy the legacy project metadata with:
+If an automatic copy is not possible, the same migration can be run manually with the required values
+present in `.env.local`:
 
 ```powershell
 npm run migrate:pulsereel-store

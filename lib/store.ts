@@ -20,23 +20,52 @@ function canUseSupabaseStore() {
   }
   if (!isSupabaseAdminConfigured()) {
     throw new Error(
-      "PULSEREEL_SUPABASE_STORE_ENABLED requires SUPABASE_SERVICE_ROLE_KEY.",
+      "PULSEREEL_SUPABASE_STORE_ENABLED requires SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY.",
     );
   }
   return true;
 }
 
 function projectRow(project: MovieProject) {
+  const visibility = project.visibility ?? (project.ownerId ? "unlisted" : "public");
+
   return {
     id: project.id,
     slug: project.slug,
     owner_id: project.ownerId ?? null,
-    visibility: project.visibility ?? (project.ownerId ? "unlisted" : "public"),
+    visibility,
     status: project.status,
-    project,
+    project: { ...project, visibility },
     created_at: project.createdAt,
     updated_at: project.updatedAt,
   };
+}
+
+async function readBlobProjects(): Promise<MovieProject[] | null> {
+  if (!canUseBlobStore()) {
+    return null;
+  }
+
+  for (const access of blobAccessCandidates) {
+    try {
+      const result = await get(blobStoreKey, {
+        access,
+        ...(access === "private" ? { useCache: false } : {}),
+      });
+      if (!result?.stream) {
+        continue;
+      }
+
+      const raw = await new Response(result.stream).text();
+      return JSON.parse(raw) as MovieProject[];
+    } catch (error) {
+      if (access === "public") {
+        console.warn("Blob project store read failed.", error);
+      }
+    }
+  }
+
+  return null;
 }
 
 async function upsertSupabaseProject(project: MovieProject) {
@@ -71,29 +100,32 @@ export async function getProjects(): Promise<MovieProject[]> {
       throw new Error(`PulseReel database read failed: ${error.message}`);
     }
 
-    return (data ?? []).map((row) => row.project as MovieProject);
+    if ((data ?? []).length > 0) {
+      return (data ?? []).map((row) => row.project as MovieProject);
+    }
+
+    const legacyProjects = await readBlobProjects();
+    if (!legacyProjects?.length) {
+      return [];
+    }
+
+    const rows = legacyProjects.map(projectRow);
+    const { error: migrationError } = await supabase
+      .from("pulse_reel_projects")
+      .upsert(rows, { onConflict: "id" });
+
+    if (migrationError) {
+      throw new Error(`PulseReel legacy project migration failed: ${migrationError.message}`);
+    }
+
+    return rows
+      .map((row) => row.project)
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   }
 
-  if (canUseBlobStore()) {
-    for (const access of blobAccessCandidates) {
-      try {
-        const result = await get(blobStoreKey, {
-          access,
-          ...(access === "private" ? { useCache: false } : {}),
-        });
-        if (!result?.stream) {
-          continue;
-        }
-
-        const raw = await new Response(result.stream).text();
-        const items = JSON.parse(raw) as MovieProject[];
-        return items.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-      } catch (error) {
-        if (access === "public") {
-          console.warn("Falling back to local project store after Blob read failed.", error);
-        }
-      }
-    }
+  const blobProjects = await readBlobProjects();
+  if (blobProjects) {
+    return blobProjects.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   }
 
   await ensureStore();

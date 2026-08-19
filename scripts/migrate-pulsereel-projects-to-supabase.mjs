@@ -2,12 +2,14 @@ import { get } from "@vercel/blob";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+const serviceRoleKey =
+  process.env.SUPABASE_SECRET_KEY?.trim() ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
 
 if (!supabaseUrl || !serviceRoleKey || !blobToken) {
   throw new Error(
-    "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and BLOB_READ_WRITE_TOKEN are required.",
+    "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY), and BLOB_READ_WRITE_TOKEN are required.",
   );
 }
 
