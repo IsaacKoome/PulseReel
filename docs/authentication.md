@@ -12,8 +12,7 @@ flow until all three environment variables are configured.
    - Redirect URL: `https://pulse-reel.vercel.app/auth/callback`
    - Optional local redirect URL: `http://localhost:3000/auth/callback`
 3. In Google Cloud, create a Web OAuth client.
-   - Authorized JavaScript origin: the Supabase project URL shown in the Supabase Google
-     provider setup screen.
+   - Authorized JavaScript origin: `https://pulse-reel.vercel.app`
    - Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`
 4. Add the Google client ID and secret in **Supabase > Authentication > Providers > Google**,
    then enable the provider.

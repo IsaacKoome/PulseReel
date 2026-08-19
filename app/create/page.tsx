@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountNav } from "@/components/account-nav";
 import { CreateStudio } from "@/components/create-studio";
@@ -18,14 +17,14 @@ export default async function CreatePage() {
   return (
     <main className="studio-shell shell">
       <div className="app-header compact-header">
-        <Link className="brand-mark" href="/">
+        <a className="brand-mark" href="/">
           PulseReel
-        </Link>
+        </a>
         <div className="header-actions">
           <AccountNav enabled={authEnabled} user={user} compact />
-          <Link className="button-secondary" href="/">
+          <a className="button-secondary" href="/">
             Home
-          </Link>
+          </a>
         </div>
       </div>
       <CreateStudio />

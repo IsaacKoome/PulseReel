@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 
 export function AccountNav({
@@ -16,9 +15,9 @@ export function AccountNav({
 
   if (!user) {
     return (
-      <Link className="button-secondary account-nav-link" href="/login">
+      <a className="button-secondary account-nav-link" href="/login">
         Sign in
-      </Link>
+      </a>
     );
   }
 
@@ -27,9 +26,9 @@ export function AccountNav({
 
   return (
     <nav className="account-nav" aria-label="Account">
-      <Link className="button-secondary account-nav-link" href="/movies">
+      <a className="button-secondary account-nav-link" href="/movies">
         My Movies
-      </Link>
+      </a>
       {!compact ? <span className="account-name">{label}</span> : null}
       <form action="/auth/signout" method="post">
         <button className="account-signout" type="submit">
