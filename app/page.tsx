@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountNav } from "@/components/account-nav";
 import { RecentMovies } from "@/components/recent-movies";
 import { SiteFooter } from "@/components/site-footer";
+import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
 import { getProjects } from "@/lib/store";
@@ -34,7 +35,7 @@ export default async function HomePage() {
           PulseReel
         </Link>
         <div className="header-actions">
-          <AccountNav enabled={authEnabled} user={user} compact />
+          <AccountNav enabled={authEnabled} user={user} compact isAdmin={isPulseReelAdmin(user)} />
           <Link className="button create-pill" href="/create">
             Create
           </Link>

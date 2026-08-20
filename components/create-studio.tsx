@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
+import type { BetaAccessStatus } from "@/lib/generation-access";
 import type { MovieProject, RenderMode } from "@/lib/types";
 
 type ModelChoice =
@@ -30,7 +31,7 @@ function cleanStudioError(message: string) {
   return message;
 }
 
-export function CreateStudio() {
+export function CreateStudio({ initialBetaAccess }: { initialBetaAccess: BetaAccessStatus }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
   const cameraRetryRef = useRef<number | null>(null);
@@ -52,6 +53,7 @@ export function CreateStudio() {
   const [useCanvasPreview, setUseCanvasPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<StatusState>({ tone: "idle", message: "" });
+  const [betaAccess, setBetaAccess] = useState(initialBetaAccess);
   const selected = useMemo(
     () => movieTemplates.find((template) => template.id === selectedTemplate) ?? movieTemplates[0],
     [selectedTemplate],
@@ -405,6 +407,27 @@ export function CreateStudio() {
       return;
     }
 
+    const usesManagedProvider = modelChoice !== "local-heavy-v1";
+    if (usesManagedProvider && betaAccess.controlsEnabled) {
+      setIsSubmitting(true);
+      setStatus({ tone: "idle", message: "Checking your free beta movie..." });
+      try {
+        const eligibilityResponse = await fetch("/api/beta/status", { cache: "no-store" });
+        const eligibility = (await eligibilityResponse.json()) as BetaAccessStatus;
+        setBetaAccess(eligibility);
+        if (!eligibilityResponse.ok || !eligibility.eligible) {
+          throw new Error(eligibility.message || "This generation is not currently available.");
+        }
+      } catch (error) {
+        setStatus({
+          tone: "error",
+          message: error instanceof Error ? error.message : "Could not check beta availability.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     formData.set("video", finalVideo);
     formData.set("templateId", selectedTemplate);
     formData.set("genre", genre);
@@ -676,11 +699,32 @@ export function CreateStudio() {
               : "Hosted Seedance generation requires separate provider credit."}
         </p>
 
+        {betaAccess.controlsEnabled && modelChoice !== "local-heavy-v1" ? (
+          <div className={`beta-access-card ${betaAccess.eligible ? "available" : "unavailable"}`}>
+            <strong>{betaAccess.eligible ? "Your first AI movie is free" : "Free beta status"}</strong>
+            <span>{betaAccess.message}</span>
+            {betaAccess.remainingAttempts !== null ? (
+              <small>{betaAccess.remainingAttempts} of {betaAccess.totalAttemptLimit} beta attempts remain.</small>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className={`status ${status.tone === "error" ? "error" : ""}`}>{status.message}</div>
 
         <div className="generate-row">
-          <button className="button generate-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Generating..." : "Generate Movie"}
+          <button
+            className="button generate-button"
+            disabled={
+              isSubmitting ||
+              (modelChoice !== "local-heavy-v1" && betaAccess.controlsEnabled && !betaAccess.eligible)
+            }
+            type="submit"
+          >
+            {isSubmitting
+              ? "Generating..."
+              : modelChoice !== "local-heavy-v1" && betaAccess.controlsEnabled && !betaAccess.eligible
+                ? "Generation unavailable"
+                : "Generate Movie"}
           </button>
           <p className="generation-consent">
             By generating, you confirm that you have permission to use every person&apos;s identity in

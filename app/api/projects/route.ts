@@ -10,6 +10,7 @@ import {
   GenerationAccessError,
   isManagedGeneration,
   reserveManagedGeneration,
+  syncGenerationReservationForProject,
   updateGenerationReservation,
 } from "@/lib/generation-access";
 import { isAuthEnabled } from "@/lib/auth/config";
@@ -193,6 +194,12 @@ export async function POST(request: Request) {
 
       await addProject(project);
       await updateGenerationReservation(generationReservationId, "submitted", project.id);
+      if (project.status === "published" || project.status === "failed") {
+        await syncGenerationReservationForProject(
+          project.id,
+          project.status === "published" ? "completed" : "failed",
+        );
+      }
 
       return NextResponse.json({
         slug: project.slug,
@@ -239,6 +246,12 @@ export async function POST(request: Request) {
 
       finalProject = (await getProjectById(project.id)) ?? finalProject;
       await updateGenerationReservation(generationReservationId, "submitted", finalProject.id);
+      if (finalProject.status === "published" || finalProject.status === "failed") {
+        await syncGenerationReservationForProject(
+          finalProject.id,
+          finalProject.status === "published" ? "completed" : "failed",
+        );
+      }
 
       return NextResponse.json({
         slug: finalProject.slug,
@@ -261,6 +274,12 @@ export async function POST(request: Request) {
 
     await addProject(project);
     await updateGenerationReservation(generationReservationId, "submitted", project.id);
+    if (project.status === "published" || project.status === "failed") {
+      await syncGenerationReservationForProject(
+        project.id,
+        project.status === "published" ? "completed" : "failed",
+      );
+    }
 
     return NextResponse.json({
       slug: project.slug,

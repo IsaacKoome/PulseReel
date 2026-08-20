@@ -15,15 +15,43 @@ function withDownloadFlag(videoUrl: string) {
 }
 
 export function MoviePlayer({
+  projectId,
   title,
   posterUrl,
   videoUrl,
 }: {
+  projectId: string;
   title: string;
   posterUrl?: string;
   videoUrl?: string;
 }) {
   const [hasPlaybackError, setHasPlaybackError] = useState(false);
+  const [shareLabel, setShareLabel] = useState("Share movie");
+
+  function recordEvent(eventType: "movie_downloaded" | "movie_shared") {
+    void fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType, projectId }),
+      keepalive: true,
+    }).catch(() => undefined);
+  }
+
+  async function shareMovie() {
+    const shareData = { title: `${title} · PulseReel`, text: "Watch my PulseReel movie.", url: window.location.href };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        setShareLabel("Link copied");
+        window.setTimeout(() => setShareLabel("Share movie"), 2200);
+      }
+      recordEvent("movie_shared");
+    } catch {
+      // Closing the native share sheet is not an application error.
+    }
+  }
 
   if (!videoUrl || hasPlaybackError) {
     return (
@@ -58,9 +86,19 @@ export function MoviePlayer({
         <a className="button-secondary" href={videoUrl} target="_blank" rel="noreferrer">
           Open movie
         </a>
-        <a className="button" href={downloadUrl} download={`${title}.mp4`} target="_blank" rel="noreferrer">
+        <a
+          className="button"
+          href={downloadUrl}
+          download={`${title}.mp4`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => recordEvent("movie_downloaded")}
+        >
           Download movie
         </a>
+        <button className="button-secondary" type="button" onClick={() => void shareMovie()}>
+          {shareLabel}
+        </button>
       </div>
     </div>
   );

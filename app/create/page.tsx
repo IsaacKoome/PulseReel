@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { AccountNav } from "@/components/account-nav";
 import { CreateStudio } from "@/components/create-studio";
 import { SiteFooter } from "@/components/site-footer";
+import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
+import { getGenerationAccessStatus } from "@/lib/generation-access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,8 @@ export default async function CreatePage() {
     redirect("/login?next=/create");
   }
 
+  const betaAccess = await getGenerationAccessStatus(user);
+
   return (
     <main className="studio-shell shell">
       <div className="app-header compact-header">
@@ -22,13 +26,13 @@ export default async function CreatePage() {
           PulseReel
         </a>
         <div className="header-actions">
-          <AccountNav enabled={authEnabled} user={user} compact />
+          <AccountNav enabled={authEnabled} user={user} compact isAdmin={isPulseReelAdmin(user)} />
           <a className="button-secondary" href="/">
             Home
           </a>
         </div>
       </div>
-      <CreateStudio />
+      <CreateStudio initialBetaAccess={betaAccess} />
       <SiteFooter />
     </main>
   );

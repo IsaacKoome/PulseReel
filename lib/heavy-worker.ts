@@ -12,6 +12,7 @@ import {
 import { getHeavyRenderProvider } from "@/lib/heavy-renderers";
 import { createMovieProjectDraft } from "@/lib/pipeline";
 import { addProject, getProjectById, getProjectBySlug, updateProject } from "@/lib/store";
+import { syncGenerationReservationForProject } from "@/lib/generation-access";
 
 const activeJobs = new Set<string>();
 
@@ -202,6 +203,7 @@ export async function startHeavyGeneration(projectId: string) {
         completedAt: new Date().toISOString(),
       },
     }));
+    await syncGenerationReservationForProject(projectId, "completed");
   } catch (error) {
     const project = await getProjectById(projectId);
     if (project?.workerJob?.payloadPath) {
@@ -240,6 +242,7 @@ export async function startHeavyGeneration(projectId: string) {
         error: error instanceof Error ? error.message : "Heavy generation failed.",
       },
     }));
+    await syncGenerationReservationForProject(projectId, "failed");
   } finally {
     activeJobs.delete(projectId);
   }
@@ -286,6 +289,7 @@ export async function getProjectStatus(slug: string) {
         if (!updated) {
           return null;
         }
+        await syncGenerationReservationForProject(project.id, "completed");
         return {
           slug: updated.slug,
           status: updated.status,
@@ -318,6 +322,7 @@ export async function getProjectStatus(slug: string) {
         if (!updated) {
           return null;
         }
+        await syncGenerationReservationForProject(project.id, "failed");
         return {
           slug: updated.slug,
           status: updated.status,
@@ -411,6 +416,7 @@ export async function getProjectStatus(slug: string) {
       if (!updated) {
         return null;
       }
+      await syncGenerationReservationForProject(project.id, "completed");
       return {
         slug: updated.slug,
         status: updated.status,
@@ -441,6 +447,7 @@ export async function getProjectStatus(slug: string) {
       if (!updated) {
         return null;
       }
+      await syncGenerationReservationForProject(project.id, "failed");
       return {
         slug: updated.slug,
         status: updated.status,

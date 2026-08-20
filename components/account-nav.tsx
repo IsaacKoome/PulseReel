@@ -4,10 +4,12 @@ export function AccountNav({
   enabled,
   user,
   compact = false,
+  isAdmin = false,
 }: {
   enabled: boolean;
   user: User | null;
   compact?: boolean;
+  isAdmin?: boolean;
 }) {
   if (!enabled) {
     return null;
@@ -26,6 +28,11 @@ export function AccountNav({
 
   return (
     <nav className="account-nav" aria-label="Account">
+      {isAdmin ? (
+        <a className="button-secondary account-nav-link" href="/admin/beta">
+          Beta Admin
+        </a>
+      ) : null}
       <a className="button-secondary account-nav-link" href="/movies">
         My Movies
       </a>

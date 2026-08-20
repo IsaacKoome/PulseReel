@@ -2,7 +2,47 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import type { HeavyRenderProviderId, RenderMode } from "@/lib/types";
 
-type ReservationStatus = "reserved" | "submitted" | "completed" | "failed";
+export type ReservationStatus = "reserved" | "submitted" | "completed" | "failed";
+
+export type BetaAccessReason =
+  | "available"
+  | "controls_off"
+  | "paused"
+  | "global_limit_reached"
+  | "free_generation_used"
+  | "sign_in_required"
+  | "email_verification_required"
+  | "not_configured";
+
+export type BetaAccessStatus = {
+  controlsEnabled: boolean;
+  generationEnabled: boolean;
+  eligible: boolean;
+  reason: BetaAccessReason;
+  message: string;
+  totalAttemptLimit: number | null;
+  totalAttemptCount: number | null;
+  remainingAttempts: number | null;
+  reservationStatus: ReservationStatus | null;
+};
+
+export type BetaAdminSnapshot = {
+  controlsEnabled: boolean;
+  generationEnabled: boolean;
+  totalAttemptLimit: number;
+  totalAttemptCount: number;
+  remainingAttempts: number;
+  counts: Record<ReservationStatus, number>;
+  recentReservations: Array<{
+    id: string;
+    userId: string;
+    projectId: string | null;
+    provider: string;
+    status: ReservationStatus;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+};
 
 export class GenerationAccessError extends Error {
   constructor(message: string, readonly code: string, readonly status: number) {
@@ -24,6 +64,140 @@ export function isManagedGeneration(input: {
   }
 
   return input.heavyProvider !== "local-heavy-v1";
+}
+
+function accessMessage(reason: BetaAccessReason) {
+  switch (reason) {
+    case "available":
+      return "Your first AI movie is free during the PulseReel beta.";
+    case "paused":
+      return "Free beta generation is temporarily paused while we protect the project budget.";
+    case "global_limit_reached":
+      return "The current free-beta movie limit has been reached.";
+    case "free_generation_used":
+      return "You have used your free beta AI movie. Paid generation is coming soon.";
+    case "sign_in_required":
+      return "Sign in to claim your free beta AI movie.";
+    case "email_verification_required":
+      return "Verify your email before using your free beta AI movie.";
+    case "not_configured":
+      return "Free beta generation is paused while spending controls are configured.";
+    default:
+      return "PulseReel beta spending controls are not active yet.";
+  }
+}
+
+export async function getGenerationAccessStatus(user: User | null): Promise<BetaAccessStatus> {
+  const controlsEnabled = areLaunchControlsEnabled();
+  if (!controlsEnabled) {
+    return {
+      controlsEnabled: false,
+      generationEnabled: true,
+      eligible: true,
+      reason: "controls_off",
+      message: accessMessage("controls_off"),
+      totalAttemptLimit: null,
+      totalAttemptCount: null,
+      remainingAttempts: null,
+      reservationStatus: null,
+    };
+  }
+
+  if (!isSupabaseAdminConfigured()) {
+    return {
+      controlsEnabled: true,
+      generationEnabled: false,
+      eligible: false,
+      reason: "not_configured",
+      message: accessMessage("not_configured"),
+      totalAttemptLimit: null,
+      totalAttemptCount: null,
+      remainingAttempts: null,
+      reservationStatus: null,
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const [{ data: config, error: configError }, reservationResult] = await Promise.all([
+    supabase
+      .from("pulse_reel_beta_config")
+      .select("generation_enabled,total_attempt_limit,total_attempt_count")
+      .eq("id", true)
+      .maybeSingle(),
+    user
+      ? supabase
+          .from("pulse_reel_generation_reservations")
+          .select("status")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (configError || !config) {
+    console.error("Could not read PulseReel beta configuration.", configError);
+    return {
+      controlsEnabled: true,
+      generationEnabled: false,
+      eligible: false,
+      reason: "not_configured",
+      message: accessMessage("not_configured"),
+      totalAttemptLimit: null,
+      totalAttemptCount: null,
+      remainingAttempts: null,
+      reservationStatus: null,
+    };
+  }
+
+  if (reservationResult.error) {
+    console.error("Could not read PulseReel generation reservation.", reservationResult.error);
+  }
+
+  const totalAttemptLimit = Number(config.total_attempt_limit);
+  const totalAttemptCount = Number(config.total_attempt_count);
+  const reservationStatus = (reservationResult.data?.status as ReservationStatus | undefined) ?? null;
+  const hasUsedFreeGeneration =
+    reservationStatus === "reserved" || reservationStatus === "submitted" || reservationStatus === "completed";
+
+  let reason: BetaAccessReason = "available";
+  if (!user) reason = "sign_in_required";
+  else if (!user.email_confirmed_at) reason = "email_verification_required";
+  else if (!config.generation_enabled) reason = "paused";
+  else if (totalAttemptCount >= totalAttemptLimit) reason = "global_limit_reached";
+  else if (hasUsedFreeGeneration) reason = "free_generation_used";
+
+  return {
+    controlsEnabled: true,
+    generationEnabled: Boolean(config.generation_enabled),
+    eligible: reason === "available",
+    reason,
+    message: accessMessage(reason),
+    totalAttemptLimit,
+    totalAttemptCount,
+    remainingAttempts: Math.max(0, totalAttemptLimit - totalAttemptCount),
+    reservationStatus,
+  };
+}
+
+export async function trackBetaEvent(input: {
+  eventType: string;
+  userId?: string | null;
+  projectId?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!isSupabaseAdminConfigured()) return;
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("pulse_reel_beta_events").insert({
+    event_type: input.eventType,
+    user_id: input.userId ?? null,
+    project_id: input.projectId ?? null,
+    metadata: input.metadata ?? {},
+  });
+  if (error && error.code !== "42P01") {
+    console.error("Could not record PulseReel beta event.", error);
+  }
 }
 
 function friendlyReservationError(message: string) {
@@ -95,6 +269,11 @@ export async function reserveManagedGeneration(
   if (!reservationId || typeof reservationId !== "string") {
     throw friendlyReservationError("Missing reservation ID");
   }
+  await trackBetaEvent({
+    eventType: "generation_reserved",
+    userId: user.id,
+    metadata: { provider, reservationId },
+  });
   return reservationId;
 }
 
@@ -108,16 +287,127 @@ export async function updateGenerationReservation(
   }
 
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("pulse_reel_generation_reservations")
     .update({
       status,
       project_id: projectId ?? null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", reservationId);
+    .eq("id", reservationId)
+    .select("user_id,project_id,provider")
+    .maybeSingle();
 
   if (error) {
     console.error("Could not update PulseReel generation reservation.", error);
+    return;
   }
+
+  if (data) {
+    await trackBetaEvent({
+      eventType: `generation_${status}`,
+      userId: data.user_id,
+      projectId: data.project_id,
+      metadata: { provider: data.provider, reservationId },
+    });
+  }
+}
+
+export async function syncGenerationReservationForProject(
+  projectId: string,
+  status: Extract<ReservationStatus, "completed" | "failed">,
+) {
+  if (!areLaunchControlsEnabled() || !isSupabaseAdminConfigured()) return;
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("pulse_reel_generation_reservations")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("project_id", projectId)
+    .in("status", ["reserved", "submitted"])
+    .select("id,user_id,provider")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not reconcile PulseReel generation reservation.", error);
+    return;
+  }
+  if (data) {
+    await trackBetaEvent({
+      eventType: `generation_${status}`,
+      userId: data.user_id,
+      projectId,
+      metadata: { provider: data.provider, reservationId: data.id },
+    });
+  }
+}
+
+export async function getBetaAdminSnapshot(): Promise<BetaAdminSnapshot> {
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error("Supabase server access is not configured.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const [{ data: config, error: configError }, { data: reservations, error: reservationsError }] =
+    await Promise.all([
+      supabase
+        .from("pulse_reel_beta_config")
+        .select("generation_enabled,total_attempt_limit,total_attempt_count")
+        .eq("id", true)
+        .single(),
+      supabase
+        .from("pulse_reel_generation_reservations")
+        .select("id,user_id,project_id,provider,status,created_at,updated_at")
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
+
+  if (configError || !config) throw new Error("Could not load beta configuration.");
+  if (reservationsError) throw new Error("Could not load beta reservations.");
+
+  const counts: Record<ReservationStatus, number> = {
+    reserved: 0,
+    submitted: 0,
+    completed: 0,
+    failed: 0,
+  };
+  for (const reservation of reservations ?? []) {
+    const status = reservation.status as ReservationStatus;
+    if (status in counts) counts[status] += 1;
+  }
+
+  const totalAttemptLimit = Number(config.total_attempt_limit);
+  const totalAttemptCount = Number(config.total_attempt_count);
+  return {
+    controlsEnabled: areLaunchControlsEnabled(),
+    generationEnabled: Boolean(config.generation_enabled),
+    totalAttemptLimit,
+    totalAttemptCount,
+    remainingAttempts: Math.max(0, totalAttemptLimit - totalAttemptCount),
+    counts,
+    recentReservations: (reservations ?? []).map((reservation) => ({
+      id: reservation.id,
+      userId: reservation.user_id,
+      projectId: reservation.project_id,
+      provider: reservation.provider,
+      status: reservation.status as ReservationStatus,
+      createdAt: reservation.created_at,
+      updatedAt: reservation.updated_at,
+    })),
+  };
+}
+
+export async function setBetaGenerationEnabled(enabled: boolean) {
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error("Supabase server access is not configured.");
+  }
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("pulse_reel_beta_config")
+    .update({ generation_enabled: enabled, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) throw new Error("Could not update the beta generation switch.");
+  await trackBetaEvent({
+    eventType: enabled ? "beta_resumed" : "beta_paused",
+  });
 }

@@ -52,6 +52,7 @@ export default async function WatchPage({
               </div>
             ) : (
               <MoviePlayer
+                projectId={project.id}
                 posterUrl={project.posterUrl}
                 title={project.title}
                 videoUrl={project.processedVideoUrl}

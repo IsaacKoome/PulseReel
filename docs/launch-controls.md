@@ -7,12 +7,16 @@ These controls are opt-in so deploying the code does not change the working MVP.
 Run `supabase/migrations/202608190001_pulsereel_launch_controls.sql` in the Supabase SQL editor.
 The inserted beta configuration is deliberately paused and capped at 20 attempts.
 
+Then run `supabase/migrations/202608200001_pulsereel_beta_observability.sql`. This adds the
+server-only event log used for sign-ins, generation lifecycle, downloads, and shares.
+
 ## 2. Add server-only Vercel variables
 
 - `SUPABASE_SECRET_KEY` — use a dedicated `sb_secret_...` key and never prefix it with
   `NEXT_PUBLIC_`. The legacy `SUPABASE_SERVICE_ROLE_KEY` is also accepted during migration.
 - `PULSEREEL_SUPABASE_STORE_ENABLED=true` — switch project metadata from the legacy Blob JSON file.
 - `PULSEREEL_LAUNCH_CONTROLS_ENABLED=true` — enforce one free managed generation per verified account.
+- `PULSEREEL_ADMIN_EMAILS=you@example.com` — comma-separated emails allowed to open `/admin/beta`.
 
 Keep the launch-controls flag off until the database has been verified and Replicate has been funded.
 When the Supabase store is first enabled, PulseReel copies existing Blob project records into an empty
@@ -28,10 +32,16 @@ npm run migrate:pulsereel-store
 
 The migration is repeatable: it upserts by project ID and does not delete the legacy Blob file.
 
-## 3. Open the controlled beta
+## 3. Verify the private dashboard
+
+After redeploying, sign in with an email listed in `PULSEREEL_ADMIN_EMAILS` and open `/admin/beta`.
+The page shows the attempt limit, remaining attempts, current job states, and a pause/resume button.
+Other signed-in users receive a normal not-found page.
+
+## 4. Open the controlled beta
 
 The SQL migration creates `pulse_reel_beta_config` with generation paused. After funding Replicate,
-open the beta deliberately:
+open the beta deliberately from `/admin/beta`. The equivalent SQL is:
 
 ```sql
 update public.pulse_reel_beta_config
