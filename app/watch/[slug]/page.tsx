@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { MovieFeedbackForm } from "@/components/movie-feedback-form";
 import { MoviePlayer } from "@/components/movie-player";
 import { ProjectStatusPoller } from "@/components/project-status-poller";
 import { RecoveredWatchProject } from "@/components/recovered-watch-project";
 import { getTemplateById } from "@/data/templates";
+import { getCurrentUser } from "@/lib/auth/user";
+import { getMovieFeedback } from "@/lib/movie-feedback";
 import { getProjectBySlug } from "@/lib/store";
 import { formatCompactNumber } from "@/lib/utils";
 
@@ -23,6 +26,11 @@ export default async function WatchPage({
   const template = getTemplateById(project.templateId);
   const isProcessing = project.status === "processing" || project.status === "draft";
   const isFailed = project.status === "failed";
+  const user = await getCurrentUser();
+  const canLeaveFeedback = project.status === "published" && project.ownerId === user?.id;
+  const initialFeedback = canLeaveFeedback && user
+    ? await getMovieFeedback(project.id, user.id)
+    : null;
 
   return (
     <main className="watch-shell shell">
@@ -100,6 +108,10 @@ export default async function WatchPage({
               slug={project.slug}
             />
           )}
+
+          {canLeaveFeedback ? (
+            <MovieFeedbackForm initialFeedback={initialFeedback} slug={project.slug} />
+          ) : null}
         </section>
 
         <section className="watch-card glass">

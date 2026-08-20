@@ -430,6 +430,19 @@ export function CreateStudio({ initialBetaAccess }: { initialBetaAccess: BetaAcc
         if (!eligibilityResponse.ok || !eligibility.eligible) {
           throw new Error(eligibility.message || "This generation is not currently available.");
         }
+        // The reservation is created at the start of the server request. Reflect it
+        // immediately so the beta counter does not remain stale while generation waits.
+        setBetaAccess({
+          ...eligibility,
+          eligible: false,
+          reason: "free_generation_used",
+          message: "Your free beta AI movie is being created.",
+          totalAttemptCount:
+            eligibility.totalAttemptCount === null ? null : eligibility.totalAttemptCount + 1,
+          remainingAttempts:
+            eligibility.remainingAttempts === null ? null : Math.max(0, eligibility.remainingAttempts - 1),
+          reservationStatus: "reserved",
+        });
       } catch (error) {
         setStatus({
           tone: "error",
@@ -489,6 +502,16 @@ export function CreateStudio({ initialBetaAccess }: { initialBetaAccess: BetaAcc
 
       window.location.href = `/watch/${payload.slug}`;
     } catch (error) {
+      if (usesManagedProvider && betaAccess.controlsEnabled) {
+        try {
+          const latestAccessResponse = await fetch("/api/beta/status", { cache: "no-store" });
+          if (latestAccessResponse.ok) {
+            setBetaAccess((await latestAccessResponse.json()) as BetaAccessStatus);
+          }
+        } catch {
+          // Keep the generation error visible even if status reconciliation fails.
+        }
+      }
       setStatus({
         tone: "error",
         message:

@@ -18,6 +18,7 @@ export default function PrivacyPage() {
           <li>Your Google account identifier, name, email address, and profile image when provided by Google.</li>
           <li>The video clips, identity selfies, prompts, styles, and model choices you submit.</li>
           <li>Generated movies, posters, processing status, and technical records needed to operate the service.</li>
+          <li>Movie ratings, willingness-to-pay answers, and optional comments you submit during the beta.</li>
         </ul>
       </section>
       <section>
@@ -25,7 +26,8 @@ export default function PrivacyPage() {
         <p>
           We use this information to authenticate you, generate and deliver your movie, associate it
           with your account, prevent unauthorized deletion, troubleshoot failures, and protect the beta
-          from abuse and uncontrolled generation costs. Google account information is not used for advertising.
+          from abuse and uncontrolled generation costs. Beta feedback is used to improve identity accuracy,
+          movie quality, and product decisions. Google account information is not used for advertising.
         </p>
       </section>
       <section>

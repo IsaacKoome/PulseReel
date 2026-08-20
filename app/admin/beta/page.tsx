@@ -4,6 +4,7 @@ import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
 import { MINIMAX_VIDEO_01_ESTIMATED_COST_USD } from "@/lib/beta-config";
 import { getBetaAdminSnapshot } from "@/lib/generation-access";
+import { getFeedbackAdminSnapshot } from "@/lib/movie-feedback";
 import { setAttemptLimit, setGenerationEnabled } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +13,19 @@ function shortId(value: string) {
   return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
 
+function formatRating(value: number | null) {
+  return value === null ? "—" : `${value.toFixed(1)}/5`;
+}
+
 export default async function BetaAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin/beta");
   if (!isPulseReelAdmin(user)) notFound();
 
-  const snapshot = await getBetaAdminSnapshot();
+  const [snapshot, feedback] = await Promise.all([
+    getBetaAdminSnapshot(),
+    getFeedbackAdminSnapshot(),
+  ]);
   const maximumBudget = snapshot.totalAttemptLimit * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
   const remainingBudget = snapshot.remainingAttempts * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
 
@@ -104,6 +112,43 @@ export default async function BetaAdminPage() {
             <button className="button-secondary" type="submit">Save limit</button>
           </div>
         </form>
+      </section>
+
+      <section className="admin-feedback-card glass">
+        <div className="admin-table-heading">
+          <p className="eyebrow-copy">Movie feedback</p>
+          <h2>What beta users actually experienced</h2>
+        </div>
+        <div className="admin-stat-grid feedback-stat-grid" aria-label="Beta feedback totals">
+          <div className="stats-box"><strong>{feedback.totalResponses}</strong>Responses</div>
+          <div className="stats-box"><strong>{formatRating(feedback.averageIdentityRating)}</strong>Identity accuracy</div>
+          <div className="stats-box"><strong>{formatRating(feedback.averageMovieRating)}</strong>Movie quality</div>
+          <div className="stats-box"><strong>{feedback.willingToPayCount}</strong>Would pay</div>
+          <div className="stats-box"><strong>{feedback.maybePayCount}</strong>Might pay</div>
+        </div>
+        {feedback.recentFeedback.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table feedback-table">
+              <thead>
+                <tr><th>Movie</th><th>Identity</th><th>Quality</th><th>Would pay</th><th>Comment</th><th>Submitted</th></tr>
+              </thead>
+              <tbody>
+                {feedback.recentFeedback.map((item) => (
+                  <tr key={item.id}>
+                    <td title={item.projectId}>{shortId(item.projectId)}</td>
+                    <td>{item.identityRating}/5</td>
+                    <td>{item.movieRating}/5</td>
+                    <td>{item.willingnessToPay === "no" ? "Not yet" : item.willingnessToPay}</td>
+                    <td className="feedback-comment-cell">{item.comment || "—"}</td>
+                    <td>{new Date(item.updatedAt).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">Feedback will appear here after a movie owner answers the three questions.</p>
+        )}
       </section>
 
       <section className="admin-table-card glass">
