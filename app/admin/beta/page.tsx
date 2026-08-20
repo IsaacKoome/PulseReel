@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
+import { MINIMAX_VIDEO_01_ESTIMATED_COST_USD } from "@/lib/beta-config";
 import { getBetaAdminSnapshot } from "@/lib/generation-access";
-import { setGenerationEnabled } from "./actions";
+import { setAttemptLimit, setGenerationEnabled } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ export default async function BetaAdminPage() {
   if (!isPulseReelAdmin(user)) notFound();
 
   const snapshot = await getBetaAdminSnapshot();
+  const maximumBudget = snapshot.totalAttemptLimit * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
+  const remainingBudget = snapshot.remainingAttempts * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
 
   return (
     <main className="admin-shell shell">
@@ -72,6 +75,35 @@ export default async function BetaAdminPage() {
         <div className="stats-box"><strong>{snapshot.counts.completed}</strong>Completed</div>
         <div className="stats-box"><strong>{snapshot.counts.submitted + snapshot.counts.reserved}</strong>In progress</div>
         <div className="stats-box"><strong>{snapshot.counts.failed}</strong>Failed</div>
+      </section>
+
+      <section className="admin-budget-card glass">
+        <div>
+          <p className="eyebrow-copy">MiniMax safety budget</p>
+          <h2>Cap the free beta before resuming</h2>
+          <p>
+            At the current estimated price of ${MINIMAX_VIDEO_01_ESTIMATED_COST_USD.toFixed(2)} per
+            successful six-second movie, this limit represents at most ${maximumBudget.toFixed(2)} in
+            MiniMax generations. The remaining estimated exposure is ${remainingBudget.toFixed(2)}.
+          </p>
+          <small>Replicate Pro and Seedance are excluded from the free hosted beta.</small>
+        </div>
+        <form action={setAttemptLimit} className="admin-limit-form">
+          <label htmlFor="attemptLimit">Total attempt limit</label>
+          <div>
+            <input
+              defaultValue={snapshot.totalAttemptLimit}
+              id="attemptLimit"
+              max="100"
+              min={Math.max(1, snapshot.totalAttemptCount)}
+              name="attemptLimit"
+              required
+              step="1"
+              type="number"
+            />
+            <button className="button-secondary" type="submit">Save limit</button>
+          </div>
+        </form>
       </section>
 
       <section className="admin-table-card glass">

@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
+import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { HeavyRenderProviderId, RenderMode } from "@/lib/types";
 
 export type ReservationStatus = "reserved" | "submitted" | "completed" | "failed";
@@ -236,6 +237,13 @@ export async function reserveManagedGeneration(
   if (!areLaunchControlsEnabled()) {
     return null;
   }
+  if (provider !== FREE_BETA_MANAGED_PROVIDER) {
+    throw new GenerationAccessError(
+      "The free beta currently supports Replicate AI · Recommended only.",
+      "provider_not_in_free_beta",
+      403,
+    );
+  }
   if (!isSupabaseAdminConfigured()) {
     throw new GenerationAccessError(
       "PulseReel generation is paused while the beta spending controls are configured.",
@@ -410,4 +418,33 @@ export async function setBetaGenerationEnabled(enabled: boolean) {
   await trackBetaEvent({
     eventType: enabled ? "beta_resumed" : "beta_paused",
   });
+}
+
+export async function setBetaAttemptLimit(limit: number) {
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error("Supabase server access is not configured.");
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error("The beta attempt limit must be a whole number between 1 and 100.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: config, error: configError } = await supabase
+    .from("pulse_reel_beta_config")
+    .select("total_attempt_count")
+    .eq("id", true)
+    .single();
+
+  if (configError || !config) {
+    throw new Error("Could not read the current beta attempt count.");
+  }
+  if (limit < Number(config.total_attempt_count)) {
+    throw new Error("The attempt limit cannot be lower than the attempts already used.");
+  }
+
+  const { error } = await supabase
+    .from("pulse_reel_beta_config")
+    .update({ total_attempt_limit: limit, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) throw new Error("Could not update the beta attempt limit.");
 }

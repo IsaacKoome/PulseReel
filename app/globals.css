@@ -1118,6 +1118,51 @@ select {
   margin: 18px 0;
 }
 
+.admin-budget-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  align-items: end;
+  gap: 28px;
+  margin: 18px 0;
+  padding: 24px;
+  border-radius: 22px;
+}
+
+.admin-budget-card h2 {
+  margin: 8px 0;
+}
+
+.admin-budget-card p,
+.admin-budget-card small {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.admin-limit-form,
+.admin-limit-form > div {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-limit-form > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-limit-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(4, 13, 25, 0.78);
+}
+
+.template-option.disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .admin-table-card {
   padding: 22px;
   border-radius: 22px;
@@ -1281,6 +1326,10 @@ select {
   .admin-control-card {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-budget-card {
+    grid-template-columns: 1fr;
   }
 
   .header-actions,

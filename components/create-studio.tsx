@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
+import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { BetaAccessStatus } from "@/lib/generation-access";
 import type { MovieProject, RenderMode } from "@/lib/types";
 
@@ -408,6 +409,17 @@ export function CreateStudio({ initialBetaAccess }: { initialBetaAccess: BetaAcc
     }
 
     const usesManagedProvider = modelChoice !== "local-heavy-v1";
+    if (
+      usesManagedProvider &&
+      betaAccess.controlsEnabled &&
+      modelChoice !== FREE_BETA_MANAGED_PROVIDER
+    ) {
+      setStatus({
+        tone: "error",
+        message: "The free beta currently supports Replicate AI · Recommended only.",
+      });
+      return;
+    }
     if (usesManagedProvider && betaAccess.controlsEnabled) {
       setIsSubmitting(true);
       setStatus({ tone: "idle", message: "Checking your free beta movie..." });
@@ -667,25 +679,27 @@ export function CreateStudio({ initialBetaAccess }: { initialBetaAccess: BetaAcc
             />
             <span>Local worker</span>
           </label>
-          <label className={`template-option ${modelChoice === "replicate-kling-v3-omni" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "replicate-kling-v3-omni" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
             <input
               checked={modelChoice === "replicate-kling-v3-omni"}
+              disabled={betaAccess.controlsEnabled}
               name="modelChoice"
               onChange={() => setModelChoice("replicate-kling-v3-omni")}
               type="radio"
               value="replicate-kling-v3-omni"
             />
-            <span>Replicate Pro · Kling</span>
+            <span>Replicate Pro · Kling{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
           </label>
-          <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
             <input
               checked={modelChoice === "seedance-2-fast"}
+              disabled={betaAccess.controlsEnabled}
               name="modelChoice"
               onChange={() => setModelChoice("seedance-2-fast")}
               type="radio"
               value="seedance-2-fast"
             />
-            <span>Seedance AI</span>
+            <span>Seedance AI{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
           </label>
         </div>
 
