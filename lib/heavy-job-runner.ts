@@ -903,7 +903,7 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
   const resultPath = path.join(dir, "result.json");
   const statusPath = path.join(dir, "status.json");
   const sourceVideoPath = publicUrlToAbsolutePath(project.sourceVideoUrl) ?? project.sourceVideoUrl;
-  const sourceImagePath = publicUrlToAbsolutePath(project.sourceImageUrl);
+  const sourceImagePath = publicUrlToAbsolutePath(project.sourceImageUrl) ?? project.sourceImageUrl;
   const posterPath = publicUrlToAbsolutePath(project.posterUrl) ?? project.posterUrl;
   const worldSpec = inferWorldSpec(project);
   const styleBible = inferStyleBible(project, worldSpec);
@@ -1158,6 +1158,17 @@ async function appendFileIfExists(formData: FormData, fieldName: string, filePat
   }
 
   try {
+    if (/^https?:\/\//i.test(filePath)) {
+      const response = await fetch(filePath);
+      if (!response.ok) {
+        return;
+      }
+      const blob = await response.blob();
+      const remoteName = path.basename(new URL(filePath).pathname) || `${fieldName}.bin`;
+      formData.append(fieldName, blob, remoteName);
+      return;
+    }
+
     const bytes = await fs.readFile(filePath);
     const blob = new Blob([bytes]);
     formData.append(fieldName, blob, path.basename(filePath));

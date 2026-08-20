@@ -1,5 +1,6 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
@@ -36,9 +37,13 @@ function cleanStudioError(message: string) {
 export function CreateStudio({
   initialBetaAccess,
   seedance15ExperimentEnabled = false,
+  directVideoUploadEnabled = false,
+  uploadOwnerId,
 }: {
   initialBetaAccess: BetaAccessStatus;
   seedance15ExperimentEnabled?: boolean;
+  directVideoUploadEnabled?: boolean;
+  uploadOwnerId?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
@@ -406,11 +411,19 @@ export function CreateStudio({
       return;
     }
 
-    if (finalVideo.size > 4_000_000) {
+    const canUploadDirectly = directVideoUploadEnabled && Boolean(uploadOwnerId);
+    if (finalVideo.size > 50_000_000) {
+      setStatus({
+        tone: "error",
+        message: "That clip is larger than the current 50 MB PulseReel upload limit.",
+      });
+      return;
+    }
+    if (!canUploadDirectly && finalVideo.size > 3_500_000) {
       setStatus({
         tone: "error",
         message:
-          "That video is too large for the current Vercel upload path. Record with the built-in 10s button or upload a clip under 4 MB.",
+          "That video is too large for this local upload path. Record with the built-in 10s button or upload a clip under 3.5 MB.",
       });
       return;
     }
@@ -462,7 +475,6 @@ export function CreateStudio({
       }
     }
 
-    formData.set("video", finalVideo);
     formData.set("templateId", selectedTemplate);
     formData.set("genre", genre);
     const renderMode: RenderMode = modelChoice === "seedance-2-fast" ? "seedance-2-fast" : "heavy-worker-beta";
@@ -482,6 +494,26 @@ export function CreateStudio({
     });
 
     try {
+      if (canUploadDirectly && uploadOwnerId) {
+        setStatus({ tone: "idle", message: "Uploading your clip securely..." });
+        const extensionMatch = finalVideo.name.match(/\.[a-z0-9]{1,8}$/i);
+        const fallbackExtension = finalVideo.type.includes("mp4") ? ".mp4" : ".webm";
+        const pathname = `pulsereel/source/${uploadOwnerId}/${crypto.randomUUID()}${
+          extensionMatch?.[0]?.toLowerCase() ?? fallbackExtension
+        }`;
+        const blob = await upload(pathname, finalVideo, {
+          access: "public",
+          handleUploadUrl: "/api/uploads",
+          contentType: finalVideo.type || undefined,
+          multipart: finalVideo.size > 4_500_000,
+        });
+        formData.delete("video");
+        formData.set("videoBlobUrl", blob.url);
+        setStatus({ tone: "idle", message: "Creating your movie..." });
+      } else {
+        formData.set("video", finalVideo);
+      }
+
       const response = await fetch("/api/projects", {
         method: "POST",
         body: formData,

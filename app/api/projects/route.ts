@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { del, head } from "@vercel/blob";
 import { z } from "zod";
 import { createHeavyProject, enqueueHeavyGeneration } from "@/lib/heavy-worker";
-import { createMovieProject, saveSourceAssets } from "@/lib/pipeline";
+import { createMovieProject, saveSourceAssets, saveSourceFile } from "@/lib/pipeline";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
@@ -20,6 +21,8 @@ import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const MAX_DIRECT_VIDEO_BYTES = 50_000_000;
 
 const schema = z.object({
   creatorName: z.string().min(1),
@@ -97,6 +100,7 @@ function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string
 
 export async function POST(request: Request) {
   let generationReservationId: string | null = null;
+  let directVideoBlobUrl: string | null = null;
 
   try {
     const user = await getCurrentUser();
@@ -109,13 +113,53 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const video = formData.get("video");
+    const videoBlobUrl = String(formData.get("videoBlobUrl") ?? "").trim();
     const selfie = formData.get("selfie");
     const quickPrompt = String(formData.get("quickPrompt") ?? "").trim();
     const templateIdValue = String(formData.get("templateId") ?? "");
 
-    if (!(video instanceof File) || video.size === 0) {
+    const hasVideoFile = video instanceof File && video.size > 0;
+    if (!hasVideoFile && !videoBlobUrl) {
       return NextResponse.json({ error: "A video clip is required." }, { status: 400 });
     }
+
+    if (videoBlobUrl) {
+      if (!user) {
+        return NextResponse.json({ error: "Sign in before using a direct clip upload." }, { status: 401 });
+      }
+
+      const metadata = await head(videoBlobUrl);
+      const expectedPrefix = `pulsereel/source/${user.id}/`;
+      if (
+        !metadata.pathname.startsWith(expectedPrefix) ||
+        !metadata.contentType.startsWith("video/") ||
+        metadata.size <= 0 ||
+        metadata.size > MAX_DIRECT_VIDEO_BYTES
+      ) {
+        return NextResponse.json(
+          { error: "The uploaded clip is invalid or belongs to another account." },
+          { status: 400 },
+        );
+      }
+      directVideoBlobUrl = metadata.url;
+    }
+
+    const saveRequestSourceAssets = async () => {
+      if (directVideoBlobUrl) {
+        return {
+          sourceVideoUrl: directVideoBlobUrl,
+          sourceImageUrl:
+            selfie instanceof File && selfie.size > 0
+              ? await saveSourceFile(selfie)
+              : undefined,
+        };
+      }
+
+      return saveSourceAssets(
+        video as File,
+        selfie instanceof File && selfie.size > 0 ? selfie : undefined,
+      );
+    };
 
     const rawValues = quickPrompt
       ? {
@@ -184,10 +228,7 @@ export async function POST(request: Request) {
 
     if (parsed.data.renderMode === "seedance-2-fast") {
       const deleteCredential = createProjectDeleteCredential();
-      const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
-        video,
-        selfie instanceof File && selfie.size > 0 ? selfie : undefined,
-      );
+      const { sourceVideoUrl, sourceImageUrl } = await saveRequestSourceAssets();
 
       const project = await createSeedanceProject({
         creatorName: parsed.data.creatorName,
@@ -228,10 +269,7 @@ export async function POST(request: Request) {
 
     if (shouldUseHeavyWorker) {
       const deleteCredential = createProjectDeleteCredential();
-      const { sourceVideoUrl, sourceImageUrl } = await saveSourceAssets(
-        video,
-        selfie instanceof File && selfie.size > 0 ? selfie : undefined,
-      );
+      const { sourceVideoUrl, sourceImageUrl } = await saveRequestSourceAssets();
       const heavyProvider = parsed.data.heavyProvider as HeavyRenderProviderId | undefined;
 
       const project = await createHeavyProject({
@@ -277,7 +315,7 @@ export async function POST(request: Request) {
     const deleteCredential = createProjectDeleteCredential();
     const project = await createMovieProject({
       ...parsed.data,
-      videoFile: video,
+      videoFile: video as File,
       imageFile: selfie instanceof File && selfie.size > 0 ? selfie : undefined,
     });
     project.ownerId = user?.id;
@@ -313,5 +351,13 @@ export async function POST(request: Request) {
       { error: error instanceof Error ? error.message : "The movie pipeline failed." },
       { status: 500 },
     );
+  } finally {
+    if (directVideoBlobUrl) {
+      try {
+        await del(directVideoBlobUrl);
+      } catch (error) {
+        console.warn("PulseReel could not remove a temporary direct upload.", error);
+      }
+    }
   }
 }

@@ -184,6 +184,11 @@ async function saveFile(file: File, folder: "uploads" | "generated") {
   return runtimeAssetUrl(folder, filename);
 }
 
+export async function saveSourceFile(file: File) {
+  await ensurePublicFolders();
+  return saveFile(file, "uploads");
+}
+
 export async function saveSourceAssets(videoFile: File, imageFile?: File | null) {
   await ensurePublicFolders();
   const sourceVideoUrl = await saveFile(videoFile, "uploads");
