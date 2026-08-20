@@ -707,6 +707,7 @@ def selected_render_provider(payload: dict) -> str:
     external_provider = model_hints.get("externalProvider", {})
     if (
         payload.get("provider") == "replicate-video-adapter"
+        or payload.get("provider") == "replicate-seedance-1.5-pro"
         or payload.get("provider") == "replicate-kling-v3-omni"
         or model_hints.get("preferredMotionBackend") == "replicate-hosted-video"
         or external_provider.get("provider") == "replicate"
@@ -832,6 +833,28 @@ def build_kling_input(payload: dict, identity_data_uri: str, reference_image_dat
     return request_input
 
 
+def build_seedance_15_input(payload: dict, identity_data_uri: str, reference_image_data_uri: str) -> dict:
+    image_data_uri = identity_data_uri or reference_image_data_uri
+    prompt = build_replicate_prompt(payload)
+    request_input = {
+        "prompt": (
+            f"{prompt} Preserve the identity, facial features, skin tone, and natural proportions of the "
+            "person in the starting image. Photorealistic live action, realistic background people, natural "
+            "motion, cinematic portrait framing, synchronized ambient sound. No captions, logos, distorted "
+            "faces, or duplicate people."
+        )[:2500],
+        "duration": 5,
+        "resolution": "720p",
+        "aspect_ratio": "9:16",
+        "generate_audio": True,
+        "fps": 24,
+        "camera_fixed": False,
+    }
+    if image_data_uri:
+        request_input["image"] = image_data_uri
+    return request_input
+
+
 def build_replicate_input(
     payload: dict,
     references: dict[int, Path],
@@ -873,6 +896,9 @@ def build_replicate_input(
 
     if normalized_model == KLING_V3_OMNI_MODEL:
         return build_kling_input(payload, identity_data_uri, reference_image_data_uri)
+
+    if normalized_model == "bytedance/seedance-1.5-pro":
+        return build_seedance_15_input(payload, identity_data_uri, reference_image_data_uri)
 
     if normalized_model == "minimax/video-01":
         request_input = {

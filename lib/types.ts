@@ -20,6 +20,7 @@ export type HeavyRenderProviderId =
   | "local-heavy-v1"
   | "open-model-adapter"
   | "replicate-video-adapter"
+  | "replicate-seedance-1.5-pro"
   | "replicate-kling-v3-omni"
   | "minimax-subject-adapter";
 

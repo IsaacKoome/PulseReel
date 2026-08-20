@@ -14,6 +14,7 @@ import {
   updateGenerationReservation,
 } from "@/lib/generation-access";
 import { isAuthEnabled } from "@/lib/auth/config";
+import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
 import type { HeavyRenderProviderId } from "@/lib/types";
 
@@ -36,6 +37,7 @@ const schema = z.object({
       "local-heavy-v1",
       "open-model-adapter",
       "replicate-video-adapter",
+      "replicate-seedance-1.5-pro",
       "replicate-kling-v3-omni",
       "minimax-subject-adapter",
     ])
@@ -167,7 +169,17 @@ export async function POST(request: Request) {
         parsed.data.renderMode === "seedance-2-fast"
           ? "seedance-2-fast"
           : parsed.data.heavyProvider ?? "replicate-video-adapter";
-      generationReservationId = await reserveManagedGeneration(user, provider);
+      if (provider === "replicate-seedance-1.5-pro") {
+        if (!isPulseReelAdmin(user)) {
+          throw new GenerationAccessError(
+            "Seedance 1.5 Pro is currently restricted to the owner cost experiment.",
+            "seedance_experiment_admin_only",
+            403,
+          );
+        }
+      } else {
+        generationReservationId = await reserveManagedGeneration(user, provider);
+      }
     }
 
     if (parsed.data.renderMode === "seedance-2-fast") {

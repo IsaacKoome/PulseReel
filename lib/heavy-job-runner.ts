@@ -986,7 +986,9 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
   }));
 
   const isReplicateProvider =
-    provider === "replicate-video-adapter" || provider === "replicate-kling-v3-omni";
+    provider === "replicate-video-adapter" ||
+    provider === "replicate-seedance-1.5-pro" ||
+    provider === "replicate-kling-v3-omni";
 
   const payload: HeavyJobPayload = {
     protocolVersion: "pulsereel-heavy-job-v1",
@@ -1197,6 +1199,7 @@ async function remoteHeaders(payloadPath?: string) {
       const payload = await readHeavyJobPayload(payloadPath);
       const isReplicatePayload =
         payload.provider === "replicate-video-adapter" ||
+        payload.provider === "replicate-seedance-1.5-pro" ||
         payload.provider === "replicate-kling-v3-omni" ||
         payload.modelHints.preferredMotionBackend === "replicate-hosted-video" ||
         payload.modelHints.externalProvider?.provider === "replicate";
@@ -1206,6 +1209,9 @@ async function remoteHeaders(payloadPath?: string) {
         const replicateModel =
           payload.provider === "replicate-kling-v3-omni"
             ? process.env.PULSEREEL_KLING_REPLICATE_MODEL?.trim() || "kwaivgi/kling-v3-omni-video"
+            : payload.provider === "replicate-seedance-1.5-pro"
+              ? process.env.PULSEREEL_SEEDANCE_15_REPLICATE_MODEL?.trim() ||
+                "bytedance/seedance-1.5-pro"
             : payload.modelHints.externalProvider?.model ||
               process.env.PULSEREEL_REPLICATE_MODEL?.trim();
 
@@ -1218,6 +1224,8 @@ async function remoteHeaders(payloadPath?: string) {
         const inputTemplate =
           payload.provider === "replicate-kling-v3-omni"
             ? process.env.PULSEREEL_KLING_REPLICATE_INPUT_TEMPLATE?.trim()
+            : payload.provider === "replicate-seedance-1.5-pro"
+              ? process.env.PULSEREEL_SEEDANCE_15_REPLICATE_INPUT_TEMPLATE?.trim()
             : process.env.PULSEREEL_REPLICATE_INPUT_TEMPLATE?.trim();
         if (inputTemplate) {
           headers["X-PulseReel-Replicate-Input-Template"] = inputTemplate;

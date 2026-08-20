@@ -290,6 +290,26 @@ const replicateVideoProvider = createExternalProvider({
   ],
 });
 
+const replicateSeedance15Provider = createExternalProvider({
+  provider: "replicate",
+  id: "replicate-seedance-1.5-pro",
+  label: "Seedance 1.5 Pro · Owner test",
+  description:
+    "Admin-only five-second 720p image-to-video comparison with native audio through Replicate-hosted Seedance 1.5 Pro.",
+  preferredMotionBackend: "replicate-hosted-video",
+  tokenEnv: "PULSEREEL_REPLICATE_API_TOKEN",
+  modelEnv: "PULSEREEL_SEEDANCE_15_REPLICATE_MODEL",
+  defaultModel: "bytedance/seedance-1.5-pro",
+  configuredStage: "Seedance 1.5 Pro configured; dispatching a five-second 720p native-audio identity test",
+  missingStage: "Seedance 1.5 Pro selected but the Replicate token is missing; local fallback is disabled",
+  allowLocalFallback: false,
+  notes: [
+    "Owner-only quality and cost comparison; do not expose this lane to the public free beta.",
+    "Use exactly one identity image as the image-to-video starting frame.",
+    "Request portrait 9:16, 720p, five seconds, 24 fps, and native audio.",
+  ],
+});
+
 const replicateKlingProvider = createExternalProvider({
   provider: "replicate",
   id: "replicate-kling-v3-omni",
@@ -332,6 +352,7 @@ const providers: Record<HeavyRenderProviderId, HeavyRenderProvider> = {
   "local-heavy-v1": localHeavyProvider,
   "open-model-adapter": openModelAdapterProvider,
   "replicate-video-adapter": replicateVideoProvider,
+  "replicate-seedance-1.5-pro": replicateSeedance15Provider,
   "replicate-kling-v3-omni": replicateKlingProvider,
   "minimax-subject-adapter": minimaxSubjectProvider,
 };

@@ -32,7 +32,10 @@ export default async function CreatePage() {
           </a>
         </div>
       </div>
-      <CreateStudio initialBetaAccess={betaAccess} />
+      <CreateStudio
+        initialBetaAccess={betaAccess}
+        seedance15ExperimentEnabled={isPulseReelAdmin(user)}
+      />
       <SiteFooter />
     </main>
   );

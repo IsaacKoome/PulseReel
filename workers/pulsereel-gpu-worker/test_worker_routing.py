@@ -34,6 +34,10 @@ class ReplicateRoutingTests(unittest.TestCase):
         payload = {**self.payload, "provider": "replicate-kling-v3-omni"}
         self.assertEqual(selected_render_provider(payload), "replicate")
 
+    def test_seedance_15_profile_selects_replicate_without_external_metadata(self) -> None:
+        payload = {**self.payload, "provider": "replicate-seedance-1.5-pro"}
+        self.assertEqual(selected_render_provider(payload), "replicate")
+
     def test_forwarded_model_is_used_when_payload_has_no_model_metadata(self) -> None:
         self.assertEqual(
             replicate_model_for_payload(self.payload, "minimax/video-01"),
@@ -129,6 +133,27 @@ class ReplicateRoutingTests(unittest.TestCase):
         self.assertEqual(len(shots), 3)
         self.assertEqual(sum(shot["duration"] for shot in shots), 15)
         self.assertTrue(all("<<<image_1>>>" in shot["prompt"] for shot in shots))
+
+    def test_seedance_15_input_is_fixed_to_low_cost_native_audio_profile(self) -> None:
+        payload = {**self.payload, "provider": "replicate-seedance-1.5-pro"}
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            identity_path = Path(temporary_dir) / "identity.png"
+            identity_path.write_bytes(b"identity-image")
+            request_input = build_replicate_input(
+                payload,
+                {},
+                identity_path,
+                None,
+                model="bytedance/seedance-1.5-pro",
+            )
+
+        self.assertEqual(request_input["duration"], 5)
+        self.assertEqual(request_input["resolution"], "720p")
+        self.assertEqual(request_input["aspect_ratio"], "9:16")
+        self.assertEqual(request_input["fps"], 24)
+        self.assertTrue(request_input["generate_audio"])
+        self.assertTrue(request_input["image"].startswith("data:image/png;base64,"))
+        self.assertNotIn("subject_reference", request_input)
 
     def test_identity_frame_rank_penalizes_blur_and_bad_exposure(self) -> None:
         clear_well_lit = identity_frame_rank(4.0, 130.0)
