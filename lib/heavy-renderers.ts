@@ -9,6 +9,34 @@ import {
 } from "@/lib/heavy-job-runner";
 import { renderMovieForProject } from "@/lib/pipeline";
 
+function storyMoodDirection(templateId: string) {
+  switch (templateId) {
+    case "heartline":
+      return "intimate emotional realism, restrained performance, and soft natural light";
+    case "mythic-shift":
+      return "heightened wonder, dramatic scale, and atmospheric light while remaining photorealistic";
+    case "rise-mode":
+    default:
+      return "grounded determination, forward momentum, and warm cinematic contrast";
+  }
+}
+
+function cameraDirection(project: MovieProject) {
+  if (project.cameraMode === "selfie") {
+    return [
+      "Front-facing handheld selfie viewpoint from the main character's own camera.",
+      "Keep the main character recognizable in the foreground while they naturally turn or move to reveal the requested environment and people behind them.",
+      "Use believable arm-length framing and gentle human camera motion; do not show a phone or selfie stick.",
+    ].join(" ");
+  }
+
+  return [
+    "A separate cinematic camera films the main character in a medium or wide portrait composition inside the requested world.",
+    "This is not a selfie, vlog, phone recording, first-person view, or outstretched-arm shot.",
+    "Keep both the main character and the important environment clearly readable.",
+  ].join(" ");
+}
+
 type ProgressReporter = {
   update: (
     progress: number,
@@ -66,24 +94,15 @@ function envValue(key: string) {
   return process.env[key]?.trim() || "";
 }
 
-function externalProviderPrompt(project: MovieProject, payload: HeavyJobPayload) {
-  const shotLines = payload.shotReferences
-    .map((shot, index) => {
-      const cast = shot.supportingCast.length ? ` Supporting cast: ${shot.supportingCast.join(", ")}.` : "";
-      const activity = shot.backgroundAction ? ` Background action: ${shot.backgroundAction}.` : "";
-      return `${index + 1}. ${shot.title}: ${shot.prompt}. ${shot.cameraGoal}. ${shot.heroAction}.${activity}${cast}`;
-    })
-    .join("\n");
-
+function externalProviderPrompt(project: MovieProject) {
   return [
-    `Create a vertical live-action short movie for PulseReel.`,
-    `Main character: ${project.creatorName}, preserved from the uploaded/recorded reference video.`,
-    `Story: ${project.scenePrompt}`,
-    `World: ${payload.worldSpec.setting}. ${payload.worldSpec.atmosphere}`,
-    `Identity anchor: ${payload.characterBible.identityAnchor}`,
-    `Continuity: keep the same face, outfit feel, body language, and cinematic mood across all shots.`,
-    `Avoid replacing the creator with a different person. Avoid text glitches and poster-card-only shots.`,
-    `Shot plan:\n${shotLines}`,
+    "Create one coherent continuous vertical live-action shot. Do not make a montage, trailer, title card, poster, or sequence of unrelated shots.",
+    `Scene requested by the user: ${project.premise}`,
+    `Main character: ${project.creatorName}, using the supplied identity reference. Preserve the same facial structure, skin tone, age, hairline, and recognizable identity for the entire shot.`,
+    `Camera contract: ${cameraDirection(project)}`,
+    `Story mood: ${storyMoodDirection(project.templateId)}. Apply this only to lighting, color, performance, and motion; do not replace the user's setting, clothing, action, or people with a fantasy or graphic-design concept.`,
+    "Show one clear, physically believable action. Background people should look real, have natural body motion, and behave consistently with the requested place.",
+    "Use natural skin texture, stable anatomy, realistic hands, cinematic depth, and readable faces. No interface graphics, invented writing, captions, logos, duplicate people, face morphing, or distorted bodies.",
   ].join("\n\n");
 }
 
@@ -97,7 +116,7 @@ async function writeExternalProviderRequest(
 
   const model = envValue(config.modelEnv) || config.defaultModel;
   const configured = Boolean(envValue(config.tokenEnv) && model);
-  const prompt = externalProviderPrompt(project, job.payload);
+  const prompt = externalProviderPrompt(project);
   const requestPath = path.join(providerDir, `${config.provider}.json`);
   const request = {
     provider: config.provider,

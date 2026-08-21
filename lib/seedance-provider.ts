@@ -5,16 +5,20 @@ import { createGateway } from "@ai-sdk/gateway";
 import { put } from "@vercel/blob";
 import { createMovieProjectDraft } from "@/lib/pipeline";
 import { assetUrlToPath, getRuntimeAssetDir, runtimeAssetUrl } from "@/lib/runtime-storage";
-import type { MovieProject } from "@/lib/types";
+import type { CameraMode, MovieProject } from "@/lib/types";
 
 const DEFAULT_MODEL = "bytedance/seedance-2.0-fast";
 const DEFAULT_DURATION_SECONDS = 5;
 
 function seedancePrompt(project: MovieProject) {
+  const cameraDirection = project.cameraMode === "selfie"
+    ? "Use a front-facing handheld selfie viewpoint: the creator stays recognizable in the foreground while revealing the requested world behind them."
+    : "Use a separate cinematic camera in a medium or wide composition. This is not a selfie, vlog, phone recording, or outstretched-arm shot.";
   return [
-    project.scenePrompt,
-    "Create a vertical cinematic live-action movie clip.",
-    "Keep the uploaded creator identity as the hero if a reference image is provided.",
+    `Scene requested by the user: ${project.premise}`,
+    "Create one continuous vertical cinematic live-action shot, not a montage or trailer.",
+    cameraDirection,
+    "Keep the uploaded creator identity as the same hero for the entire shot if a reference image is provided.",
     "Make the world feel real, with believable lighting, camera movement, foreground/background depth, and natural motion.",
     "No text overlays, no subtitles, no logos, no watermarks.",
   ].join(" ");
@@ -56,6 +60,7 @@ export async function createSeedanceProject(input: {
   premise: string;
   scenePrompt: string;
   persona: string;
+  cameraMode: CameraMode;
   sourceVideoUrl: string;
   sourceImageUrl?: string;
 }) {

@@ -1,4 +1,4 @@
-import type { HeavyRenderProviderId, MovieProject, RenderMode } from "@/lib/types";
+import type { CameraMode, HeavyRenderProviderId, MovieProject, RenderMode } from "@/lib/types";
 import {
   createHeavyJobFiles,
   enqueueRemoteModelBackendJob,
@@ -26,6 +26,7 @@ export async function createHeavyProject(input: {
   premise: string;
   scenePrompt: string;
   persona: string;
+  cameraMode: CameraMode;
   renderMode: Exclude<RenderMode, "seedance-2-fast">;
   heavyProvider?: HeavyRenderProviderId;
   sourceVideoUrl: string;

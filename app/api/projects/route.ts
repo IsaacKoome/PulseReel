@@ -32,6 +32,7 @@ const schema = z.object({
   premise: z.string().min(10),
   scenePrompt: z.string().min(10),
   persona: z.string().min(2),
+  cameraMode: z.enum(["cinematic", "selfie"]).default("cinematic"),
   renderMode: z
     .enum(["fast-trailer", "prompt-movie-beta", "heavy-worker-beta", "seedance-2-fast"])
     .default("prompt-movie-beta"),
@@ -165,6 +166,7 @@ export async function POST(request: Request) {
       ? {
           ...autoFillFromPrompt(quickPrompt, templateIdValue),
           templateId: templateIdValue,
+          cameraMode: formData.get("cameraMode") || "cinematic",
           renderMode: formData.get("renderMode"),
           heavyProvider: formData.get("heavyProvider") || undefined,
         }
@@ -176,6 +178,7 @@ export async function POST(request: Request) {
       premise: formData.get("premise"),
       scenePrompt: formData.get("scenePrompt"),
       persona: formData.get("persona"),
+      cameraMode: formData.get("cameraMode") || "cinematic",
       renderMode: formData.get("renderMode"),
       heavyProvider: formData.get("heavyProvider") || undefined,
         };
@@ -238,6 +241,7 @@ export async function POST(request: Request) {
         premise: parsed.data.premise,
         scenePrompt: parsed.data.scenePrompt,
         persona: parsed.data.persona,
+        cameraMode: parsed.data.cameraMode,
         sourceVideoUrl,
         sourceImageUrl,
       });
@@ -280,6 +284,7 @@ export async function POST(request: Request) {
         premise: parsed.data.premise,
         scenePrompt: parsed.data.scenePrompt,
         persona: parsed.data.persona,
+        cameraMode: parsed.data.cameraMode,
         renderMode: parsed.data.renderMode,
         heavyProvider,
         sourceVideoUrl,

@@ -135,7 +135,11 @@ class ReplicateRoutingTests(unittest.TestCase):
         self.assertTrue(all("<<<image_1>>>" in shot["prompt"] for shot in shots))
 
     def test_seedance_15_input_is_fixed_to_low_cost_native_audio_profile(self) -> None:
-        payload = {**self.payload, "provider": "replicate-seedance-1.5-pro"}
+        payload = {
+            **self.payload,
+            "provider": "replicate-seedance-1.5-pro",
+            "story": {"scenePrompt": "A creator explores a cinematic city.", "cameraMode": "cinematic"},
+        }
         with tempfile.TemporaryDirectory() as temporary_dir:
             identity_path = Path(temporary_dir) / "identity.png"
             identity_path.write_bytes(b"identity-image")
@@ -154,6 +158,25 @@ class ReplicateRoutingTests(unittest.TestCase):
         self.assertTrue(request_input["generate_audio"])
         self.assertTrue(request_input["image"].startswith("data:image/png;base64,"))
         self.assertNotIn("subject_reference", request_input)
+        self.assertIn("not a selfie", request_input["prompt"].lower())
+        self.assertIn("one coherent shot", request_input["prompt"].lower())
+
+    def test_seedance_15_selfie_mode_is_explicit(self) -> None:
+        payload = {
+            **self.payload,
+            "provider": "replicate-seedance-1.5-pro",
+            "story": {"scenePrompt": "A creator explores a cinematic city.", "cameraMode": "selfie"},
+        }
+        request_input = build_replicate_input(
+            payload,
+            {},
+            None,
+            None,
+            model="bytedance/seedance-1.5-pro",
+        )
+
+        self.assertIn("front-facing handheld selfie viewpoint", request_input["prompt"].lower())
+        self.assertIn("without showing a phone or selfie stick", request_input["prompt"].lower())
 
     def test_identity_frame_rank_penalizes_blur_and_bad_exposure(self) -> None:
         clear_well_lit = identity_frame_rank(4.0, 130.0)

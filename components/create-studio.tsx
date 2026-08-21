@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { BetaAccessStatus } from "@/lib/generation-access";
-import type { MovieProject, RenderMode } from "@/lib/types";
+import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
 
 type ModelChoice =
   | "seedance-2-fast"
@@ -59,6 +59,7 @@ export function CreateStudio({
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
   const [modelChoice, setModelChoice] = useState<ModelChoice>("replicate-video-adapter");
+  const [cameraMode, setCameraMode] = useState<CameraMode>("cinematic");
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -476,6 +477,7 @@ export function CreateStudio({
     }
 
     formData.set("templateId", selectedTemplate);
+    formData.set("cameraMode", cameraMode);
     formData.set("genre", genre);
     const renderMode: RenderMode = modelChoice === "seedance-2-fast" ? "seedance-2-fast" : "heavy-worker-beta";
     formData.set("renderMode", renderMode);
@@ -693,7 +695,7 @@ export function CreateStudio({
 
         <div className="studio-section-title compact">
           <span>3</span>
-          <h2>Style</h2>
+          <h2>Story mood</h2>
         </div>
 
         <div className="simple-template-list">
@@ -717,8 +719,46 @@ export function CreateStudio({
           ))}
         </div>
 
+        <p className="model-capability-note">
+          Mood guides lighting and emotion only. Your movie idea still decides the place, action, and people.
+        </p>
+
         <div className="studio-section-title compact">
           <span>4</span>
+          <h2>Camera view</h2>
+        </div>
+
+        <div className="simple-template-list compact-list">
+          <label className={`template-option ${cameraMode === "cinematic" ? "active" : ""}`}>
+            <input
+              checked={cameraMode === "cinematic"}
+              name="cameraModeChoice"
+              onChange={() => setCameraMode("cinematic")}
+              type="radio"
+              value="cinematic"
+            />
+            <span>Cinematic scene</span>
+          </label>
+          <label className={`template-option ${cameraMode === "selfie" ? "active" : ""}`}>
+            <input
+              checked={cameraMode === "selfie"}
+              name="cameraModeChoice"
+              onChange={() => setCameraMode("selfie")}
+              type="radio"
+              value="selfie"
+            />
+            <span>Selfie story</span>
+          </label>
+        </div>
+
+        <p className="model-capability-note">
+          {cameraMode === "cinematic"
+            ? "Recommended for a movie look: another camera films you inside the scene."
+            : "Front-camera storytelling: you stay in frame while revealing the world around you."}
+        </p>
+
+        <div className="studio-section-title compact">
+          <span>5</span>
           <h2>Model</h2>
         </div>
 

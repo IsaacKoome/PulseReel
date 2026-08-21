@@ -7,7 +7,7 @@ import sharp from "sharp";
 import { v4 as uuid } from "uuid";
 import { getTemplateById } from "@/data/templates";
 import { assetUrlToPath, getRuntimeAssetDir, isVercelRuntime, runtimeAssetUrl } from "@/lib/runtime-storage";
-import type { MovieProject, RenderMode, ShotSpec, StoryBeat } from "@/lib/types";
+import type { CameraMode, MovieProject, RenderMode, ShotSpec, StoryBeat } from "@/lib/types";
 import { slugify } from "@/lib/utils";
 
 const VIDEO_SIZE = { width: 720, height: 1280 };
@@ -58,6 +58,7 @@ type ProjectInput = {
   premise: string;
   scenePrompt: string;
   persona: string;
+  cameraMode: CameraMode;
   renderMode: RenderMode;
   videoFile: File;
   imageFile?: File | null;
@@ -1380,6 +1381,7 @@ export async function createMovieProjectDraft(
     premise: input.premise.trim(),
     scenePrompt: input.scenePrompt.trim(),
     persona: input.persona.trim(),
+    cameraMode: input.cameraMode,
     renderMode: input.renderMode,
     status: input.status ?? "processing",
     createdAt,

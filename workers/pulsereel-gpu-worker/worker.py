@@ -754,6 +754,20 @@ def build_replicate_prompt(payload: dict) -> str:
     return " ".join(shot_lines) or "Create a cinematic vertical short film from the provided identity reference."
 
 
+def camera_direction_for_payload(payload: dict) -> str:
+    camera_mode = str(payload.get("story", {}).get("cameraMode", "cinematic")).strip().lower()
+    if camera_mode == "selfie":
+        return (
+            "Use a front-facing handheld selfie viewpoint. Keep the same recognizable person in the foreground "
+            "while they naturally reveal the requested environment behind them. Use gentle arm-length camera "
+            "motion without showing a phone or selfie stick."
+        )
+    return (
+        "Use a separate cinematic camera in a medium or wide portrait composition. This is not a selfie, vlog, "
+        "phone recording, first-person view, or outstretched-arm shot. Keep the person and environment readable."
+    )
+
+
 def kling_duration_seconds() -> int:
     try:
         requested = int(os.environ.get("PULSEREEL_KLING_DURATION_SECONDS", "15"))
@@ -795,9 +809,10 @@ def build_kling_input(payload: dict, identity_data_uri: str, reference_image_dat
         else "Keep the same main character and appearance in every shot."
     )
     story_prompt = str(payload.get("story", {}).get("scenePrompt") or build_replicate_prompt(payload)).strip()
+    camera_direction = camera_direction_for_payload(payload)
     score_mood = str(payload.get("styleBible", {}).get("scoreMood", "cinematic atmospheric score")).strip()
     overall_prompt = (
-        f"Create a coherent vertical live-action movie. {identity_phrase} Story: {story_prompt} "
+        f"Create a coherent vertical live-action movie. {identity_phrase} Story: {story_prompt} {camera_direction} "
         f"Use photorealistic people, natural skin texture, believable background characters, realistic physics, "
         f"cinematic lighting, synchronized environmental sounds, movement sounds, and {score_mood}. "
         "No captions, logos, distorted faces, duplicate people, or unintelligible dialogue."
@@ -836,12 +851,14 @@ def build_kling_input(payload: dict, identity_data_uri: str, reference_image_dat
 def build_seedance_15_input(payload: dict, identity_data_uri: str, reference_image_data_uri: str) -> dict:
     image_data_uri = identity_data_uri or reference_image_data_uri
     prompt = build_replicate_prompt(payload)
+    camera_direction = camera_direction_for_payload(payload)
     request_input = {
         "prompt": (
-            f"{prompt} Preserve the identity, facial features, skin tone, and natural proportions of the "
+            f"{prompt} {camera_direction} Preserve the identity, facial features, skin tone, and natural proportions of the "
             "person in the starting image. Photorealistic live action, realistic background people, natural "
-            "motion, cinematic portrait framing, synchronized ambient sound. No captions, logos, distorted "
-            "faces, or duplicate people."
+            "motion, stable anatomy, natural skin texture, synchronized ambient sound. Continue as one coherent "
+            "shot with one readable action. No montage, captions, interface graphics, invented writing, logos, "
+            "distorted faces, face morphing, or duplicate people."
         )[:2500],
         "duration": 5,
         "resolution": "720p",

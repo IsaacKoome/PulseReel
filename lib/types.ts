@@ -26,6 +26,8 @@ export type HeavyRenderProviderId =
 
 export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta" | "seedance-2-fast";
 
+export type CameraMode = "cinematic" | "selfie";
+
 export type MovieProject = {
   id: string;
   slug: string;
@@ -36,6 +38,7 @@ export type MovieProject = {
   premise: string;
   scenePrompt: string;
   persona: string;
+  cameraMode?: CameraMode;
   renderMode: RenderMode;
   status: "draft" | "processing" | "published" | "failed";
   createdAt: string;

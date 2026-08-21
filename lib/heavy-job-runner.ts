@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import sharp from "sharp";
-import type { HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
+import type { CameraMode, HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
 import { getTemplateById } from "@/data/templates";
 import { assetUrlToPath, getRuntimeAssetDir, getRuntimeDataDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 
@@ -67,6 +67,7 @@ export type HeavyJobPayload = {
     premise: string;
     scenePrompt: string;
     persona: string;
+    cameraMode: CameraMode;
     caption: string;
     hook: string;
     openingShot: string;
@@ -1044,6 +1045,7 @@ export async function createHeavyJobFiles(project: MovieProject, provider: Heavy
       premise: project.premise,
       scenePrompt: project.scenePrompt,
       persona: project.persona,
+      cameraMode: project.cameraMode ?? "cinematic",
       caption: project.caption,
       hook: project.hook,
       openingShot: project.openingShot,
