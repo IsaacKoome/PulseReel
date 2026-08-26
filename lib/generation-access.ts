@@ -45,6 +45,16 @@ export type BetaAdminSnapshot = {
   }>;
 };
 
+export type BetaUserAllowance = {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  freeMovieLimit: number;
+  attemptsUsed: number;
+  attemptsRemaining: number;
+  lastSignInAt: string | null;
+};
+
 export class GenerationAccessError extends Error {
   constructor(message: string, readonly code: string, readonly status: number) {
     super(message);
@@ -119,7 +129,7 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   }
 
   const supabase = createSupabaseAdminClient();
-  const [{ data: config, error: configError }, reservationResult] = await Promise.all([
+  const [{ data: config, error: configError }, reservationResult, allowanceResult] = await Promise.all([
     supabase
       .from("pulse_reel_beta_config")
       .select("generation_enabled,total_attempt_limit,total_attempt_count")
@@ -130,8 +140,14 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
           .from("pulse_reel_generation_reservations")
           .select("status")
           .eq("user_id", user.id)
+          .in("status", ["reserved", "submitted", "completed"])
           .order("created_at", { ascending: false })
-          .limit(1)
+      : Promise.resolve({ data: [], error: null }),
+    user
+      ? supabase
+          .from("pulse_reel_user_beta_limits")
+          .select("free_movie_limit")
+          .eq("user_id", user.id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -154,12 +170,18 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   if (reservationResult.error) {
     console.error("Could not read PulseReel generation reservation.", reservationResult.error);
   }
+  if (allowanceResult.error) {
+    console.error("Could not read PulseReel personal beta allowance.", allowanceResult.error);
+  }
 
   const totalAttemptLimit = Number(config.total_attempt_limit);
   const totalAttemptCount = Number(config.total_attempt_count);
-  const reservationStatus = (reservationResult.data?.status as ReservationStatus | undefined) ?? null;
-  const hasUsedFreeGeneration =
-    reservationStatus === "reserved" || reservationStatus === "submitted" || reservationStatus === "completed";
+  const activeReservations = reservationResult.data ?? [];
+  const personalLimit = Number(allowanceResult.data?.free_movie_limit ?? 1);
+  const personalAttemptCount = activeReservations.length;
+  const personalAttemptsRemaining = Math.max(0, personalLimit - personalAttemptCount);
+  const reservationStatus = (activeReservations[0]?.status as ReservationStatus | undefined) ?? null;
+  const hasUsedFreeGeneration = personalAttemptCount >= personalLimit;
 
   let reason: BetaAccessReason = "available";
   if (!user) reason = "sign_in_required";
@@ -168,17 +190,113 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   else if (totalAttemptCount >= totalAttemptLimit) reason = "global_limit_reached";
   else if (hasUsedFreeGeneration) reason = "free_generation_used";
 
+  let message = accessMessage(reason);
+  if (reason === "available" && personalLimit > 1) {
+    message = `You have ${personalAttemptsRemaining} of ${personalLimit} free beta AI movies available.`;
+  } else if (reason === "free_generation_used" && personalLimit > 1) {
+    message = `You have used all ${personalLimit} of your free beta AI movies. Paid generation is coming soon.`;
+  }
+
   return {
     controlsEnabled: true,
     generationEnabled: Boolean(config.generation_enabled),
     eligible: reason === "available",
     reason,
-    message: accessMessage(reason),
+    message,
     totalAttemptLimit,
     totalAttemptCount,
     remainingAttempts: Math.max(0, totalAttemptLimit - totalAttemptCount),
     reservationStatus,
   };
+}
+
+export async function getBetaUserAllowances(): Promise<BetaUserAllowance[]> {
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error("Supabase server access is not configured.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const [usersResult, reservationsResult, limitsResult] = await Promise.all([
+    supabase.auth.admin.listUsers({ page: 1, perPage: 200 }),
+    supabase
+      .from("pulse_reel_generation_reservations")
+      .select("user_id,status")
+      .in("status", ["reserved", "submitted", "completed"]),
+    supabase
+      .from("pulse_reel_user_beta_limits")
+      .select("user_id,free_movie_limit"),
+  ]);
+
+  if (usersResult.error) throw new Error("Could not load beta users.");
+  if (reservationsResult.error) throw new Error("Could not load user generation totals.");
+  if (limitsResult.error && limitsResult.error.code !== "42P01") {
+    throw new Error("Could not load personal beta allowances.");
+  }
+
+  const attemptsByUser = new Map<string, number>();
+  for (const reservation of reservationsResult.data ?? []) {
+    attemptsByUser.set(reservation.user_id, (attemptsByUser.get(reservation.user_id) ?? 0) + 1);
+  }
+
+  const limitsByUser = new Map<string, number>();
+  for (const limit of limitsResult.data ?? []) {
+    limitsByUser.set(limit.user_id, Number(limit.free_movie_limit));
+  }
+
+  return usersResult.data.users
+    .map((user) => {
+      const freeMovieLimit = limitsByUser.get(user.id) ?? 1;
+      const attemptsUsed = attemptsByUser.get(user.id) ?? 0;
+      const displayName =
+        typeof user.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
+          : typeof user.user_metadata?.name === "string"
+            ? user.user_metadata.name
+            : null;
+
+      return {
+        userId: user.id,
+        email: user.email ?? "No email",
+        displayName,
+        freeMovieLimit,
+        attemptsUsed,
+        attemptsRemaining: Math.max(0, freeMovieLimit - attemptsUsed),
+        lastSignInAt: user.last_sign_in_at ?? null,
+      };
+    })
+    .sort((left, right) => {
+      if (left.attemptsUsed !== right.attemptsUsed) return right.attemptsUsed - left.attemptsUsed;
+      return left.email.localeCompare(right.email);
+    });
+}
+
+export async function setBetaUserAttemptLimit(userId: string, limit: number) {
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error("Supabase server access is not configured.");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+    throw new Error("The selected beta user is invalid.");
+  }
+  if (!Number.isInteger(limit) || limit < 0 || limit > 10000) {
+    throw new Error("The personal free-movie limit must be a whole number between 0 and 10,000.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("pulse_reel_user_beta_limits")
+    .upsert(
+      {
+        user_id: userId,
+        free_movie_limit: limit,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
+  if (error?.code === "42P01") {
+    throw new Error("Run the per-user beta limits migration before changing allowances.");
+  }
+  if (error) throw new Error("Could not update this user's free-movie allowance.");
 }
 
 export async function trackBetaEvent(input: {

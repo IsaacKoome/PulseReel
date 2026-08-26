@@ -3,9 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
 import { MINIMAX_VIDEO_01_ESTIMATED_COST_USD } from "@/lib/beta-config";
-import { getBetaAdminSnapshot } from "@/lib/generation-access";
+import { getBetaAdminSnapshot, getBetaUserAllowances } from "@/lib/generation-access";
 import { getFeedbackAdminSnapshot } from "@/lib/movie-feedback";
-import { setAttemptLimit, setGenerationEnabled } from "./actions";
+import { setAttemptLimit, setGenerationEnabled, setUserAttemptLimit } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +22,10 @@ export default async function BetaAdminPage() {
   if (!user) redirect("/login?next=/admin/beta");
   if (!isPulseReelAdmin(user)) notFound();
 
-  const [snapshot, feedback] = await Promise.all([
+  const [snapshot, feedback, betaUsers] = await Promise.all([
     getBetaAdminSnapshot(),
     getFeedbackAdminSnapshot(),
+    getBetaUserAllowances(),
   ]);
   const maximumBudget = snapshot.totalAttemptLimit * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
   const remainingBudget = snapshot.remainingAttempts * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
@@ -112,6 +113,63 @@ export default async function BetaAdminPage() {
             <button className="button-secondary" type="submit">Save limit</button>
           </div>
         </form>
+      </section>
+
+      <section className="admin-table-card admin-user-limits-card glass">
+        <div className="admin-table-heading">
+          <div>
+            <p className="eyebrow-copy">Individual allowances</p>
+            <h2>Free movies per account</h2>
+            <p className="muted">
+              New accounts receive one free AI movie by default. Set a personal limit from 0 to
+              10,000; the total beta attempt limit above remains the final spending cap.
+            </p>
+          </div>
+        </div>
+        {betaUsers.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table admin-user-limits-table">
+              <thead>
+                <tr><th>User</th><th>Used</th><th>Remaining</th><th>Personal limit</th><th>Last sign-in</th></tr>
+              </thead>
+              <tbody>
+                {betaUsers.map((betaUser) => (
+                  <tr key={betaUser.userId}>
+                    <td>
+                      <strong>{betaUser.email}</strong>
+                      <small>{betaUser.displayName || shortId(betaUser.userId)}</small>
+                    </td>
+                    <td>{betaUser.attemptsUsed}</td>
+                    <td>{betaUser.attemptsRemaining}</td>
+                    <td>
+                      <form action={setUserAttemptLimit} className="admin-user-limit-form">
+                        <input name="userId" type="hidden" value={betaUser.userId} />
+                        <input
+                          aria-label={`Free movie limit for ${betaUser.email}`}
+                          defaultValue={betaUser.freeMovieLimit}
+                          max="10000"
+                          min="0"
+                          name="freeMovieLimit"
+                          required
+                          step="1"
+                          type="number"
+                        />
+                        <button className="button-secondary" type="submit">Save</button>
+                      </form>
+                    </td>
+                    <td>
+                      {betaUser.lastSignInAt
+                        ? new Date(betaUser.lastSignInAt).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })
+                        : "Never"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">No signed-up beta users were found.</p>
+        )}
       </section>
 
       <section className="admin-feedback-card glass">

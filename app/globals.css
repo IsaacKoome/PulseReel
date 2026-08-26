@@ -1158,6 +1158,39 @@ select {
   background: rgba(4, 13, 25, 0.78);
 }
 
+.admin-user-limits-card {
+  margin: 18px 0;
+}
+
+.admin-user-limits-card .admin-table-heading p {
+  max-width: 760px;
+}
+
+.admin-user-limits-table td:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-user-limits-table td:first-child small {
+  color: var(--muted);
+}
+
+.admin-user-limit-form {
+  display: grid;
+  grid-template-columns: minmax(90px, 130px) auto;
+  gap: 8px;
+}
+
+.admin-user-limit-form input[type="number"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(4, 13, 25, 0.78);
+}
+
 .template-option.disabled {
   cursor: not-allowed;
   opacity: 0.48;
