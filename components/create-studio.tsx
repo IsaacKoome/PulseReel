@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { movieTemplates } from "@/data/templates";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { BetaAccessStatus } from "@/lib/generation-access";
+import { setProjectVideo } from "@/lib/project-submission";
 import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
 
 type ModelChoice =
@@ -509,11 +510,10 @@ export function CreateStudio({
           contentType: finalVideo.type || undefined,
           multipart: finalVideo.size > 4_500_000,
         });
-        formData.delete("video");
-        formData.set("videoBlobUrl", blob.url);
+        setProjectVideo(formData, finalVideo, blob.url);
         setStatus({ tone: "idle", message: "Creating your movie..." });
       } else {
-        formData.set("video", finalVideo);
+        setProjectVideo(formData, finalVideo);
       }
 
       const response = await fetch("/api/projects", {
