@@ -5,7 +5,6 @@ import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
 import { v4 as uuid } from "uuid";
-import { getTemplateById } from "@/data/templates";
 import { assetUrlToPath, getRuntimeAssetDir, isVercelRuntime, runtimeAssetUrl } from "@/lib/runtime-storage";
 import type { CameraMode, MovieProject, RenderMode, ShotSpec, StoryBeat } from "@/lib/types";
 import { slugify } from "@/lib/utils";
@@ -86,22 +85,19 @@ function buildBeats({
   premise,
   scenePrompt,
   persona,
-  templateId,
-}: Omit<ProjectInput, "videoFile" | "imageFile" | "title" | "genre">): StoryBeat[] {
-  const template = getTemplateById(templateId);
-
+}: Pick<ProjectInput, "creatorName" | "premise" | "scenePrompt" | "persona">): StoryBeat[] {
   return [
     {
       heading: "Hook",
-      text: `${creatorName} enters as ${persona || "the main character"}, where ${template.beats[0].toLowerCase()} Premise: ${premise}`,
+      text: `${creatorName} enters as ${persona || "the main character"} in the requested world. Premise: ${premise}`,
     },
     {
       heading: "Turn",
-      text: `${template.beats[1]} We anchor the emotion with: ${scenePrompt}`,
+      text: `The central action develops naturally around the creator. Scene direction: ${scenePrompt}`,
     },
     {
       heading: "Final Image",
-      text: `${template.beats[2]} The ending should leave the audience with a repeat-watch feeling.`,
+      text: `The requested scene reaches a clear cinematic resolution that keeps ${creatorName} visually central.`,
     },
   ];
 }
@@ -112,13 +108,11 @@ function buildScenePrompts(project: {
   scenePrompt: string;
   premise: string;
   persona: string;
-  templateId: string;
 }) {
-  const template = getTemplateById(project.templateId);
   return [
-    `${template.openingShot} The creator is framed as ${project.persona || "a fearless lead"} in "${project.title}".`,
-    `Mid-scene energy: ${project.scenePrompt}. Build around the idea "${project.premise}" with vertical composition and tactile lighting.`,
-    `Closing tableau for ${project.creatorName}: ${template.posterMood} The image should feel ready for a teaser poster.`,
+    `Establish the requested setting and action. ${project.creatorName} is framed as ${project.persona || "the main character"} in "${project.title}".`,
+    `Mid-scene energy: ${project.scenePrompt}. Build around the idea "${project.premise}" with vertical composition, natural motion, and grounded lighting.`,
+    `Close on ${project.creatorName} inside the requested world. Keep the result photographic, coherent, and ready for a movie preview.`,
   ];
 }
 
@@ -129,7 +123,6 @@ function inferScenePlan(input: {
   persona: string;
 }): ScenePlan {
   const text = `${input.premise} ${input.scenePrompt} ${input.persona}`.toLowerCase();
-  const template = getTemplateById(input.templateId);
   const hasForest = /(forest|jungle|savanna|tree|bush)/.test(text);
   const hasNight = /(night|moon|dark|shadow)/.test(text);
   const hasFire = /(fire|burn|flame|explosion)/.test(text);
@@ -140,21 +133,21 @@ function inferScenePlan(input: {
     ? "Kung Fu showdown"
     : /(chase|run)/.test(text)
       ? "High-speed chase"
-      : "Mythic hero reveal";
+      : "Grounded character reveal";
   const setting = hasForest
     ? hasNight
       ? "Moonlit forest battleground"
       : "Forest battleground"
     : hasWater
       ? "Storm-swept riverfront"
-      : "Cinematic legend zone";
+      : "Requested cinematic setting";
   const palette: [string, string, string] = hasForest
     ? hasNight
       ? ["#052e2b", "#0f766e", "#051923"]
       : ["#14532d", "#365314", "#0f172a"]
     : hasFire
       ? ["#7c2d12", "#ea580c", "#1f2937"]
-      : template.palette;
+      : ["#24170f", "#0d1522", "#050a12"];
 
   return {
     setting,
@@ -164,7 +157,7 @@ function inferScenePlan(input: {
       hasForest ? "Forest" : "Epic",
       action,
       hasNight ? "Night" : "Daybreak",
-      enemyCount > 0 ? `${enemyCount} enemies` : "Solo legend",
+      enemyCount > 0 ? `${enemyCount} enemies` : "Solo lead",
     ],
     palette,
   };
@@ -213,18 +206,17 @@ async function fileExists(targetPath: string) {
 async function renderPoster(project: {
   title: string;
   creatorName: string;
-  templateId: string;
   premise: string;
 }) {
-  const template = getTemplateById(project.templateId);
+  const palette: [string, string, string] = ["#24170f", "#0d1522", "#050a12"];
   const filename = `${uuid()}.svg`;
   const outputPath = getRuntimeAssetDir("generated", filename);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${template.palette[0]}"/>
-      <stop offset="45%" stop-color="${template.palette[1]}"/>
-      <stop offset="100%" stop-color="${template.palette[2]}"/>
+      <stop offset="0%" stop-color="${palette[0]}"/>
+      <stop offset="45%" stop-color="${palette[1]}"/>
+      <stop offset="100%" stop-color="${palette[2]}"/>
     </linearGradient>
   </defs>
   <rect width="1080" height="1350" rx="54" fill="url(#bg)"/>
@@ -236,7 +228,7 @@ async function renderPoster(project: {
     project.title.toUpperCase(),
   )}</text>
   <text x="98" y="604" fill="#f4efe6" opacity="0.86" font-size="42" font-family="Trebuchet MS, Segoe UI, sans-serif">${escapeXml(
-    template.tagline,
+    "IDENTITY-FIRST AI MOVIE",
   )}</text>
   <text x="98" y="1038" fill="#f4efe6" font-size="28" font-family="Trebuchet MS, Segoe UI, sans-serif" letter-spacing="4">STARRING ${escapeXml(
     project.creatorName.toUpperCase(),
@@ -262,7 +254,6 @@ function buildShotPlan(input: {
   renderMode: RenderMode;
 }) {
   const plan = inferScenePlan(input);
-  const template = getTemplateById(input.templateId);
   const text = `${input.premise} ${input.scenePrompt} ${input.persona} ${input.genre}`.toLowerCase();
   const isAdventure =
     /(adventure|journey|quest|travel|island|pirate|ocean|sea|harbor|shore|boat|explore)/.test(text);
@@ -342,7 +333,7 @@ function buildShotPlan(input: {
     },
     {
       title: "Afterglow of discovery",
-      prompt: `${template.posterMood} The world settles into memory, but its life still moves around ${input.creatorName}.`,
+      prompt: `The requested world settles into memory, but its life still moves around ${input.creatorName}.`,
       durationSeconds: TARGET_SHOT_SECONDS,
       motionHint: "Soft release with lingering environmental motion.",
       composition: "Poster-grade depth with supporting cast still present.",
@@ -387,7 +378,7 @@ function buildShotPlan(input: {
     },
     {
       title: "Emotional afterglow",
-      prompt: `${template.posterMood} The scene should feel like the beginning of a larger love story.`,
+      prompt: `The requested scene should feel like the beginning of a larger love story.`,
       durationSeconds: TARGET_SHOT_SECONDS,
       motionHint: "Slow fade into warmth.",
       composition: "Poster-like romantic portrait with atmospheric depth.",
@@ -398,7 +389,7 @@ function buildShotPlan(input: {
   const conflictShots: Omit<ShotSpec, "id" | "label">[] = [
     {
       title: "Opening reveal",
-      prompt: `${plan.setting}. ${template.openingShot} ${input.creatorName} appears as ${input.persona}.`,
+      prompt: `${plan.setting}. Establish the requested setting and action. ${input.creatorName} appears as ${input.persona}.`,
       durationSeconds: TARGET_SHOT_SECONDS,
       motionHint: "Slow push-in with atmospheric tension.",
       composition: "Low-angle hero framing with dramatic headroom.",
@@ -446,10 +437,10 @@ function buildShotPlan(input: {
       composition: "Action-heavy frame with dynamic diagonals.",
     },
     {
-      title: "Legend in motion",
+      title: "Lead in motion",
       prompt: `${plan.setting}. ${input.creatorName} now feels larger than the original environment.`,
       durationSeconds: TARGET_SHOT_SECONDS,
-      motionHint: "Mythic movement with purposeful camera drift.",
+      motionHint: "Purposeful movement with controlled camera drift.",
       composition: "Hero silhouette emphasized against atmospheric space.",
     },
     {
@@ -461,14 +452,14 @@ function buildShotPlan(input: {
     },
     {
       title: "Victory rise",
-      prompt: `${template.posterMood} ${input.creatorName} stands over the conflict as a legend.`,
+      prompt: `${input.creatorName} stands over the resolved conflict with clear character presence.`,
       durationSeconds: TARGET_SHOT_SECONDS,
       motionHint: "Slow rise into triumphant stillness.",
       composition: "Poster-like centered frame with powerful silhouette separation.",
     },
     {
       title: "Afterglow",
-      prompt: `${plan.setting}. The energy settles, but the legend remains in the air.`,
+      prompt: `${plan.setting}. The energy settles while the atmosphere remains present.`,
       durationSeconds: TARGET_SHOT_SECONDS,
       motionHint: "Breathing room with emotional release.",
       composition: "Atmospheric hold with clean hero readability.",
@@ -477,7 +468,7 @@ function buildShotPlan(input: {
       title: "Final lock",
       prompt: `${plan.setting}. The world now sees ${input.creatorName} as ${input.persona}.`,
       durationSeconds: TARGET_SHOT_SECONDS,
-      motionHint: "Final mythic hold with subtle scale drift.",
+      motionHint: "Final cinematic hold with subtle scale drift.",
       composition: "Clean hero composition with poster-grade depth.",
     },
   ];
@@ -631,7 +622,7 @@ function buildSceneSvg(options: {
       ? `${options.plan.setting} | ${options.plan.action}`
       : options.stage === "battle"
         ? `${options.plan.enemyCount || 1} enemy silhouettes break the frame`
-        : "Legend status locked";
+        : "Lead presence locked";
   const circles =
     options.stage === "battle"
       ? `<circle cx="560" cy="380" r="240" fill="rgba(255,255,255,0.05)"/><circle cx="130" cy="250" r="120" fill="rgba(249,115,22,0.15)"/>`
@@ -1335,7 +1326,6 @@ export async function createMovieProject(input: ProjectInput): Promise<MovieProj
   const posterUrl = await renderPoster({
     title,
     creatorName,
-    templateId: input.templateId,
     premise: input.premise,
   });
   return {
@@ -1349,7 +1339,6 @@ export async function createMovieProject(input: ProjectInput): Promise<MovieProj
       premise: input.premise.trim(),
       scenePrompt: input.scenePrompt.trim(),
       persona: input.persona.trim(),
-      templateId: baseProject.templateId,
     }),
     posterUrl,
     processedVideoUrl,
@@ -1365,7 +1354,6 @@ export async function createMovieProjectDraft(
   },
 ): Promise<MovieProject> {
   await ensurePublicFolders();
-  const template = getTemplateById(input.templateId);
   const createdAt = new Date().toISOString();
   const title = input.title.trim() || "Untitled Pulse";
   const creatorName = input.creatorName.trim() || "Anonymous Creator";
@@ -1376,8 +1364,8 @@ export async function createMovieProjectDraft(
     slug: `${slugBase}-${uuid().slice(0, 6)}`,
     creatorName,
     title,
-    templateId: template.id,
-    genre: input.genre.trim() || template.genres[0],
+    templateId: input.templateId,
+    genre: input.genre.trim() || "Cinematic",
     premise: input.premise.trim(),
     scenePrompt: input.scenePrompt.trim(),
     persona: input.persona.trim(),
@@ -1386,9 +1374,9 @@ export async function createMovieProjectDraft(
     status: input.status ?? "processing",
     createdAt,
     updatedAt: createdAt,
-    hook: template.hook,
-    openingShot: template.openingShot,
-    caption: `${title} by ${creatorName}. ${template.hook}`,
+    hook: `A creator enters the world described by "${input.premise.trim() || title}".`,
+    openingShot: input.scenePrompt.trim() || `Establish ${creatorName} as the central character in the requested scene.`,
+    caption: `${title} by ${creatorName}. An identity-first AI movie scene.`,
     beats: buildBeats(input),
     shotPlan: buildShotPlan(input),
     scenePrompts: buildScenePrompts({
@@ -1397,12 +1385,10 @@ export async function createMovieProjectDraft(
       premise: input.premise.trim(),
       scenePrompt: input.scenePrompt.trim(),
       persona: input.persona.trim(),
-      templateId: template.id,
     }),
     posterUrl: await renderPoster({
       title,
       creatorName,
-      templateId: template.id,
       premise: input.premise.trim(),
     }),
     processedVideoUrl: input.sourceVideoUrl,

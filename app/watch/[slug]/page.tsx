@@ -3,7 +3,6 @@ import { MovieFeedbackForm } from "@/components/movie-feedback-form";
 import { MoviePlayer } from "@/components/movie-player";
 import { ProjectStatusPoller } from "@/components/project-status-poller";
 import { RecoveredWatchProject } from "@/components/recovered-watch-project";
-import { getTemplateById } from "@/data/templates";
 import { getCurrentUser } from "@/lib/auth/user";
 import { getMovieFeedback } from "@/lib/movie-feedback";
 import { getProjectBySlug } from "@/lib/store";
@@ -23,7 +22,6 @@ export default async function WatchPage({
     return <RecoveredWatchProject slug={slug} />;
   }
 
-  const template = getTemplateById(project.templateId);
   const isProcessing = project.status === "processing" || project.status === "draft";
   const isFailed = project.status === "failed";
   const user = await getCurrentUser();
@@ -43,7 +41,7 @@ export default async function WatchPage({
 
       <div className="watch-grid">
         <section className="watch-card glass">
-          <p className="eyebrow-copy">{template.name}</p>
+          <p className="eyebrow-copy">PulseReel movie</p>
           <h1 className="heading" style={{ marginBottom: 10 }}>
             {project.title}
           </h1>
@@ -86,7 +84,6 @@ export default async function WatchPage({
           <div className="panel" style={{ marginTop: 18 }}>
             <div className="pill-row" style={{ marginBottom: 12 }}>
               <span className="pill">{project.genre}</span>
-              <span className="pill">{template.runtimeLabel}</span>
               <span className="pill">
                 {isFailed ? "Failed" : isProcessing ? "Processing" : "Published"}
               </span>
@@ -118,7 +115,7 @@ export default async function WatchPage({
           <div className="poster-card poster-fallback">
             <span>PulseReel Original</span>
             <strong>{project.title}</strong>
-            <p>{template.name}</p>
+            <p>Identity-first AI movie</p>
           </div>
 
           <div className="panel" style={{ marginTop: 18 }}>

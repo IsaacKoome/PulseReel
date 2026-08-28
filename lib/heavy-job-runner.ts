@@ -3,7 +3,6 @@ import path from "path";
 import { spawn } from "child_process";
 import sharp from "sharp";
 import type { CameraMode, HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
-import { getTemplateById } from "@/data/templates";
 import { assetUrlToPath, getRuntimeAssetDir, getRuntimeDataDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 
 const JOBS_DIR = path.join(getRuntimeDataDir(), "heavy-jobs");
@@ -191,7 +190,7 @@ function inferWorldSpec(project: MovieProject) {
         : /(city|street|downtown|town|market|urban)/.test(text)
           ? "busy street district"
           : /(palace|kingdom|castle|throne)/.test(text)
-            ? "mythic royal stronghold"
+            ? "historic royal stronghold"
             : "cinematic open world";
 
   const atmosphere =
@@ -404,8 +403,7 @@ function buildShotReferenceSvg(
   subjectFraming: HeavyJobPayload["shotReferences"][number]["subjectFraming"],
   worldActivity: HeavyJobPayload["shotReferences"][number]["worldActivity"],
 ) {
-  const template = getTemplateById(project.templateId);
-  const palette = template.palette;
+  const palette: [string, string, string] = ["#24170f", "#0d1522", "#050a12"];
   const accent = palette[index % palette.length] ?? palette[0];
   const titleText = `${shot.title}`;
   const promptText = `${shot.prompt}`;
@@ -643,7 +641,6 @@ function inferCharacterBible(project: MovieProject, worldSpec: ReturnType<typeof
 }
 
 function inferStyleBible(project: MovieProject, worldSpec: ReturnType<typeof inferWorldSpec>) {
-  const template = getTemplateById(project.templateId);
   const text = `${project.genre} ${project.premise} ${project.scenePrompt} ${project.persona}`.toLowerCase();
 
   const cinematicTone =
@@ -651,9 +648,9 @@ function inferStyleBible(project: MovieProject, worldSpec: ReturnType<typeof inf
       ? "grounded action-drama with heroic intensity"
       : /(love|romance|memory|confessional)/.test(text)
         ? "intimate emotional cinema with polished realism"
-        : /(adventure|pirate|journey|quest|island|legend)/.test(text)
+        : /(adventure|pirate|journey|quest|island)/.test(text)
           ? "big-screen adventure realism with cinematic wonder"
-          : `${template.name.toLowerCase()} tone with grounded live-action realism`;
+          : "grounded live-action cinematic realism";
 
   const lensLanguage =
     /(fight|kung fu|battle)/.test(text)
@@ -730,7 +727,7 @@ function emotionalBeatForShot(
     return /(wonder|arrival|first sight|discovery)/.test(text) ? "discovery and awe" : "arrival and anticipation";
   }
   if (stage === "finale") {
-    return /(victory|promise|afterglow|legend|future)/.test(text)
+    return /(victory|promise|afterglow|future)/.test(text)
       ? "earned triumph and legacy"
       : "resolution and emotional payoff";
   }

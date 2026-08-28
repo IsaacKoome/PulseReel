@@ -58,7 +58,7 @@ function titleFromPrompt(prompt: string) {
   return cleaned ? cleaned.replace(/\b\w/g, (char) => char.toUpperCase()) : "Untitled Pulse";
 }
 
-function autoFillFromPrompt(prompt: string, templateId: string) {
+function autoFillFromPrompt(prompt: string) {
   const normalized = prompt.trim();
   const title = titleFromPrompt(normalized);
   const creatorNameMatch = normalized.match(/\b(?:i am|i'm|my name is|starring)\s+([a-z0-9_-]+)/i);
@@ -85,7 +85,7 @@ function autoFillFromPrompt(prompt: string, templateId: string) {
           ? "restless adventurer"
           : "cinematic main character";
   const premise = normalized;
-  const scenePrompt = `Turn this into a short movie scene: ${normalized}. Use the ${templateId} template mood with vertical framing and cinematic pacing.`;
+  const scenePrompt = `Turn this into one coherent vertical live-action movie scene: ${normalized}. Keep the requested people, setting, action, and camera perspective grounded and visually consistent.`;
 
   return { creatorName, title, genre, persona, premise, scenePrompt };
 }
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
 
     const rawValues = quickPrompt
       ? {
-          ...autoFillFromPrompt(quickPrompt, templateIdValue),
+          ...autoFillFromPrompt(quickPrompt),
           templateId: templateIdValue,
           cameraMode: formData.get("cameraMode") || "cinematic",
           renderMode: formData.get("renderMode"),

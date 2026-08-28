@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getTemplateById } from "@/data/templates";
 import type { MovieProject } from "@/lib/types";
 
 export function RecoveredWatchProject({ slug }: { slug: string }) {
@@ -47,7 +46,6 @@ export function RecoveredWatchProject({ slug }: { slug: string }) {
     );
   }
 
-  const template = getTemplateById(project.templateId);
   const isProcessing = project.status === "processing" || project.status === "draft";
 
   return (
@@ -59,7 +57,7 @@ export function RecoveredWatchProject({ slug }: { slug: string }) {
 
       <div className="watch-grid">
         <section className="watch-card glass">
-          <p className="eyebrow-copy">{template.name}</p>
+          <p className="eyebrow-copy">PulseReel movie</p>
           <h1 className="heading" style={{ marginBottom: 10 }}>{project.title}</h1>
           <p className="subtle">By {project.creatorName}. {project.caption}</p>
 

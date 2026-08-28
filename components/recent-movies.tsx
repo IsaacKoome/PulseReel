@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getTemplateById } from "@/data/templates";
 import type { MovieProject } from "@/lib/types";
 
 function readLocalProjects() {
@@ -143,11 +142,10 @@ export function RecentMovies({
   return (
     <>
       {projects.map((project) => {
-        const template = getTemplateById(project.templateId);
         return (
           <article className="feed-card glass movie-card" key={project.id}>
             <Link className="movie-card-link" href={`/watch/${project.slug}`}>
-              <div className="feed-art" style={{ background: `linear-gradient(140deg, ${template.palette[0]}, ${template.palette[1]} 52%, ${template.palette[2]})` }}>
+              <div className="feed-art" style={{ background: "linear-gradient(140deg, #24170f, #0d1522 52%, #050a12)" }}>
                 <div
                   style={{
                     position: "absolute",

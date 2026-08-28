@@ -9,18 +9,6 @@ import {
 } from "@/lib/heavy-job-runner";
 import { renderMovieForProject } from "@/lib/pipeline";
 
-function storyMoodDirection(templateId: string) {
-  switch (templateId) {
-    case "heartline":
-      return "intimate emotional realism, restrained performance, and soft natural light";
-    case "mythic-shift":
-      return "heightened wonder, dramatic scale, and atmospheric light while remaining photorealistic";
-    case "rise-mode":
-    default:
-      return "grounded determination, forward momentum, and warm cinematic contrast";
-  }
-}
-
 function cameraDirection(project: MovieProject) {
   if (project.cameraMode === "selfie") {
     return [
@@ -100,7 +88,7 @@ function externalProviderPrompt(project: MovieProject) {
     `Scene requested by the user: ${project.premise}`,
     `Main character: ${project.creatorName}, using the supplied identity reference. Preserve the same facial structure, skin tone, age, hairline, and recognizable identity for the entire shot.`,
     `Camera contract: ${cameraDirection(project)}`,
-    `Story mood: ${storyMoodDirection(project.templateId)}. Apply this only to lighting, color, performance, and motion; do not replace the user's setting, clothing, action, or people with a fantasy or graphic-design concept.`,
+    "Use grounded cinematic lighting and color that follow the requested scene; do not impose a preset fantasy, romance, motivational, or graphic-design style.",
     "Show one clear, physically believable action. Background people should look real, have natural body motion, and behave consistently with the requested place.",
     "Use natural skin texture, stable anatomy, realistic hands, cinematic depth, and readable faces. No interface graphics, invented writing, captions, logos, duplicate people, face morphing, or distorted bodies.",
   ].join("\n\n");

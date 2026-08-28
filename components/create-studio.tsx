@@ -1,8 +1,7 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { movieTemplates } from "@/data/templates";
+import { useEffect, useRef, useState } from "react";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { BetaAccessStatus } from "@/lib/generation-access";
 import { setProjectVideo } from "@/lib/project-submission";
@@ -19,6 +18,9 @@ type StatusState = {
   tone: "idle" | "success" | "error";
   message: string;
 };
+
+const COMPATIBILITY_TEMPLATE_ID = "identity-cinematic";
+const COMPATIBILITY_GENRE = "Cinematic";
 
 const cameraVideoConstraints: MediaTrackConstraints = {
   facingMode: "user",
@@ -53,12 +55,10 @@ export function CreateStudio({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState(movieTemplates[0].id);
   const [recordedVideo, setRecordedVideo] = useState<File | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
-  const [genre, setGenre] = useState(movieTemplates[0].genres[0]);
   const [modelChoice, setModelChoice] = useState<ModelChoice>("replicate-video-adapter");
   const [cameraMode, setCameraMode] = useState<CameraMode>("cinematic");
   const [quickPrompt, setQuickPrompt] = useState("");
@@ -69,10 +69,6 @@ export function CreateStudio({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<StatusState>({ tone: "idle", message: "" });
   const [betaAccess, setBetaAccess] = useState(initialBetaAccess);
-  const selected = useMemo(
-    () => movieTemplates.find((template) => template.id === selectedTemplate) ?? movieTemplates[0],
-    [selectedTemplate],
-  );
 
   function drawCanvasPreviewFrame() {
     const video = videoRef.current;
@@ -477,9 +473,9 @@ export function CreateStudio({
       }
     }
 
-    formData.set("templateId", selectedTemplate);
+    formData.set("templateId", COMPATIBILITY_TEMPLATE_ID);
     formData.set("cameraMode", cameraMode);
-    formData.set("genre", genre);
+    formData.set("genre", COMPATIBILITY_GENRE);
     const renderMode: RenderMode = modelChoice === "seedance-2-fast" ? "seedance-2-fast" : "heavy-worker-beta";
     formData.set("renderMode", renderMode);
     if (modelChoice !== "seedance-2-fast") {
@@ -695,36 +691,6 @@ export function CreateStudio({
 
         <div className="studio-section-title compact">
           <span>3</span>
-          <h2>Story mood</h2>
-        </div>
-
-        <div className="simple-template-list">
-          {movieTemplates.map((template) => (
-            <label
-              className={`template-option ${template.id === selected.id ? "active" : ""}`}
-              key={template.id}
-            >
-              <input
-                checked={template.id === selected.id}
-                name="templateChoice"
-                onChange={() => {
-                  setSelectedTemplate(template.id);
-                  setGenre(template.genres[0]);
-                }}
-                type="radio"
-                value={template.id}
-              />
-              <span>{template.name}</span>
-            </label>
-          ))}
-        </div>
-
-        <p className="model-capability-note">
-          Mood guides lighting and emotion only. Your movie idea still decides the place, action, and people.
-        </p>
-
-        <div className="studio-section-title compact">
-          <span>4</span>
           <h2>Camera view</h2>
         </div>
 
@@ -758,7 +724,7 @@ export function CreateStudio({
         </p>
 
         <div className="studio-section-title compact">
-          <span>5</span>
+          <span>4</span>
           <h2>Model</h2>
         </div>
 
