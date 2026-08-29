@@ -203,7 +203,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
       ? "custom-backend-command"
       : heavyProvider === "minimax-subject-adapter" && minimaxConfigured
         ? "minimax-provider"
-      : heavyProvider === "replicate-video-adapter" && replicateConfigured
+      : ["replicate-video-adapter", "replicate-seedance-1.5-pro", "replicate-kling-v3-omni"].includes(heavyProvider) && replicateConfigured
         ? "replicate-provider"
       : remoteModelBackendConfigured
         ? "remote-model-backend"

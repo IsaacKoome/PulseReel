@@ -304,20 +304,20 @@ const replicateVideoProvider = createExternalProvider({
 const replicateSeedance15Provider = createExternalProvider({
   provider: "replicate",
   id: "replicate-seedance-1.5-pro",
-  label: "Seedance 1.5 Pro · Owner test",
+  label: "Seedance 1.5 Pro · Recommended",
   description:
-    "Admin-only five-second 720p image-to-video comparison with native audio through Replicate-hosted Seedance 1.5 Pro.",
+    "Recommended five-second 480p image-to-video generation with native audio through Replicate-hosted Seedance 1.5 Pro.",
   preferredMotionBackend: "replicate-hosted-video",
   tokenEnv: "PULSEREEL_REPLICATE_API_TOKEN",
   modelEnv: "PULSEREEL_SEEDANCE_15_REPLICATE_MODEL",
   defaultModel: "bytedance/seedance-1.5-pro",
-  configuredStage: "Seedance 1.5 Pro configured; dispatching a five-second 720p native-audio identity test",
+  configuredStage: "Seedance 1.5 Pro configured; dispatching a five-second 480p native-audio identity movie",
   missingStage: "Seedance 1.5 Pro selected but the Replicate token is missing; local fallback is disabled",
   allowLocalFallback: false,
   notes: [
-    "Owner-only quality and cost comparison; do not expose this lane to the public free beta.",
+    "Recommended hosted identity-video lane for the current free beta.",
     "Use exactly one identity image as the image-to-video starting frame.",
-    "Request portrait 9:16, 720p, five seconds, 24 fps, and native audio.",
+    "Request portrait 9:16, 480p, five seconds, 24 fps, and native audio.",
   ],
 });
 
@@ -335,7 +335,7 @@ const replicateKlingProvider = createExternalProvider({
   missingStage: "Kling V3 Omni selected but the Replicate token is missing; local fallback is disabled",
   allowLocalFallback: false,
   notes: [
-    "Experimental higher-cost lane; keep MiniMax Video-01 as the default until identity consistency is verified.",
+    "Experimental higher-cost lane; keep Seedance 1.5 Pro as the default recommended provider.",
     "Send the creator identity as reference_images and name it as <<<image_1>>> in every shot prompt.",
     "Request portrait 9:16, native audio, and a 15-second multi-shot movie.",
   ],

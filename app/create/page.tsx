@@ -35,7 +35,6 @@ export default async function CreatePage() {
       </div>
       <CreateStudio
         initialBetaAccess={betaAccess}
-        seedance15ExperimentEnabled={isPulseReelAdmin(user)}
         directVideoUploadEnabled={
           isVercelRuntime() && Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim())
         }

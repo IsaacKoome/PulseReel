@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
-import { MINIMAX_VIDEO_01_ESTIMATED_COST_USD } from "@/lib/beta-config";
+import { SEEDANCE_15_ESTIMATED_COST_USD } from "@/lib/beta-config";
 import { getBetaAdminSnapshot, getBetaUserAllowances } from "@/lib/generation-access";
 import { buildIdentityBenchmark } from "@/lib/identity-benchmark";
 import { getFeedbackAdminSnapshot } from "@/lib/movie-feedback";
@@ -35,8 +35,8 @@ export default async function BetaAdminPage() {
     getProjects(),
   ]);
   const identityBenchmark = buildIdentityBenchmark(projects, feedback.recentFeedback);
-  const maximumBudget = snapshot.totalAttemptLimit * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
-  const remainingBudget = snapshot.remainingAttempts * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
+  const maximumBudget = snapshot.totalAttemptLimit * SEEDANCE_15_ESTIMATED_COST_USD;
+  const remainingBudget = snapshot.remainingAttempts * SEEDANCE_15_ESTIMATED_COST_USD;
 
   return (
     <main className="admin-shell shell">
@@ -96,14 +96,14 @@ export default async function BetaAdminPage() {
 
       <section className="admin-budget-card glass">
         <div>
-          <p className="eyebrow-copy">MiniMax safety budget</p>
+          <p className="eyebrow-copy">Seedance safety budget</p>
           <h2>Cap the free beta before resuming</h2>
           <p>
-            At the current estimated price of ${MINIMAX_VIDEO_01_ESTIMATED_COST_USD.toFixed(2)} per
-            successful six-second movie, this limit represents at most ${maximumBudget.toFixed(2)} in
-            MiniMax generations. The remaining estimated exposure is ${remainingBudget.toFixed(2)}.
+            At the current estimated price of ${SEEDANCE_15_ESTIMATED_COST_USD.toFixed(2)} per
+            successful five-second movie, this limit represents at most ${maximumBudget.toFixed(2)} in
+            Seedance generations. The remaining estimated exposure is ${remainingBudget.toFixed(2)}.
           </p>
-          <small>Replicate Pro and Seedance are excluded from the free hosted beta.</small>
+          <small>MiniMax and Replicate Pro are excluded from the free hosted beta.</small>
         </div>
         <form action={setAttemptLimit} className="admin-limit-form">
           <label htmlFor="attemptLimit">Total attempt limit</label>

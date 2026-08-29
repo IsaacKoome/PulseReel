@@ -156,7 +156,7 @@ class ReplicateRoutingTests(unittest.TestCase):
             )
 
         self.assertEqual(request_input["duration"], 5)
-        self.assertEqual(request_input["resolution"], "720p")
+        self.assertEqual(request_input["resolution"], "480p")
         self.assertEqual(request_input["aspect_ratio"], "9:16")
         self.assertEqual(request_input["fps"], 24)
         self.assertTrue(request_input["generate_audio"])

@@ -1125,7 +1125,7 @@ def build_seedance_15_input(
             "graphics, invented writing, logos, distorted faces, face morphing, identity drift, or duplicate people."
         )[:2500],
         "duration": 5,
-        "resolution": "720p",
+        "resolution": "480p",
         "aspect_ratio": "9:16",
         "generate_audio": True,
         "fps": 24,

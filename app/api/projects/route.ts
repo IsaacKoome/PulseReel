@@ -15,8 +15,8 @@ import {
   updateGenerationReservation,
 } from "@/lib/generation-access";
 import { isAuthEnabled } from "@/lib/auth/config";
-import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
+import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -215,18 +215,8 @@ export async function POST(request: Request) {
       const provider =
         parsed.data.renderMode === "seedance-2-fast"
           ? "seedance-2-fast"
-          : parsed.data.heavyProvider ?? "replicate-video-adapter";
-      if (provider === "replicate-seedance-1.5-pro") {
-        if (!isPulseReelAdmin(user)) {
-          throw new GenerationAccessError(
-            "Seedance 1.5 Pro is currently restricted to the owner cost experiment.",
-            "seedance_experiment_admin_only",
-            403,
-          );
-        }
-      } else {
-        generationReservationId = await reserveManagedGeneration(user, provider);
-      }
+          : parsed.data.heavyProvider ?? FREE_BETA_MANAGED_PROVIDER;
+      generationReservationId = await reserveManagedGeneration(user, provider);
     }
 
     if (parsed.data.renderMode === "seedance-2-fast") {

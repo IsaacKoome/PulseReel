@@ -357,7 +357,7 @@ export async function reserveManagedGeneration(
   }
   if (provider !== FREE_BETA_MANAGED_PROVIDER) {
     throw new GenerationAccessError(
-      "The free beta currently supports Replicate AI · Recommended only.",
+      "The free beta currently supports Seedance 1.5 Pro · Recommended only.",
       "provider_not_in_free_beta",
       403,
     );

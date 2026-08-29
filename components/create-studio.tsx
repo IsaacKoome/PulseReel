@@ -106,12 +106,10 @@ async function extractIdentityFrameFromVideo(videoFile: File) {
 
 export function CreateStudio({
   initialBetaAccess,
-  seedance15ExperimentEnabled = false,
   directVideoUploadEnabled = false,
   uploadOwnerId,
 }: {
   initialBetaAccess: BetaAccessStatus;
-  seedance15ExperimentEnabled?: boolean;
   directVideoUploadEnabled?: boolean;
   uploadOwnerId?: string;
 }) {
@@ -126,7 +124,7 @@ export function CreateStudio({
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
-  const [modelChoice, setModelChoice] = useState<ModelChoice>("replicate-video-adapter");
+  const [modelChoice, setModelChoice] = useState<ModelChoice>(FREE_BETA_MANAGED_PROVIDER);
   const [cameraMode, setCameraMode] = useState<CameraMode>("cinematic");
   const [quickPrompt, setQuickPrompt] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -494,16 +492,14 @@ export function CreateStudio({
     }
 
     const usesManagedProvider = modelChoice !== "local-heavy-v1";
-    const isSeedance15Experiment = modelChoice === "replicate-seedance-1.5-pro";
     if (
       usesManagedProvider &&
       betaAccess.controlsEnabled &&
-      modelChoice !== FREE_BETA_MANAGED_PROVIDER &&
-      !(isSeedance15Experiment && seedance15ExperimentEnabled)
+      modelChoice !== FREE_BETA_MANAGED_PROVIDER
     ) {
       setStatus({
         tone: "error",
-        message: "The free beta currently supports Replicate AI · Recommended only.",
+        message: "The free beta currently supports Seedance 1.5 Pro · Recommended only.",
       });
       return;
     }
@@ -524,7 +520,7 @@ export function CreateStudio({
       }
     }
 
-    if (usesManagedProvider && betaAccess.controlsEnabled && !isSeedance15Experiment) {
+    if (usesManagedProvider && betaAccess.controlsEnabled) {
       setIsSubmitting(true);
       setStatus({ tone: "idle", message: "Checking your free beta movie..." });
       try {
@@ -811,15 +807,16 @@ export function CreateStudio({
         </div>
 
         <div className="simple-template-list compact-list">
-          <label className={`template-option ${modelChoice === "replicate-video-adapter" ? "active" : ""}`}>
+          <label className={`template-option ${modelChoice === "replicate-video-adapter" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
             <input
               checked={modelChoice === "replicate-video-adapter"}
+              disabled={betaAccess.controlsEnabled}
               name="modelChoice"
               onChange={() => setModelChoice("replicate-video-adapter")}
               type="radio"
               value="replicate-video-adapter"
             />
-            <span>Replicate AI · Recommended</span>
+            <span>Replicate AI · MiniMax{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
           </label>
           <label className={`template-option ${modelChoice === "local-heavy-v1" ? "active" : ""}`}>
             <input
@@ -842,18 +839,15 @@ export function CreateStudio({
             />
             <span>Replicate Pro · Kling{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
           </label>
-          <label className={`template-option ${modelChoice === "replicate-seedance-1.5-pro" ? "active" : ""} ${seedance15ExperimentEnabled ? "" : "disabled"}`}>
+          <label className={`template-option ${modelChoice === "replicate-seedance-1.5-pro" ? "active" : ""}`}>
             <input
               checked={modelChoice === "replicate-seedance-1.5-pro"}
-              disabled={!seedance15ExperimentEnabled}
               name="modelChoice"
               onChange={() => setModelChoice("replicate-seedance-1.5-pro")}
               type="radio"
               value="replicate-seedance-1.5-pro"
             />
-            <span>
-              Seedance 1.5 Pro{seedance15ExperimentEnabled ? " · Owner test" : " · Not in free beta"}
-            </span>
+            <span>Seedance 1.5 Pro · Recommended</span>
           </label>
           <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
             <input
@@ -870,9 +864,9 @@ export function CreateStudio({
 
         <p className="model-capability-note">
           {modelChoice === "replicate-video-adapter"
-            ? "Recommended. The current MiniMax identity model creates a realistic 6-second silent clip."
+            ? "The MiniMax identity model creates a realistic 6-second silent clip."
             : modelChoice === "replicate-seedance-1.5-pro"
-              ? "Owner cost experiment. Seedance 1.5 Pro creates a 5-second 720p portrait clip with native audio; estimated maximum model cost is $0.26."
+              ? "Recommended. Seedance 1.5 Pro creates a 5-second 480p portrait clip with native audio; estimated model cost is about $0.13."
             : modelChoice === "replicate-kling-v3-omni"
               ? "Experimental. Kling V3 Omni requests a 15-second portrait movie with native audio and costs more per run."
             : modelChoice === "local-heavy-v1"
@@ -880,13 +874,7 @@ export function CreateStudio({
               : "Hosted Seedance generation requires separate provider credit."}
         </p>
 
-        {modelChoice === "replicate-seedance-1.5-pro" && seedance15ExperimentEnabled ? (
-          <div className="beta-access-card available">
-            <strong>Owner-only Seedance comparison</strong>
-            <span>The public free beta remains paused. This test uses your Replicate balance.</span>
-            <small>Fixed profile: 5 seconds · 720p · 9:16 · native audio · estimated up to $0.26.</small>
-          </div>
-        ) : betaAccess.controlsEnabled && modelChoice !== "local-heavy-v1" ? (
+        {betaAccess.controlsEnabled && modelChoice !== "local-heavy-v1" ? (
           <div className={`beta-access-card ${betaAccess.eligible ? "available" : "unavailable"}`}>
             <strong>{betaAccess.eligible ? "Your first AI movie is free" : "Free beta status"}</strong>
             <span>{betaAccess.message}</span>
@@ -904,7 +892,6 @@ export function CreateStudio({
             disabled={
               isSubmitting ||
               (modelChoice !== "local-heavy-v1" &&
-                modelChoice !== "replicate-seedance-1.5-pro" &&
                 betaAccess.controlsEnabled &&
                 !betaAccess.eligible)
             }
@@ -913,7 +900,6 @@ export function CreateStudio({
             {isSubmitting
               ? "Generating..."
               : modelChoice !== "local-heavy-v1" &&
-                  modelChoice !== "replicate-seedance-1.5-pro" &&
                   betaAccess.controlsEnabled &&
                   !betaAccess.eligible
                 ? "Generation unavailable"
