@@ -589,7 +589,21 @@ select {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
+  pointer-events: none;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.5));
+}
+
+.movie-card-preview {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #0d1522;
+  pointer-events: none;
 }
 
 .template-card h3,

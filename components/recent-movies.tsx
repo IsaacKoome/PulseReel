@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import type { MovieProject } from "@/lib/types";
 
 function readLocalProjects() {
@@ -44,6 +44,20 @@ function readOwnedMovieSlugs() {
   }
 
   return slugs;
+}
+
+function seekToMoviePreview(event: SyntheticEvent<HTMLVideoElement>) {
+  const video = event.currentTarget;
+
+  if (!Number.isFinite(video.duration) || video.duration <= 0) {
+    return;
+  }
+
+  const latestSafeTime = Math.max(video.duration - 0.1, 0);
+  video.currentTime = Math.min(
+    Math.max(video.duration * 0.25, 0.35),
+    latestSafeTime,
+  );
 }
 
 export function RecentMovies({
@@ -146,6 +160,19 @@ export function RecentMovies({
           <article className="feed-card glass movie-card" key={project.id}>
             <Link className="movie-card-link" href={`/watch/${project.slug}`}>
               <div className="feed-art" style={{ background: "linear-gradient(140deg, #24170f, #0d1522 52%, #050a12)" }}>
+                {project.processedVideoUrl ? (
+                  <video
+                    aria-hidden="true"
+                    className="movie-card-preview"
+                    muted
+                    onLoadedMetadata={seekToMoviePreview}
+                    playsInline
+                    poster={project.posterUrl || undefined}
+                    preload="metadata"
+                    src={project.processedVideoUrl}
+                    tabIndex={-1}
+                  />
+                ) : null}
                 <div
                   style={{
                     position: "absolute",
