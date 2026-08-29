@@ -117,7 +117,7 @@ Keep your normal worker URL configured:
 PULSEREEL_REMOTE_MODEL_BACKEND_URL=https://your-worker-domain/pulsereel/render
 ```
 
-Vercel forwards the Replicate token and selected model privately to this worker for Replicate jobs. The worker calls Replicate, downloads the returned MP4, and returns the same `processedVideoUrl` shape the app already understands.
+Vercel forwards the Replicate token and selected model privately to this worker for Replicate jobs. Before it spends provider credits, the worker extracts the clearest usable frame from the creator's uploaded clip. MiniMax receives the creator as `subject_reference`; Seedance receives the real clip frame as its starting `image`; and Kling receives the creator in `reference_images`. Prompt-only hosted generation is rejected so an unrelated scene image cannot silently replace the creator.
 
 The studio also exposes an experimental **Replicate Pro · Kling** profile. It reuses the same Replicate token and defaults to `kwaivgi/kling-v3-omni-video`, requesting a 15-second 9:16 multi-shot movie with identity reference images and native audio. MiniMax remains the recommended default until Kling identity consistency and per-run cost have been evaluated. Optional worker overrides are:
 
@@ -129,8 +129,10 @@ PULSEREEL_KLING_DURATION_SECONDS=15
 If a chosen Replicate model uses different input field names, set `PULSEREEL_REPLICATE_INPUT_TEMPLATE` on the worker machine or service:
 
 ```text
-PULSEREEL_REPLICATE_INPUT_TEMPLATE={"prompt":"{{PROMPT}}","first_frame_image":"{{SOURCE_IMAGE_URL}}","prompt_optimizer":true}
+PULSEREEL_REPLICATE_INPUT_TEMPLATE={"prompt":"{{PROMPT}}","subject_reference":"{{IDENTITY_IMAGE}}","prompt_optimizer":true}
 ```
+
+Identity-first validation also applies to custom templates. MiniMax templates must provide `subject_reference`, Seedance templates must provide `image`, and Kling templates must provide `reference_images`.
 
 `GET /health` also reports whether ComfyUI and durable storage are configured, which makes it easier to sanity-check a deployment before pointing Vercel at it.
 

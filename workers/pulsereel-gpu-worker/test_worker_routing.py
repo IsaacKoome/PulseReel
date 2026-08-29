@@ -60,21 +60,19 @@ class ReplicateRoutingTests(unittest.TestCase):
         self.assertTrue(request_input["subject_reference"].startswith("data:image/png;base64,"))
         self.assertNotIn("first_frame_image", request_input)
 
-    def test_minimax_input_uses_scene_reference_only_as_first_frame(self) -> None:
+    def test_minimax_rejects_scene_reference_as_creator_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             reference_path = Path(temporary_dir) / "scene.png"
             reference_path.write_bytes(b"scene-image")
 
-            request_input = build_replicate_input(
-                self.payload,
-                {0: reference_path},
-                None,
-                None,
-                model="minimax/video-01",
-            )
-
-        self.assertTrue(request_input["first_frame_image"].startswith("data:image/png;base64,"))
-        self.assertNotIn("subject_reference", request_input)
+            with self.assertRaisesRegex(RuntimeError, "no usable creator frame"):
+                build_replicate_input(
+                    self.payload,
+                    {0: reference_path},
+                    None,
+                    None,
+                    model="minimax/video-01",
+                )
 
     def test_minimax_template_cannot_send_both_image_modes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -160,6 +158,30 @@ class ReplicateRoutingTests(unittest.TestCase):
         self.assertNotIn("subject_reference", request_input)
         self.assertIn("not a selfie", request_input["prompt"].lower())
         self.assertIn("one coherent shot", request_input["prompt"].lower())
+        self.assertIn("identity lock", request_input["prompt"].lower())
+
+    def test_seedance_uses_a_real_source_video_frame_ahead_of_optional_selfie(self) -> None:
+        payload = {
+            **self.payload,
+            "provider": "replicate-seedance-1.5-pro",
+            "story": {"scenePrompt": "A creator explores a cinematic city.", "cameraMode": "cinematic"},
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            identity_path = Path(temporary_dir) / "identity.png"
+            source_frame_path = Path(temporary_dir) / "source-frame.jpg"
+            identity_path.write_bytes(b"optional-selfie")
+            source_frame_path.write_bytes(b"real-video-frame")
+            request_input = build_replicate_input(
+                payload,
+                {},
+                identity_path,
+                None,
+                model="bytedance/seedance-1.5-pro",
+                source_frame_image=source_frame_path,
+            )
+
+        self.assertTrue(request_input["image"].startswith("data:image/jpeg;base64,"))
+        self.assertNotIn("b3B0aW9uYWwtc2VsZmll", request_input["image"])
 
     def test_seedance_15_selfie_mode_is_explicit(self) -> None:
         payload = {
@@ -167,16 +189,35 @@ class ReplicateRoutingTests(unittest.TestCase):
             "provider": "replicate-seedance-1.5-pro",
             "story": {"scenePrompt": "A creator explores a cinematic city.", "cameraMode": "selfie"},
         }
-        request_input = build_replicate_input(
-            payload,
-            {},
-            None,
-            None,
-            model="bytedance/seedance-1.5-pro",
-        )
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            identity_path = Path(temporary_dir) / "identity.png"
+            identity_path.write_bytes(b"identity-image")
+            request_input = build_replicate_input(
+                payload,
+                {},
+                identity_path,
+                None,
+                model="bytedance/seedance-1.5-pro",
+            )
 
         self.assertIn("front-facing handheld selfie viewpoint", request_input["prompt"].lower())
         self.assertIn("without showing a phone or selfie stick", request_input["prompt"].lower())
+
+    def test_seedance_rejects_prompt_only_generation_before_billing(self) -> None:
+        payload = {
+            **self.payload,
+            "provider": "replicate-seedance-1.5-pro",
+            "story": {"scenePrompt": "A creator explores a cinematic city.", "cameraMode": "selfie"},
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "no usable creator frame"):
+            build_replicate_input(
+                payload,
+                {},
+                None,
+                None,
+                model="bytedance/seedance-1.5-pro",
+            )
 
     def test_identity_frame_rank_penalizes_blur_and_bad_exposure(self) -> None:
         clear_well_lit = identity_frame_rank(4.0, 130.0)

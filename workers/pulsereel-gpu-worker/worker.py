@@ -361,6 +361,24 @@ def extract_identity_frame(source_video_path: Path, destination: Path) -> None:
         shutil.rmtree(candidates_dir, ignore_errors=True)
 
 
+def prepare_source_identity_frame(source_video_path: Path | None, uploads_dir: Path) -> Path | None:
+    """Materialize the clearest real frame from the creator's uploaded clip."""
+    if source_video_path is None:
+        return None
+
+    source_frame_path = uploads_dir / "source-identity-frame.png"
+    if source_frame_path.exists() and source_frame_path.stat().st_size > 0:
+        return source_frame_path
+
+    extract_identity_frame(source_video_path, source_frame_path)
+    if not source_frame_path.exists() or source_frame_path.stat().st_size == 0:
+        raise RuntimeError(
+            "Identity-first generation stopped before model billing because no usable creator frame "
+            "could be extracted from the uploaded video. Record or upload a clear clip with your face visible."
+        )
+    return source_frame_path
+
+
 def build_model_prompt(payload: dict, shot: dict) -> str:
     world = payload.get("worldSpec", {})
     character = payload.get("characterBible", {})
@@ -848,17 +866,25 @@ def build_kling_input(payload: dict, identity_data_uri: str, reference_image_dat
     return request_input
 
 
-def build_seedance_15_input(payload: dict, identity_data_uri: str, reference_image_data_uri: str) -> dict:
-    image_data_uri = identity_data_uri or reference_image_data_uri
+def build_seedance_15_input(
+    payload: dict,
+    identity_data_uri: str,
+    reference_image_data_uri: str,
+    source_frame_data_uri: str = "",
+) -> dict:
+    image_data_uri = source_frame_data_uri or identity_data_uri or reference_image_data_uri
     prompt = build_replicate_prompt(payload)
     camera_direction = camera_direction_for_payload(payload)
     request_input = {
         "prompt": (
-            f"{prompt} {camera_direction} Preserve the identity, facial features, skin tone, and natural proportions of the "
-            "person in the starting image. Photorealistic live action, realistic background people, natural "
-            "motion, stable anatomy, natural skin texture, synchronized ambient sound. Continue as one coherent "
-            "shot with one readable action. No montage, captions, interface graphics, invented writing, logos, "
-            "distorted faces, face morphing, or duplicate people."
+            "IDENTITY LOCK: The real person in the supplied starting frame is the main character and must remain "
+            "clearly recognizable throughout the movie. Keep their exact facial structure, skin tone, hair, age, "
+            "body proportions, and distinguishing features; never replace them with a different actor. "
+            f"Story: {prompt} {camera_direction} Place that same person naturally inside the requested setting and "
+            "make them perform the requested action while their face remains readable. Photorealistic live action, "
+            "realistic background people, natural motion, stable anatomy, natural skin texture, and synchronized "
+            "ambient sound. Continue as one coherent shot with one readable action. No montage, captions, interface "
+            "graphics, invented writing, logos, distorted faces, face morphing, identity drift, or duplicate people."
         )[:2500],
         "duration": 5,
         "resolution": "720p",
@@ -879,18 +905,21 @@ def build_replicate_input(
     source_video: Path | None,
     input_template: str | None = None,
     model: str | None = None,
+    source_frame_image: Path | None = None,
 ) -> dict:
     prompt = build_replicate_prompt(payload)
     identity_data_uri = file_to_data_uri(identity_image)
+    source_frame_data_uri = file_to_data_uri(source_frame_image)
     reference_image_data_uri = file_to_data_uri(first_reference_image(references))
-    image_data_uri = identity_data_uri or reference_image_data_uri
+    identity_anchor_data_uri = identity_data_uri or source_frame_data_uri
+    image_data_uri = source_frame_data_uri or identity_anchor_data_uri or reference_image_data_uri
     video_data_uri = file_to_data_uri(source_video)
     output_spec = payload.get("outputSpec", {})
     replacements = {
         "PROMPT": prompt,
         "SOURCE_IMAGE_URL": image_data_uri,
         "SOURCE_VIDEO_URL": video_data_uri,
-        "IDENTITY_IMAGE": image_data_uri,
+        "IDENTITY_IMAGE": identity_anchor_data_uri,
         "SOURCE_VIDEO": video_data_uri,
         "WIDTH": output_spec.get("width", 720),
         "HEIGHT": output_spec.get("height", 1280),
@@ -899,33 +928,56 @@ def build_replicate_input(
     }
 
     normalized_model = normalize_replicate_model(model or replicate_model_for_payload(payload))
+    if not identity_anchor_data_uri:
+        raise RuntimeError(
+            "Identity-first generation stopped before model billing because no usable creator frame was available. "
+            "Record or upload a clear clip with your face visible."
+        )
     template_value = (input_template or REPLICATE_INPUT_TEMPLATE).strip()
     if template_value:
         template = json.loads(template_value)
         request_input = apply_placeholders(template, replacements)
-        if (
-            normalized_model == "minimax/video-01"
-            and request_input.get("subject_reference")
-            and request_input.get("first_frame_image")
-        ):
-            request_input.pop("first_frame_image")
+        if normalized_model == "minimax/video-01":
+            if request_input.get("subject_reference") and request_input.get("first_frame_image"):
+                request_input.pop("first_frame_image")
+            if not request_input.get("subject_reference"):
+                raise RuntimeError(
+                    "Identity-first generation stopped before model billing: the MiniMax input template must send "
+                    "{{IDENTITY_IMAGE}} as subject_reference."
+                )
+        elif normalized_model == "bytedance/seedance-1.5-pro" and not request_input.get("image"):
+            raise RuntimeError(
+                "Identity-first generation stopped before model billing: the Seedance input template must send "
+                "{{SOURCE_IMAGE_URL}} or {{IDENTITY_IMAGE}} as image."
+            )
+        elif normalized_model == KLING_V3_OMNI_MODEL and not request_input.get("reference_images"):
+            raise RuntimeError(
+                "Identity-first generation stopped before model billing: the Kling input template must include "
+                "the creator in reference_images."
+            )
         return request_input
 
     if normalized_model == KLING_V3_OMNI_MODEL:
-        return build_kling_input(payload, identity_data_uri, reference_image_data_uri)
+        return build_kling_input(payload, identity_anchor_data_uri, reference_image_data_uri)
 
     if normalized_model == "bytedance/seedance-1.5-pro":
-        return build_seedance_15_input(payload, identity_data_uri, reference_image_data_uri)
+        return build_seedance_15_input(
+            payload,
+            identity_anchor_data_uri,
+            reference_image_data_uri,
+            source_frame_data_uri,
+        )
 
     if normalized_model == "minimax/video-01":
         request_input = {
-            "prompt": prompt,
+            "prompt": (
+                "Use the supplied subject reference as the non-negotiable main character. Preserve the exact face, "
+                "skin tone, hair, age, body proportions, and recognizable identity throughout. Never substitute a "
+                f"different actor. Keep the creator clearly visible while performing this story: {prompt}"
+            )[:2000],
             "prompt_optimizer": True,
+            "subject_reference": identity_anchor_data_uri,
         }
-        if identity_data_uri:
-            request_input["subject_reference"] = identity_data_uri
-        elif reference_image_data_uri:
-            request_input["first_frame_image"] = reference_image_data_uri
         return request_input
 
     request_input = {"prompt": prompt, "aspect_ratio": "9:16", "duration": replacements["DURATION_SECONDS"]}
@@ -1020,6 +1072,7 @@ def render_replicate_movie(
     replicate_token: str | None,
     input_template: str | None = None,
     replicate_model: str | None = None,
+    source_frame_image: Path | None = None,
 ) -> Path | None:
     if not is_replicate_job(payload):
         return None
@@ -1040,6 +1093,7 @@ def render_replicate_movie(
         source_video,
         input_template,
         model,
+        source_frame_image,
     )
     prediction = replicate_prediction_request(token, model, request_input)
     prediction = poll_replicate_prediction(token, prediction)
@@ -1278,10 +1332,8 @@ async def save_job_inputs(
       if saved:
           reference_paths[index] = saved
 
-    identity_image = source_image_path
-    if identity_image is None and source_video_path is not None:
-        identity_image = uploads_dir / "identity-frame.png"
-        extract_identity_frame(source_video_path, identity_image)
+    source_frame_image = prepare_source_identity_frame(source_video_path, uploads_dir)
+    identity_image = source_image_path or source_frame_image
 
     return payload_json, source_video_path, reference_paths, identity_image
 
@@ -1309,13 +1361,11 @@ def render_queued_job(
             if item.is_file() and item.name.startswith("source-image")
         ]
         identity_image = source_image_candidates[0] if source_image_candidates else None
+        source_frame_image = prepare_source_identity_frame(source_video_path, uploads_dir)
         saved_identity_frame = uploads_dir / "identity-frame.png"
         if identity_image is None and saved_identity_frame.exists():
             identity_image = saved_identity_frame
-        if identity_image is None and source_video_path is not None:
-            identity_image = uploads_dir / "identity-frame.png"
-            if not identity_image.exists():
-                extract_identity_frame(source_video_path, identity_image)
+        identity_image = identity_image or source_frame_image
 
         reference_paths: dict[int, Path] = {}
         for item in uploads_dir.iterdir():
@@ -1338,6 +1388,7 @@ def render_queued_job(
                 replicate_token,
                 replicate_input_template,
                 replicate_model,
+                source_frame_image,
             )
         else:
             write_async_status(job_id, {"status": "running", "progress": 42, "stage": "Rendering movie segments"})
@@ -1471,10 +1522,8 @@ async def render(
         if saved:
             reference_paths[index] = saved
 
-    identity_image = source_image_path
-    if identity_image is None and source_video_path is not None:
-        identity_image = uploads_dir / "identity-frame.png"
-        extract_identity_frame(source_video_path, identity_image)
+    source_frame_image = prepare_source_identity_frame(source_video_path, uploads_dir)
+    identity_image = source_image_path or source_frame_image
 
     try:
         if is_replicate_job(payload_json):
@@ -1487,6 +1536,7 @@ async def render(
                 x_pulsereel_replicate_token,
                 x_pulsereel_replicate_input_template,
                 x_pulsereel_replicate_model,
+                source_frame_image,
             )
         else:
             output_path = render_movie(job_dir, payload_json, source_video_path, reference_paths, identity_image)

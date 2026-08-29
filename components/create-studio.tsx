@@ -37,6 +37,73 @@ function cleanStudioError(message: string) {
   return message;
 }
 
+async function extractIdentityFrameFromVideo(videoFile: File) {
+  const objectUrl = URL.createObjectURL(videoFile);
+  const video = document.createElement("video");
+  video.preload = "auto";
+  video.muted = true;
+  video.playsInline = true;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(
+        () => reject(new Error("The clip took too long to prepare an identity frame.")),
+        12_000,
+      );
+
+      video.onerror = () => {
+        window.clearTimeout(timeout);
+        reject(new Error("PulseReel could not read this clip to preserve your identity."));
+      };
+      video.onloadeddata = () => {
+        const duration = Number.isFinite(video.duration) ? video.duration : 0;
+        const targetTime = duration > 0.25 ? Math.min(0.8, Math.max(0.1, duration * 0.2)) : 0;
+        if (targetTime <= 0) {
+          window.clearTimeout(timeout);
+          resolve();
+          return;
+        }
+
+        video.onseeked = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+        video.currentTime = targetTime;
+      };
+      video.src = objectUrl;
+      video.load();
+    });
+
+    if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+      throw new Error("The selected clip did not contain a readable video frame.");
+    }
+
+    const maximumDimension = 1280;
+    const scale = Math.min(1, maximumDimension / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("PulseReel could not prepare the creator identity frame.");
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (value) => value ? resolve(value) : reject(new Error("PulseReel could not encode the identity frame.")),
+        "image/jpeg",
+        0.88,
+      );
+    });
+    return new File([blob], "pulsereel-video-identity.jpg", { type: "image/jpeg" });
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export function CreateStudio({
   initialBetaAccess,
   seedance15ExperimentEnabled = false,
@@ -440,6 +507,23 @@ export function CreateStudio({
       });
       return;
     }
+
+    let identityFile = selfieFile;
+    if (!identityFile) {
+      setIsSubmitting(true);
+      setStatus({ tone: "idle", message: "Selecting a clear frame from your clip to preserve your identity..." });
+      try {
+        identityFile = await extractIdentityFrameFromVideo(finalVideo);
+      } catch (error) {
+        setStatus({
+          tone: "error",
+          message: error instanceof Error ? error.message : "PulseReel could not prepare your identity frame.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     if (usesManagedProvider && betaAccess.controlsEnabled && !isSeedance15Experiment) {
       setIsSubmitting(true);
       setStatus({ tone: "idle", message: "Checking your free beta movie..." });
@@ -482,9 +566,7 @@ export function CreateStudio({
       formData.set("heavyProvider", modelChoice);
     }
     formData.set("quickPrompt", quickPrompt);
-    if (selfieFile) {
-      formData.set("selfie", selfieFile);
-    }
+    formData.set("selfie", identityFile);
 
     setIsSubmitting(true);
     setStatus({
@@ -571,8 +653,8 @@ export function CreateStudio({
           <h2>Your clip</h2>
         </div>
         <p className="capture-guidance">
-          Face the camera in even light, keep your full face visible, and hold still briefly. For the strongest identity,
-          capture an Identity selfie as well as the 10-second clip.
+          PulseReel uses a clear frame from this clip as the movie&apos;s identity anchor. Face the camera in even light,
+          keep your full face visible, and hold still briefly. An Identity selfie gives the model an even stronger reference.
         </p>
         <div className="camera-shell">
           <div className="camera-stage">

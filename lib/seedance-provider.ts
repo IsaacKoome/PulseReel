@@ -18,9 +18,11 @@ function seedancePrompt(project: MovieProject) {
     `Scene requested by the user: ${project.premise}`,
     "Create one continuous vertical cinematic live-action shot, not a montage or trailer.",
     cameraDirection,
-    "Keep the uploaded creator identity as the same hero for the entire shot if a reference image is provided.",
+    "IDENTITY LOCK: the real person in the supplied image is the non-negotiable main character.",
+    "Keep their exact facial structure, skin tone, hair, age, body proportions, and distinguishing features for the entire shot; never substitute a different actor.",
+    "Keep the creator clearly visible and place that same person naturally inside the requested setting performing the requested action.",
     "Make the world feel real, with believable lighting, camera movement, foreground/background depth, and natural motion.",
-    "No text overlays, no subtitles, no logos, no watermarks.",
+    "No identity drift, face morphing, duplicate creator, text overlays, subtitles, logos, or watermarks.",
   ].join(" ");
 }
 
@@ -77,16 +79,19 @@ export async function createSeedanceProject(input: {
 
   const gateway = createGateway({ apiKey });
   const referenceImage = await readReferenceImage(project);
+  if (!referenceImage) {
+    throw new Error(
+      "Identity-first generation stopped before model billing because PulseReel could not prepare a creator frame from the uploaded clip.",
+    );
+  }
   const promptText = seedancePrompt(project);
 
   const result = await experimental_generateVideo({
     model: gateway.videoModel(process.env.PULSEREEL_SEEDANCE_MODEL || DEFAULT_MODEL),
-    prompt: referenceImage
-      ? {
-          image: referenceImage,
-          text: promptText,
-        }
-      : promptText,
+    prompt: {
+      image: referenceImage,
+      text: promptText,
+    },
     aspectRatio: "9:16",
     duration: Number(process.env.PULSEREEL_SEEDANCE_DURATION_SECONDS || DEFAULT_DURATION_SECONDS),
     maxRetries: 1,
