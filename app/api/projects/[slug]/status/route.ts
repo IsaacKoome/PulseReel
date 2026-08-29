@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getProjectStatus } from "@/lib/heavy-worker";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(
   _request: Request,

@@ -36,6 +36,7 @@ export type BackendCapabilities = {
   remoteModelBackendComfyUiConfigured: boolean;
   remoteModelBackendDurableStorageConfigured: boolean;
   replicateConfigured: boolean;
+  directReplicateConfigured: boolean;
   replicateModel?: string;
   minimaxConfigured: boolean;
   minimaxModel?: string;
@@ -55,6 +56,7 @@ export type BackendCapabilities = {
     | "custom-backend-command"
     | "remote-model-backend"
     | "replicate-provider"
+    | "direct-replicate"
     | "minimax-provider"
     | "comfyui-backend";
   summary: string;
@@ -137,6 +139,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const remoteModelBackendUrl = process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim();
   const replicateToken = process.env.PULSEREEL_REPLICATE_API_TOKEN?.trim();
   const replicateModel = process.env.PULSEREEL_REPLICATE_MODEL?.trim();
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   const minimaxKey = process.env.PULSEREEL_MINIMAX_API_KEY?.trim();
   const minimaxModel = process.env.PULSEREEL_MINIMAX_MODEL?.trim();
   const comfyUiUrl = process.env.PULSEREEL_COMFYUI_URL?.trim();
@@ -149,7 +152,8 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
   const pythonBridgeReady = pythonExecutableConfigured;
   const customBackendCommandConfigured = Boolean(customBackendCommand);
   const remoteModelBackendConfigured = Boolean(remoteModelBackendUrl);
-  const replicateConfigured = Boolean(replicateToken && replicateModel);
+  const replicateConfigured = Boolean(replicateToken);
+  const directReplicateConfigured = Boolean(replicateToken && blobToken);
   const minimaxConfigured = Boolean(minimaxKey && minimaxModel);
   const remoteModelBackendHealth = remoteModelBackendConfigured
     ? await fetchRemoteWorkerHealth(remoteModelBackendUrl!)
@@ -199,7 +203,9 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     (comfyUiConfigured && comfyUiWorkflowExists && comfyUiServerReachable && comfyUiCheckpointReady);
 
   const activeHeavyPath =
-    customBackendCommandConfigured
+    heavyProvider === "replicate-seedance-1.5-pro" && directReplicateConfigured
+      ? "direct-replicate"
+      : customBackendCommandConfigured
       ? "custom-backend-command"
       : heavyProvider === "minimax-subject-adapter" && minimaxConfigured
         ? "minimax-provider"
@@ -214,7 +220,9 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
           : "fast-local";
 
   const summary =
-    activeHeavyPath === "comfyui-backend"
+    activeHeavyPath === "direct-replicate"
+      ? "Seedance is submitted directly from Vercel to Replicate; the laptop worker is not required."
+    : activeHeavyPath === "comfyui-backend"
       ? "Real ComfyUI backend is configured for heavy generation."
       : activeHeavyPath === "minimax-provider"
         ? "MiniMax subject-reference provider is configured for identity-first video experiments."
@@ -246,6 +254,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
     remoteModelBackendComfyUiConfigured: remoteModelBackendHealth.comfyuiConfigured,
     remoteModelBackendDurableStorageConfigured: remoteModelBackendHealth.durableStorageConfigured,
     replicateConfigured,
+    directReplicateConfigured,
     replicateModel: replicateModel || undefined,
     minimaxConfigured,
     minimaxModel: minimaxModel || undefined,

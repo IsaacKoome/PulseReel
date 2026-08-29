@@ -13,6 +13,7 @@ import { getHeavyRenderProvider } from "@/lib/heavy-renderers";
 import { createMovieProjectDraft } from "@/lib/pipeline";
 import { addProject, getProjectById, getProjectBySlug, updateProject } from "@/lib/store";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
+import { reconcileDirectReplicateProject } from "@/lib/replicate-direct";
 
 const activeJobs = new Set<string>();
 
@@ -257,6 +258,41 @@ export async function getProjectStatus(slug: string) {
   const project = await getProjectBySlug(slug);
   if (!project) {
     return null;
+  }
+
+  if (
+    project.status === "processing" &&
+    project.workerJob?.executionMode === "direct-replicate" &&
+    project.workerJob.remoteJobId
+  ) {
+    try {
+      const updated = await reconcileDirectReplicateProject(project);
+      return {
+        slug: updated.slug,
+        status: updated.status,
+        renderMode: updated.renderMode,
+        processedVideoUrl: updated.processedVideoUrl,
+        workerJob: updated.workerJob,
+      };
+    } catch (error) {
+      const updated = await updateProject(project.id, (item) => ({
+        ...item,
+        workerJob: {
+          ...item.workerJob!,
+          status: item.workerJob?.status ?? "running",
+          stage: "Waiting for Replicate status",
+          executionMode: "direct-replicate",
+          error: error instanceof Error ? error.message : "Could not read Replicate status.",
+        },
+      }));
+      return {
+        slug: updated?.slug ?? project.slug,
+        status: updated?.status ?? project.status,
+        renderMode: updated?.renderMode ?? project.renderMode,
+        processedVideoUrl: updated?.processedVideoUrl ?? project.processedVideoUrl,
+        workerJob: updated?.workerJob ?? project.workerJob,
+      };
+    }
   }
 
   const derivedRemoteStatusUrl =

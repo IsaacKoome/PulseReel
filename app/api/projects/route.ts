@@ -17,6 +17,7 @@ import {
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
+import { createDirectSeedanceProject, DIRECT_SEEDANCE_PROVIDER } from "@/lib/replicate-direct";
 import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -102,6 +103,7 @@ function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string
 export async function POST(request: Request) {
   let generationReservationId: string | null = null;
   let directVideoBlobUrl: string | null = null;
+  let retainDirectVideoBlob = false;
 
   try {
     const user = await getCurrentUser();
@@ -192,9 +194,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const requestedHeavyProvider = parsed.data.heavyProvider ?? FREE_BETA_MANAGED_PROVIDER;
+    const useDirectSeedance =
+      isVercelRuntime() &&
+      parsed.data.renderMode !== "seedance-2-fast" &&
+      requestedHeavyProvider === DIRECT_SEEDANCE_PROVIDER;
+
     if (
       isVercelRuntime() &&
       parsed.data.renderMode !== "seedance-2-fast" &&
+      !useDirectSeedance &&
       !process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()
     ) {
       return NextResponse.json(
@@ -215,7 +224,7 @@ export async function POST(request: Request) {
       const provider =
         parsed.data.renderMode === "seedance-2-fast"
           ? "seedance-2-fast"
-          : parsed.data.heavyProvider ?? FREE_BETA_MANAGED_PROVIDER;
+          : requestedHeavyProvider;
       generationReservationId = await reserveManagedGeneration(user, provider);
     }
 
@@ -257,6 +266,47 @@ export async function POST(request: Request) {
       });
     }
 
+    if (useDirectSeedance) {
+      if (!(selfie instanceof File) || selfie.size <= 0) {
+        return NextResponse.json(
+          { error: "A clear identity frame is required for direct Seedance generation." },
+          { status: 400 },
+        );
+      }
+
+      const deleteCredential = createProjectDeleteCredential();
+      const sourceVideoUrl = directVideoBlobUrl
+        ? directVideoBlobUrl
+        : (await saveSourceAssets(video as File)).sourceVideoUrl;
+      const project = await createDirectSeedanceProject({
+        creatorName: parsed.data.creatorName,
+        title: parsed.data.title,
+        templateId: parsed.data.templateId,
+        genre: parsed.data.genre,
+        premise: parsed.data.premise,
+        scenePrompt: parsed.data.scenePrompt,
+        persona: parsed.data.persona,
+        cameraMode: parsed.data.cameraMode,
+        renderMode: parsed.data.renderMode,
+        sourceVideoUrl,
+        identityImage: selfie,
+        ownerId: user?.id,
+        visibility: user ? "unlisted" : "public",
+        deleteTokenHash: deleteCredential.tokenHash,
+        requestOrigin: new URL(request.url).origin,
+      });
+      retainDirectVideoBlob = Boolean(directVideoBlobUrl);
+      await updateGenerationReservation(generationReservationId, "submitted", project.id);
+
+      return NextResponse.json({
+        slug: project.slug,
+        status: project.status,
+        executionPath: "direct-replicate",
+        project: projectForClient(project),
+        deleteToken: deleteCredential.token,
+      });
+    }
+
     const shouldUseHeavyWorker =
       parsed.data.renderMode === "heavy-worker-beta" ||
       (isVercelRuntime() && Boolean(process.env.PULSEREEL_REMOTE_MODEL_BACKEND_URL?.trim()));
@@ -264,7 +314,7 @@ export async function POST(request: Request) {
     if (shouldUseHeavyWorker) {
       const deleteCredential = createProjectDeleteCredential();
       const { sourceVideoUrl, sourceImageUrl } = await saveRequestSourceAssets();
-      const heavyProvider = parsed.data.heavyProvider as HeavyRenderProviderId | undefined;
+      const heavyProvider = requestedHeavyProvider as HeavyRenderProviderId;
 
       const project = await createHeavyProject({
         creatorName: parsed.data.creatorName,
@@ -347,7 +397,7 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   } finally {
-    if (directVideoBlobUrl) {
+    if (directVideoBlobUrl && !retainDirectVideoBlob) {
       try {
         await del(directVideoBlobUrl);
       } catch (error) {
