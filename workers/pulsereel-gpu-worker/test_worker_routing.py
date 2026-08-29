@@ -9,8 +9,11 @@ from unittest.mock import patch
 from worker import (
     build_replicate_input,
     canonical_upload_name,
+    identity_quality_flags,
     identity_frame_rank,
+    normalization_strategy,
     replicate_model_for_payload,
+    sample_offsets_for_duration,
     selected_render_provider,
 )
 
@@ -59,6 +62,9 @@ class ReplicateRoutingTests(unittest.TestCase):
 
         self.assertTrue(request_input["subject_reference"].startswith("data:image/png;base64,"))
         self.assertNotIn("first_frame_image", request_input)
+        self.assertIn("natural-sized eyes", request_input["prompt"].lower())
+        self.assertIn("relaxed closed lips", request_input["prompt"].lower())
+        self.assertIn("not a selfie", request_input["prompt"].lower())
 
     def test_minimax_rejects_scene_reference_as_creator_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -225,6 +231,25 @@ class ReplicateRoutingTests(unittest.TestCase):
         too_dark = identity_frame_rank(4.0, 20.0)
         self.assertLess(clear_well_lit, blurry)
         self.assertLess(clear_well_lit, too_dark)
+
+    def test_frame_sampling_covers_short_clip_without_exceeding_duration(self) -> None:
+        offsets = sample_offsets_for_duration(5.0, count=8)
+        self.assertEqual(len(offsets), 8)
+        self.assertGreaterEqual(offsets[0], 0)
+        self.assertLess(offsets[-1], 5.0)
+        self.assertEqual(offsets, sorted(offsets))
+
+    def test_wrong_provider_shapes_use_safe_portrait_canvas(self) -> None:
+        self.assertEqual(normalization_strategy(1280, 720), "blurred-background")
+        self.assertEqual(normalization_strategy(960, 960), "blurred-background")
+        self.assertEqual(normalization_strategy(720, 1280), "native-portrait")
+
+    def test_identity_quality_flags_only_severe_failures(self) -> None:
+        self.assertEqual(identity_quality_flags(0.9, 0.8, 0.8, 0.8, 0.8), [])
+        flags = identity_quality_flags(0.4, 0.2, 0.3, 0.3, 0.2)
+        self.assertEqual(len(flags), 5)
+        self.assertTrue(any("identity drift" in flag for flag in flags))
+        self.assertTrue(any("Eyes" in flag for flag in flags))
 
     def test_source_uploads_receive_discoverable_canonical_names(self) -> None:
         upload = SimpleNamespace(filename="creator-clip.WEBM")

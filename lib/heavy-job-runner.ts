@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import sharp from "sharp";
-import type { CameraMode, HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
+import type { CameraMode, HeavyRenderProviderId, IdentityQualityReport, MovieProject, ShotSpec } from "@/lib/types";
 import { assetUrlToPath, getRuntimeAssetDir, getRuntimeDataDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 
 const JOBS_DIR = path.join(getRuntimeDataDir(), "heavy-jobs");
@@ -151,6 +151,8 @@ export type HeavyJobResult = {
   completedAt: string;
   processedVideoUrl?: string;
   shotPlan?: ShotSpec[];
+  model?: string;
+  qualityReport?: IdentityQualityReport;
   error?: string;
 };
 
@@ -1148,6 +1150,8 @@ export type RemoteJobStatus = {
   processedVideoUrl?: string;
   videoBase64?: string;
   shotPlan?: HeavyJobResult["shotPlan"];
+  model?: string;
+  qualityReport?: IdentityQualityReport;
   error?: string;
 };
 
@@ -1421,6 +1425,8 @@ async function executeRemoteModelBackend(input: {
     processedVideoUrl?: string;
     videoBase64?: string;
     shotPlan?: HeavyJobResult["shotPlan"];
+    model?: string;
+    qualityReport?: IdentityQualityReport;
     error?: string;
   };
 
@@ -1470,6 +1476,8 @@ async function executeRemoteModelBackend(input: {
     completedAt: new Date().toISOString(),
     processedVideoUrl,
     shotPlan: remoteResult.shotPlan ?? payload.shots,
+    model: remoteResult.model,
+    qualityReport: remoteResult.qualityReport,
   });
 
   return {

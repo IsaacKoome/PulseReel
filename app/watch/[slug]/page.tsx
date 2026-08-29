@@ -10,6 +10,10 @@ import { formatCompactNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+function formatQualityPercent(value: number | null | undefined) {
+  return typeof value === "number" ? `${Math.round(value * 100)}%` : "Not available";
+}
+
 export default async function WatchPage({
   params,
 }: {
@@ -29,6 +33,7 @@ export default async function WatchPage({
   const initialFeedback = canLeaveFeedback && user
     ? await getMovieFeedback(project.id, user.id)
     : null;
+  const qualityReport = project.workerJob?.qualityReport;
 
   return (
     <main className="watch-shell shell">
@@ -107,7 +112,34 @@ export default async function WatchPage({
           )}
 
           {canLeaveFeedback ? (
-            <MovieFeedbackForm initialFeedback={initialFeedback} slug={project.slug} />
+            <>
+              {qualityReport ? (
+                <div className="panel" style={{ marginTop: 18 }}>
+                  <div className="pill-row" style={{ marginBottom: 12 }}>
+                    <span className="pill">Identity quality check</span>
+                    <span className="pill">
+                      {qualityReport.identity.status === "pass" ? "Passed" : "Review suggested"}
+                    </span>
+                  </div>
+                  <p className="body-copy" style={{ marginTop: 0 }}>
+                    Face readable in {formatQualityPercent(qualityReport.identity.faceDetectionRate)} of sampled
+                    frames · identity consistency {formatQualityPercent(qualityReport.identity.score)} · output{" "}
+                    {qualityReport.normalization.final.width}×{qualityReport.normalization.final.height}.
+                  </p>
+                  {qualityReport.identity.flags.length ? (
+                    <ul className="body-copy">
+                      {qualityReport.identity.flags.map((flag) => <li key={flag}>{flag}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="subtle">No severe automated identity or facial-stability warning was found.</p>
+                  )}
+                  <small className="subtle">
+                    This automatic check is a screening signal, not a guarantee that the generated face is exact.
+                  </small>
+                </div>
+              ) : null}
+              <MovieFeedbackForm initialFeedback={initialFeedback} slug={project.slug} />
+            </>
           ) : null}
         </section>
 

@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test --test-isolation=none --experimental-strip-types tests/project-submission.test.ts",
+    "test": "node --test --test-isolation=none --experimental-strip-types tests/project-submission.test.ts tests/identity-benchmark.test.ts",
     "lint": "eslint .",
     "migrate:pulsereel-store": "node --env-file=.env.local scripts/migrate-pulsereel-projects-to-supabase.mjs"
   },

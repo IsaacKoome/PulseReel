@@ -166,7 +166,7 @@ export async function startHeavyGeneration(projectId: string) {
     }
     const statusPath = payloadPath.replace(/payload\.json$/, "status.json");
     const payload = await readHeavyJobPayload(payloadPath);
-    const { processedVideoUrl, shotPlan } = await provider.render(
+    const { processedVideoUrl, shotPlan, model, qualityReport } = await provider.render(
       current,
       { update: setProgress },
       { payload, payloadPath, resultPath, statusPath },
@@ -178,6 +178,8 @@ export async function startHeavyGeneration(projectId: string) {
       completedAt: new Date().toISOString(),
       processedVideoUrl,
       shotPlan,
+      model,
+      qualityReport,
     });
     await updateHeavyJobStatus(statusPath, {
       provider: provider.id,
@@ -195,6 +197,8 @@ export async function startHeavyGeneration(projectId: string) {
       workerJob: {
         id: item.workerJob?.id ?? `job-${item.id}`,
         provider: item.workerJob?.provider ?? provider.id,
+        model: model ?? item.workerJob?.model,
+        qualityReport: qualityReport ?? item.workerJob?.qualityReport,
         status: "completed",
         progress: 100,
         stage: `${provider.label} movie ready`,
@@ -276,6 +280,8 @@ export async function getProjectStatus(slug: string) {
           workerJob: {
             id: item.workerJob?.id ?? `job-${item.id}`,
             provider: item.workerJob?.provider ?? project.workerJob!.provider,
+            model: remote.model ?? item.workerJob?.model,
+            qualityReport: remote.qualityReport ?? item.workerJob?.qualityReport,
             status: "completed",
             progress: 100,
             stage: "Remote worker movie ready",
@@ -405,6 +411,8 @@ export async function getProjectStatus(slug: string) {
         workerJob: {
           id: item.workerJob?.id ?? `job-${item.id}`,
           provider: item.workerJob?.provider ?? result.provider,
+          model: result.model ?? item.workerJob?.model,
+          qualityReport: result.qualityReport ?? item.workerJob?.qualityReport,
           status: "completed",
           progress: 100,
           stage: "Recovered completed heavy movie from worker result",

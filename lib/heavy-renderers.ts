@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { HeavyRenderProviderId, MovieProject, ShotSpec } from "@/lib/types";
+import type { HeavyRenderProviderId, IdentityQualityReport, MovieProject, ShotSpec } from "@/lib/types";
 import {
   executeHeavyRunnerCommand,
   readHeavyJobResult,
@@ -51,6 +51,8 @@ type ExternalProviderConfig = {
 export type HeavyRenderResult = {
   processedVideoUrl: string;
   shotPlan: ShotSpec[];
+  model?: string;
+  qualityReport?: IdentityQualityReport;
 };
 
 export type HeavyRenderProvider = {
@@ -189,6 +191,8 @@ const openModelAdapterProvider: HeavyRenderProvider = {
       return {
         processedVideoUrl: runnerResult.processedVideoUrl,
         shotPlan: runnerResult.shotPlan,
+        model: runnerResult.model,
+        qualityReport: runnerResult.qualityReport,
       };
     }
 

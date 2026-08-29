@@ -117,9 +117,16 @@ Keep your normal worker URL configured:
 PULSEREEL_REMOTE_MODEL_BACKEND_URL=https://your-worker-domain/pulsereel/render
 ```
 
-Vercel forwards the Replicate token and selected model privately to this worker for Replicate jobs. Before it spends provider credits, the worker extracts the clearest usable frame from the creator's uploaded clip. MiniMax receives the creator as `subject_reference`; Seedance receives the real clip frame as its starting `image`; and Kling receives the creator in `reference_images`. Prompt-only hosted generation is rejected so an unrelated scene image cannot silently replace the creator.
+Vercel forwards the Replicate token and selected model privately to this worker for Replicate jobs. Before it spends provider credits, the worker samples the creator's clip and ranks frames using face detection, eye readability, face size and centering, sharpness, and exposure. MiniMax receives the creator as `subject_reference`; Seedance receives the selected real clip frame as its starting `image`; and Kling receives the creator in `reference_images`. Prompt-only hosted generation is rejected so an unrelated scene image cannot silently replace the creator.
 
-The studio also exposes an experimental **Replicate Pro · Kling** profile. It reuses the same Replicate token and defaults to `kwaivgi/kling-v3-omni-video`, requesting a 15-second 9:16 multi-shot movie with identity reference images and native audio. MiniMax remains the recommended default until Kling identity consistency and per-run cost have been evaluated. Optional worker overrides are:
+Every completed hosted movie then passes through two non-destructive finishing steps:
+
+- Landscape, square, and unexpected provider outputs are placed intact on a 720×1280 blurred-background canvas. The foreground is never stretched or cropped, camera mode is unchanged, and existing audio is preserved.
+- Eight output frames are screened for face readability, anchor similarity, temporal face consistency, eye readability, and landmark stability. Severe warnings are stored in the project's identity quality report for owner review and beta benchmarking. This screening is a warning system, not biometric verification.
+
+The beta admin page groups those reports and owner identity ratings by model. A model is only marked ready for a recommendation decision after at least five checked outputs and five owner ratings, so one impressive result does not silently change the studio default.
+
+The studio also exposes an experimental **Replicate Pro · Kling** profile. It reuses the same Replicate token and defaults to `kwaivgi/kling-v3-omni-video`, requesting a 15-second 9:16 multi-shot movie with identity reference images and native audio. The current recommendation remains unchanged until the controlled identity benchmark has enough MiniMax, Seedance, or Kling samples. Optional worker overrides are:
 
 ```text
 PULSEREEL_KLING_MODE=standard

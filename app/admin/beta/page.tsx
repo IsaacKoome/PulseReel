@@ -4,7 +4,9 @@ import { isPulseReelAdmin } from "@/lib/auth/admin";
 import { getCurrentUser } from "@/lib/auth/user";
 import { MINIMAX_VIDEO_01_ESTIMATED_COST_USD } from "@/lib/beta-config";
 import { getBetaAdminSnapshot, getBetaUserAllowances } from "@/lib/generation-access";
+import { buildIdentityBenchmark } from "@/lib/identity-benchmark";
 import { getFeedbackAdminSnapshot } from "@/lib/movie-feedback";
+import { getProjects } from "@/lib/store";
 import { setAttemptLimit, setGenerationEnabled, setUserAttemptLimit } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -17,16 +19,22 @@ function formatRating(value: number | null) {
   return value === null ? "—" : `${value.toFixed(1)}/5`;
 }
 
+function formatPercent(value: number | null) {
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
+}
+
 export default async function BetaAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin/beta");
   if (!isPulseReelAdmin(user)) notFound();
 
-  const [snapshot, feedback, betaUsers] = await Promise.all([
+  const [snapshot, feedback, betaUsers, projects] = await Promise.all([
     getBetaAdminSnapshot(),
     getFeedbackAdminSnapshot(),
     getBetaUserAllowances(),
+    getProjects(),
   ]);
+  const identityBenchmark = buildIdentityBenchmark(projects, feedback.recentFeedback);
   const maximumBudget = snapshot.totalAttemptLimit * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
   const remainingBudget = snapshot.remainingAttempts * MINIMAX_VIDEO_01_ESTIMATED_COST_USD;
 
@@ -206,6 +214,50 @@ export default async function BetaAdminPage() {
           </div>
         ) : (
           <p className="muted">Feedback will appear here after a movie owner answers the three questions.</p>
+        )}
+      </section>
+
+      <section className="admin-table-card glass">
+        <div className="admin-table-heading">
+          <div>
+            <p className="eyebrow-copy">Identity model benchmark</p>
+            <h2>Compare before changing the recommended model</h2>
+            <p className="muted">
+              A recommendation becomes decision-ready after at least five quality-checked movies and five owner
+              identity ratings for the same model. Automatic scores are screening signals, not identity guarantees.
+            </p>
+          </div>
+        </div>
+        {identityBenchmark.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Model</th><th>Samples</th><th>Automated identity</th><th>Face readable</th>
+                  <th>Passed / review</th><th>Owner identity</th><th>Decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                {identityBenchmark.map((row) => (
+                  <tr key={row.model}>
+                    <td>{row.model}</td>
+                    <td>{row.samples}</td>
+                    <td>{formatPercent(row.averageAutomatedScore)}</td>
+                    <td>{formatPercent(row.averageFaceDetectionRate)}</td>
+                    <td>{row.passingSamples} / {row.reviewSamples}</td>
+                    <td>
+                      {row.averageUserIdentityRating === null
+                        ? "—"
+                        : `${row.averageUserIdentityRating.toFixed(1)}/5 (${row.userRatings})`}
+                    </td>
+                    <td>{row.readyForRecommendationDecision ? "Ready to compare" : "Collect more samples"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">New quality-checked movies will populate this benchmark automatically.</p>
         )}
       </section>
 

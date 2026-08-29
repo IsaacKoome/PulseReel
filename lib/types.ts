@@ -28,6 +28,56 @@ export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-be
 
 export type CameraMode = "cinematic" | "selfie";
 
+export type IdentityQualityReport = {
+  version: "identity-quality-v2" | string;
+  provider: HeavyRenderProviderId | string;
+  model: string;
+  elapsedSeconds: number;
+  anchor?: {
+    version?: string;
+    sampledFrames?: number;
+    selectedOffsetSeconds?: number | null;
+    selected?: {
+      faceAware?: boolean;
+      faceDetected?: boolean;
+      faceCount?: number;
+      eyeCount?: number;
+      faceCoverage?: number;
+      centeredness?: number;
+      rank?: number;
+    };
+  } | null;
+  normalization: {
+    requestedAspectRatio: "9:16" | string;
+    strategy: "native-portrait" | "blurred-background" | "unavailable" | string;
+    source: {
+      width: number;
+      height: number;
+      durationSeconds: number;
+      hasAudio: boolean;
+      [key: string]: unknown;
+    };
+    final: {
+      width: number;
+      height: number;
+      durationSeconds: number;
+      hasAudio: boolean;
+      [key: string]: unknown;
+    };
+  };
+  identity: {
+    status: "pass" | "review" | string;
+    score: number | null;
+    sampledFrames: number;
+    faceDetectionRate: number | null;
+    anchorSimilarity: number | null;
+    temporalConsistency: number | null;
+    landmarkStability: number | null;
+    eyeReadabilityRate: number | null;
+    flags: string[];
+  };
+};
+
 export type MovieProject = {
   id: string;
   slug: string;
@@ -61,6 +111,7 @@ export type MovieProject = {
     provider: HeavyRenderProviderId;
     providerUsed?: HeavyRenderProviderId | string;
     model?: string;
+    qualityReport?: IdentityQualityReport;
     fallbackReason?: string;
     status: "queued" | "running" | "completed" | "failed";
     progress: number;
