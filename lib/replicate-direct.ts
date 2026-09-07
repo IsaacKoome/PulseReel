@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { del, put } from "@vercel/blob";
 import sharp from "sharp";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
-import { createMovieProjectDraft } from "@/lib/pipeline";
+import { createMovieProjectDraft } from "@/lib/project-draft";
 import { addProject, getProjectById, updateProject } from "@/lib/store";
 import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
 import {

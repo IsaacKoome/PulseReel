@@ -7,7 +7,6 @@ import {
   updateHeavyJobStatus,
   type HeavyJobPayload,
 } from "@/lib/heavy-job-runner";
-import { renderMovieForProject } from "@/lib/pipeline";
 
 function cameraDirection(project: MovieProject) {
   if (project.cameraMode === "selfie") {
@@ -74,6 +73,7 @@ const localHeavyProvider: HeavyRenderProvider = {
     await progress.update(18, `Preparing identity assets from ${job.payloadPath}`);
     await progress.update(32, `Building shot plan and template scenes for ${job.payload.shots.length} shots`);
     await progress.update(54, "Rendering local heavy motion movie");
+    const { renderMovieForProject } = await import("@/lib/pipeline");
     const result = await renderMovieForProject(project);
     await progress.update(88, "Finishing edit and packaging movie");
     return result;

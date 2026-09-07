@@ -3,7 +3,7 @@ import path from "path";
 import { experimental_generateVideo } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
 import { put } from "@vercel/blob";
-import { createMovieProjectDraft } from "@/lib/pipeline";
+import { createMovieProjectDraft } from "@/lib/project-draft";
 import { assetUrlToPath, getRuntimeAssetDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 import type { CameraMode, MovieProject } from "@/lib/types";
 

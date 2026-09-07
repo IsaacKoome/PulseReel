@@ -10,7 +10,7 @@ import {
   writeHeavyJobResult,
 } from "@/lib/heavy-job-runner";
 import { getHeavyRenderProvider } from "@/lib/heavy-renderers";
-import { createMovieProjectDraft } from "@/lib/pipeline";
+import { createMovieProjectDraft } from "@/lib/project-draft";
 import { addProject, getProjectById, getProjectBySlug, updateProject } from "@/lib/store";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
 import { reconcileDirectReplicateProject } from "@/lib/replicate-direct";

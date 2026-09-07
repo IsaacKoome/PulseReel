@@ -1,0 +1,12 @@
+# Runtime data and local rendering tools never belong in a deployment.
+public/uploads/
+public/generated/
+data/heavy-jobs/
+data/projects.json
+workers/
+tools/
+.codex-pulsereel-rollback*
+**/.venv/**
+**/__pycache__/**
+**/*.pyc
+**/*.log

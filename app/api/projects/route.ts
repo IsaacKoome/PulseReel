@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { del, head } from "@vercel/blob";
 import { z } from "zod";
 import { createHeavyProject, enqueueHeavyGeneration } from "@/lib/heavy-worker";
-import { createMovieProject, saveSourceAssets, saveSourceFile } from "@/lib/pipeline";
+import { saveSourceAssets, saveSourceFile } from "@/lib/project-draft";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById } from "@/lib/store";
@@ -358,6 +358,7 @@ export async function POST(request: Request) {
     }
 
     const deleteCredential = createProjectDeleteCredential();
+    const { createMovieProject } = await import("@/lib/pipeline");
     const project = await createMovieProject({
       ...parsed.data,
       videoFile: video as File,

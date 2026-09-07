@@ -16,3 +16,6 @@ tools/ComfyUI
 __pycache__/
 *.pyc
 tsconfig.tsbuildinfo
+workers/pulsereel-gpu-worker/.venv/
+workers/pulsereel-gpu-worker/logs/
+.codex-pulsereel-rollback*
