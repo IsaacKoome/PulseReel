@@ -13,6 +13,7 @@ export default async function PaymentTestPage() {
   let credits = 0;
   try { sandboxKey(); credits = await testCreditBalance(user.id); ready = true; } catch { /* Disabled until configured. */ }
   return <main style={{ maxWidth: 700, margin: "80px auto", padding: 24 }}>
+    <a className="button-secondary" href="/">Back to home</a>
     <h1>Paystack payment sandbox</h1>
     <p>Admin-only test. No real money is charged. Test credits cannot generate AI videos.</p>
     <p>Sample pack: 5 test credits for KES 100. This is not the launch price.</p>

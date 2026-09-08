@@ -29,9 +29,14 @@ export function AccountNav({
   return (
     <nav className="account-nav" aria-label="Account">
       {isAdmin ? (
+        <>
         <a className="button-secondary account-nav-link" href="/admin/beta">
           Beta Admin
         </a>
+        <a className="button-secondary account-nav-link" href="/billing/test">
+          Paystack Test
+        </a>
+        </>
       ) : null}
       <a className="button-secondary account-nav-link" href="/movies">
         My Movies

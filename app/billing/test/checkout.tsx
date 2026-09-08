@@ -24,8 +24,8 @@ export default function Checkout({ ready, initialCredits }: { ready: boolean; in
   }
   return <section>
     <p>Verified test-credit balance: {credits}</p>
-    <button className="button-primary" disabled={!ready || busy} onClick={() => run("initialize")}>Start test checkout</button>{" "}
-    <button className="button-secondary" disabled={!ready || busy} onClick={() => run("verify")}>Verify returned payment</button>
+    <button type="button" className="button" disabled={!ready || busy} onClick={() => run("initialize")}>Start test checkout</button>{" "}
+    <button type="button" className="button-secondary" disabled={!ready || busy} onClick={() => run("verify")}>Verify returned payment</button>
     <p role="status">{busy ? "Working…" : message}</p>
   </section>;
 }
