@@ -41,6 +41,9 @@ export function AccountNav({
       <a className="button-secondary account-nav-link" href="/movies">
         My Movies
       </a>
+      <a className="button-secondary account-nav-link" href="/billing">
+        Credits
+      </a>
       {!compact ? <span className="account-name">{label}</span> : null}
       <form action="/auth/signout" method="post">
         <button className="account-signout" type="submit">
