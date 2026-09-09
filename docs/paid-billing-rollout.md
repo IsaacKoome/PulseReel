@@ -9,7 +9,8 @@
 
 ## Implemented foundation
 
-- `/billing` explains the pack and currency; checkout is deliberately disabled.
+- `/billing` explains the pack and currency, displays the paid balance, and only enables
+  checkout when the live key and explicit live-purchase flag are both configured.
 - Signed-in navigation links to Credits.
 - `lib/billing-pack.ts` defines the fixed pack.
 - `supabase/migrations/202609080002_pulsereel_paid_attempts.sql` adds separate wallets,
@@ -28,13 +29,13 @@ This migration has not been executed against the hosted database by the coding a
 1. Exercise the SQL functions on a test database: duplicate grant; concurrent reservations
    from a one-attempt wallet; duplicate failure restore; completed-then-failed event;
    rollback on mismatched attempts; anonymous/authenticated access rejection.
-2. Implement live order initialize/verify endpoints with verified-user auth, same-origin
-   checks, rate limiting, fixed server pack, live-domain verification and separate live key.
-   Keep new purchase creation behind a default-off flag. Verification of existing orders
-   must continue even when new purchases are paused.
-3. Add live webhook routing without breaking existing test webhook behavior. Verify the
-   raw-body signature, then reverify reference, amount, currency, customer and live domain
-   before calling the grant function. Never grant from browser callback data alone.
+2. Add rate limiting to the implemented live order initialize/verify endpoints. They already
+   require verified-user auth, enforce same-origin writes, use the fixed server pack, verify
+   the live domain, and use a separate live key. New purchases remain behind the default-off
+   `PULSEREEL_PAYSTACK_LIVE_ENABLED` flag; existing-order verification remains available.
+3. The separate live webhook route verifies the raw-body signature and then reverifies the
+   reference, amount, currency, customer and live domain before calling the grant function.
+   Configure it in Paystack only after approval; never grant from browser callback data alone.
 4. Connect paid generation before provider submission: persist project and reservation
    first, use stable idempotency identifiers, enforce provider/settings and spending caps.
    Do not refund ambiguous provider timeouts; reconcile them to a confirmed final status.

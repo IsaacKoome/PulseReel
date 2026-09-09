@@ -15,8 +15,9 @@ test("launch pack charges Kenyan cents, not USD, for five attempts", () => {
 
 test("billing remains disabled and displays the actual checkout currency", () => {
   const page = readFileSync(new URL("../app/billing/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /type="button" disabled/);
+  assert.match(page, /isLiveCheckoutReady/);
   assert.match(page, /Charged as/);
-  assert.match(page, /Purchases coming soon/);
-  assert.doesNotMatch(page, /fetch\(|action=/);
+  const checkout = readFileSync(new URL("../app/billing/checkout.tsx", import.meta.url), "utf8");
+  assert.match(checkout, /Purchases coming soon/);
+  assert.match(checkout, /disabled=\{!ready \|\| busy\}/);
 });
