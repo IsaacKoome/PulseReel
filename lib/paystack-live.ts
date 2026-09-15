@@ -53,6 +53,16 @@ export async function initializeLivePayment(userId: string, email: string) {
   const reference = `pr-live-${randomUUID()}`;
   const origin = paymentOrigin();
   const db = createSupabaseAdminClient();
+  const rateLimitStart = new Date(Date.now() - 5 * 60_000).toISOString();
+  const { count: recentOrderCount, error: rateLimitError } = await db
+    .from("pulse_reel_paid_orders")
+    .select("reference", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", rateLimitStart);
+  if (rateLimitError) throw new Error("Could not check checkout limits.");
+  if ((recentOrderCount ?? 0) >= 3) {
+    throw new Error("Too many checkout attempts. Please wait five minutes before trying again.");
+  }
   const { error } = await db.from("pulse_reel_paid_orders").insert({
     reference,
     user_id: userId,

@@ -13,6 +13,13 @@ import {
 export const DIRECT_SEEDANCE_PROVIDER = "replicate-seedance-1.5-pro" as const;
 export const DIRECT_SEEDANCE_MODEL = "bytedance/seedance-1.5-pro";
 
+export class ProviderSubmissionUncertainError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ProviderSubmissionUncertainError";
+  }
+}
+
 type ReplicatePredictionStatus =
   | "starting"
   | "processing"
@@ -32,6 +39,7 @@ export type ReplicatePrediction = {
 };
 
 type DirectSeedanceProjectInput = {
+  projectId?: string;
   creatorName: string;
   title: string;
   templateId: string;
@@ -99,29 +107,47 @@ async function createPrediction(project: MovieProject, identityImageUrl: string,
   const webhook = new URL("/api/webhooks/replicate", publicAppOrigin(requestOrigin));
   webhook.searchParams.set("projectId", project.id);
 
-  const response = await fetch(
-    `https://api.replicate.com/v1/models/${DIRECT_SEEDANCE_MODEL}/predictions`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${replicateToken()}`,
-        "Content-Type": "application/json",
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://api.replicate.com/v1/models/${DIRECT_SEEDANCE_MODEL}/predictions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${replicateToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          input: buildDirectSeedanceInput(project, identityImageUrl),
+          webhook: webhook.toString(),
+          webhook_events_filter: ["completed"],
+        }),
       },
-      body: JSON.stringify({
-        input: buildDirectSeedanceInput(project, identityImageUrl),
-        webhook: webhook.toString(),
-        webhook_events_filter: ["completed"],
-      }),
-    },
-  );
+    );
+  } catch (error) {
+    throw new ProviderSubmissionUncertainError(
+      "PulseReel could not confirm whether Replicate accepted the job. The attempt is being held for reconciliation; please do not retry immediately.",
+      { cause: error },
+    );
+  }
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`Replicate rejected the Seedance job (${response.status}): ${text.slice(0, 500)}`);
   }
 
-  const prediction = JSON.parse(text) as ReplicatePrediction;
+  let prediction: ReplicatePrediction;
+  try {
+    prediction = JSON.parse(text) as ReplicatePrediction;
+  } catch (error) {
+    throw new ProviderSubmissionUncertainError(
+      "Replicate accepted the request but returned an unreadable confirmation. The attempt is being held for reconciliation.",
+      { cause: error },
+    );
+  }
   if (!prediction.id) {
-    throw new Error("Replicate accepted the request but returned no prediction ID.");
+    throw new ProviderSubmissionUncertainError(
+      "Replicate accepted the request but returned no prediction ID. The attempt is being held for reconciliation.",
+    );
   }
   return prediction;
 }
@@ -131,6 +157,7 @@ export async function createDirectSeedanceProject(input: DirectSeedanceProjectIn
   replicateToken();
 
   const project = await createMovieProjectDraft({
+    projectId: input.projectId,
     creatorName: input.creatorName,
     title: input.title,
     templateId: input.templateId,
@@ -160,8 +187,10 @@ export async function createDirectSeedanceProject(input: DirectSeedanceProjectIn
   };
   await addProject(project);
 
+  let providerAccepted = false;
   try {
     const prediction = await createPrediction(project, identityDataUrl, input.requestOrigin);
+    providerAccepted = true;
     const updated = await updateProject(project.id, (item) => {
       if (item.status === "published" || item.status === "failed") return item;
       return {
@@ -184,6 +213,27 @@ export async function createDirectSeedanceProject(input: DirectSeedanceProjectIn
     });
     return updated ?? project;
   } catch (error) {
+    if (providerAccepted || error instanceof ProviderSubmissionUncertainError) {
+      await updateProject(project.id, (item) => ({
+        ...item,
+        status: "processing",
+        updatedAt: new Date().toISOString(),
+        workerJob: {
+          ...item.workerJob!,
+          status: "queued",
+          progress: item.workerJob?.progress ?? 8,
+          stage: "Confirming Replicate submission",
+          executionMode: "direct-replicate",
+          error: error instanceof Error ? error.message : "Replicate submission needs reconciliation.",
+        },
+      })).catch(() => undefined);
+      throw error instanceof ProviderSubmissionUncertainError
+        ? error
+        : new ProviderSubmissionUncertainError(
+            "Replicate accepted the job, but PulseReel could not save its confirmation. The attempt is being held for reconciliation.",
+            { cause: error },
+          );
+    }
     await updateProject(project.id, (item) => ({
       ...item,
       status: "failed",

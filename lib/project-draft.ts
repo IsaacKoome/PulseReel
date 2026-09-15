@@ -467,6 +467,7 @@ export function buildShotPlan(input: {
 
 export async function createMovieProjectDraft(
   input: Omit<ProjectInput, "videoFile" | "imageFile"> & {
+    projectId?: string;
     sourceVideoUrl: string;
     sourceImageUrl?: string;
     status?: "draft" | "processing" | "published" | "failed";
@@ -479,7 +480,7 @@ export async function createMovieProjectDraft(
   const slugBase = slugify(`${title}-${creatorName}`) || uuid().slice(0, 8);
 
   return {
-    id: uuid(),
+    id: input.projectId ?? uuid(),
     slug: `${slugBase}-${uuid().slice(0, 6)}`,
     creatorName,
     title,

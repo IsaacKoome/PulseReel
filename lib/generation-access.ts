@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import type { HeavyRenderProviderId, RenderMode } from "@/lib/types";
@@ -7,6 +8,7 @@ export type ReservationStatus = "reserved" | "submitted" | "completed" | "failed
 
 export type BetaAccessReason =
   | "available"
+  | "paid_available"
   | "controls_off"
   | "paused"
   | "global_limit_reached"
@@ -25,6 +27,12 @@ export type BetaAccessStatus = {
   totalAttemptCount: number | null;
   remainingAttempts: number | null;
   reservationStatus: ReservationStatus | null;
+  paidAttemptsRemaining: number | null;
+};
+
+export type GenerationReservation = {
+  id: string;
+  kind: "free" | "paid";
 };
 
 export type BetaAdminSnapshot = {
@@ -81,12 +89,14 @@ function accessMessage(reason: BetaAccessReason) {
   switch (reason) {
     case "available":
       return "Your first AI movie is free during the PulseReel beta.";
+    case "paid_available":
+      return "A paid attempt is available for this movie.";
     case "paused":
       return "Free beta generation is temporarily paused while we protect the project budget.";
     case "global_limit_reached":
       return "The current free-beta movie limit has been reached.";
     case "free_generation_used":
-      return "You have used your free beta AI movie. Paid generation is coming soon.";
+      return "You have used your free beta AI movie. Buy a pack to continue generating.";
     case "sign_in_required":
       return "Sign in to claim your free beta AI movie.";
     case "email_verification_required":
@@ -111,6 +121,7 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
       totalAttemptCount: null,
       remainingAttempts: null,
       reservationStatus: null,
+      paidAttemptsRemaining: null,
     };
   }
 
@@ -125,11 +136,12 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
       totalAttemptCount: null,
       remainingAttempts: null,
       reservationStatus: null,
+      paidAttemptsRemaining: null,
     };
   }
 
   const supabase = createSupabaseAdminClient();
-  const [{ data: config, error: configError }, reservationResult, allowanceResult] = await Promise.all([
+  const [{ data: config, error: configError }, reservationResult, allowanceResult, walletResult] = await Promise.all([
     supabase
       .from("pulse_reel_beta_config")
       .select("generation_enabled,total_attempt_limit,total_attempt_count")
@@ -150,6 +162,13 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
           .eq("user_id", user.id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    user
+      ? supabase
+          .from("pulse_reel_paid_wallets")
+          .select("available")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   if (configError || !config) {
@@ -164,6 +183,7 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
       totalAttemptCount: null,
       remainingAttempts: null,
       reservationStatus: null,
+      paidAttemptsRemaining: null,
     };
   }
 
@@ -172,6 +192,9 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   }
   if (allowanceResult.error) {
     console.error("Could not read PulseReel personal beta allowance.", allowanceResult.error);
+  }
+  if (walletResult.error && walletResult.error.code !== "42P01") {
+    console.error("Could not read PulseReel paid-attempt wallet.", walletResult.error);
   }
 
   const totalAttemptLimit = Number(config.total_attempt_limit);
@@ -182,11 +205,13 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   const personalAttemptsRemaining = Math.max(0, personalLimit - personalAttemptCount);
   const reservationStatus = (activeReservations[0]?.status as ReservationStatus | undefined) ?? null;
   const hasUsedFreeGeneration = personalAttemptCount >= personalLimit;
+  const paidAttemptsRemaining = Number(walletResult.data?.available ?? 0);
 
   let reason: BetaAccessReason = "available";
   if (!user) reason = "sign_in_required";
   else if (!user.email_confirmed_at) reason = "email_verification_required";
   else if (!config.generation_enabled) reason = "paused";
+  else if ((hasUsedFreeGeneration || totalAttemptCount >= totalAttemptLimit) && paidAttemptsRemaining > 0) reason = "paid_available";
   else if (totalAttemptCount >= totalAttemptLimit) reason = "global_limit_reached";
   else if (hasUsedFreeGeneration) reason = "free_generation_used";
 
@@ -194,19 +219,22 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   if (reason === "available" && personalLimit > 1) {
     message = `You have ${personalAttemptsRemaining} of ${personalLimit} free beta AI movies available.`;
   } else if (reason === "free_generation_used" && personalLimit > 1) {
-    message = `You have used all ${personalLimit} of your free beta AI movies. Paid generation is coming soon.`;
+    message = `You have used all ${personalLimit} of your free beta AI movies. Buy a pack to continue generating.`;
+  } else if (reason === "paid_available") {
+    message = `You have ${paidAttemptsRemaining} paid ${paidAttemptsRemaining === 1 ? "attempt" : "attempts"} available.`;
   }
 
   return {
     controlsEnabled: true,
     generationEnabled: Boolean(config.generation_enabled),
-    eligible: reason === "available",
+    eligible: reason === "available" || reason === "paid_available",
     reason,
     message,
     totalAttemptLimit,
     totalAttemptCount,
     remainingAttempts: Math.max(0, totalAttemptLimit - totalAttemptCount),
     reservationStatus,
+    paidAttemptsRemaining,
   };
 }
 
@@ -351,6 +379,7 @@ function friendlyReservationError(message: string) {
 export async function reserveManagedGeneration(
   user: User | null,
   provider: string,
+  projectId?: string,
 ) {
   if (!areLaunchControlsEnabled()) {
     return null;
@@ -387,7 +416,47 @@ export async function reserveManagedGeneration(
   });
 
   if (error) {
-    throw friendlyReservationError(error.message);
+    const canUsePaidAttempt =
+      error.message.includes("PULSEREEL_FREE_GENERATION_USED") ||
+      error.message.includes("PULSEREEL_GLOBAL_LIMIT_REACHED");
+    if (!canUsePaidAttempt) {
+      throw friendlyReservationError(error.message);
+    }
+    if (!projectId) {
+      throw new GenerationAccessError(
+        "Paid generation is unavailable for this processing route.",
+        "paid_route_unavailable",
+        503,
+      );
+    }
+
+    const attemptId = randomUUID();
+    const { error: paidError } = await supabase.rpc("pulsereel_reserve_paid_attempt", {
+      p_user_id: user.id,
+      p_attempt_id: attemptId,
+      p_project_id: projectId,
+    });
+    if (paidError) {
+      if (paidError.message.includes("INSUFFICIENT_ATTEMPTS")) {
+        throw new GenerationAccessError(
+          "You have used your free movie and have no paid attempts remaining.",
+          "paid_attempts_required",
+          402,
+        );
+      }
+      throw new GenerationAccessError(
+        "PulseReel could not reserve a paid attempt safely. Please try again later.",
+        "paid_reservation_failed",
+        503,
+      );
+    }
+    await trackBetaEvent({
+      eventType: "paid_generation_reserved",
+      userId: user.id,
+      projectId,
+      metadata: { provider, attemptId },
+    });
+    return { id: attemptId, kind: "paid" } satisfies GenerationReservation;
   }
 
   const reservation = Array.isArray(data) ? data[0] : data;
@@ -400,19 +469,30 @@ export async function reserveManagedGeneration(
     userId: user.id,
     metadata: { provider, reservationId },
   });
-  return reservationId;
+  return { id: reservationId, kind: "free" } satisfies GenerationReservation;
 }
 
 export async function updateGenerationReservation(
-  reservationId: string | null,
+  reservation: GenerationReservation | null,
   status: ReservationStatus,
   projectId?: string,
 ) {
-  if (!reservationId || !areLaunchControlsEnabled()) {
+  if (!reservation || !areLaunchControlsEnabled()) {
     return;
   }
 
   const supabase = createSupabaseAdminClient();
+  if (reservation.kind === "paid") {
+    if (status === "failed") {
+      const { error } = await supabase.rpc("pulsereel_finish_paid_attempt", {
+        p_attempt_id: reservation.id,
+        p_status: "failed",
+      });
+      if (error) console.error("Could not restore PulseReel paid attempt.", error);
+    }
+    return;
+  }
+
   const { data, error } = await supabase
     .from("pulse_reel_generation_reservations")
     .update({
@@ -420,7 +500,7 @@ export async function updateGenerationReservation(
       project_id: projectId ?? null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", reservationId)
+    .eq("id", reservation.id)
     .select("user_id,project_id,provider")
     .maybeSingle();
 
@@ -434,7 +514,7 @@ export async function updateGenerationReservation(
       eventType: `generation_${status}`,
       userId: data.user_id,
       projectId: data.project_id,
-      metadata: { provider: data.provider, reservationId },
+      metadata: { provider: data.provider, reservationId: reservation.id },
     });
   }
 }
@@ -446,13 +526,20 @@ export async function syncGenerationReservationForProject(
   if (!areLaunchControlsEnabled() || !isSupabaseAdminConfigured()) return;
 
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
+  const [{ data, error }, { data: paidAttempt, error: paidLookupError }] = await Promise.all([
+    supabase
     .from("pulse_reel_generation_reservations")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("project_id", projectId)
     .in("status", ["reserved", "submitted"])
     .select("id,user_id,provider")
-    .maybeSingle();
+    .maybeSingle(),
+    supabase
+      .from("pulse_reel_paid_attempts")
+      .select("id,user_id")
+      .eq("project_id", projectId)
+      .maybeSingle(),
+  ]);
 
   if (error) {
     console.error("Could not reconcile PulseReel generation reservation.", error);
@@ -464,6 +551,26 @@ export async function syncGenerationReservationForProject(
       userId: data.user_id,
       projectId,
       metadata: { provider: data.provider, reservationId: data.id },
+    });
+  }
+  if (paidLookupError) {
+    console.error("Could not locate PulseReel paid attempt for reconciliation.", paidLookupError);
+    return;
+  }
+  if (paidAttempt) {
+    const { error: finishError } = await supabase.rpc("pulsereel_finish_paid_attempt", {
+      p_attempt_id: paidAttempt.id,
+      p_status: status,
+    });
+    if (finishError) {
+      console.error("Could not reconcile PulseReel paid attempt.", finishError);
+      return;
+    }
+    await trackBetaEvent({
+      eventType: `paid_generation_${status}`,
+      userId: paidAttempt.user_id,
+      projectId,
+      metadata: { attemptId: paidAttempt.id },
     });
   }
 }

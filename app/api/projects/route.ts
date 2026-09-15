@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { del, head } from "@vercel/blob";
 import { z } from "zod";
 import { createHeavyProject, enqueueHeavyGeneration } from "@/lib/heavy-worker";
@@ -9,6 +10,7 @@ import { addProject, getProjectById } from "@/lib/store";
 import { createProjectDeleteCredential } from "@/lib/project-ownership";
 import {
   GenerationAccessError,
+  type GenerationReservation,
   isManagedGeneration,
   reserveManagedGeneration,
   syncGenerationReservationForProject,
@@ -17,7 +19,11 @@ import {
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getCurrentUser } from "@/lib/auth/user";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
-import { createDirectSeedanceProject, DIRECT_SEEDANCE_PROVIDER } from "@/lib/replicate-direct";
+import {
+  createDirectSeedanceProject,
+  DIRECT_SEEDANCE_PROVIDER,
+  ProviderSubmissionUncertainError,
+} from "@/lib/replicate-direct";
 import type { HeavyRenderProviderId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -101,7 +107,7 @@ function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string
 }
 
 export async function POST(request: Request) {
-  let generationReservationId: string | null = null;
+  let generationReservation: GenerationReservation | null = null;
   let directVideoBlobUrl: string | null = null;
   let retainDirectVideoBlob = false;
 
@@ -199,6 +205,7 @@ export async function POST(request: Request) {
       isVercelRuntime() &&
       parsed.data.renderMode !== "seedance-2-fast" &&
       requestedHeavyProvider === DIRECT_SEEDANCE_PROVIDER;
+    const directProjectId = useDirectSeedance ? randomUUID() : undefined;
 
     if (
       isVercelRuntime() &&
@@ -225,7 +232,7 @@ export async function POST(request: Request) {
         parsed.data.renderMode === "seedance-2-fast"
           ? "seedance-2-fast"
           : requestedHeavyProvider;
-      generationReservationId = await reserveManagedGeneration(user, provider);
+      generationReservation = await reserveManagedGeneration(user, provider, directProjectId);
     }
 
     if (parsed.data.renderMode === "seedance-2-fast") {
@@ -249,7 +256,7 @@ export async function POST(request: Request) {
       project.deleteTokenHash = deleteCredential.tokenHash;
 
       await addProject(project);
-      await updateGenerationReservation(generationReservationId, "submitted", project.id);
+      await updateGenerationReservation(generationReservation, "submitted", project.id);
       if (project.status === "published" || project.status === "failed") {
         await syncGenerationReservationForProject(
           project.id,
@@ -279,6 +286,7 @@ export async function POST(request: Request) {
         ? directVideoBlobUrl
         : (await saveSourceAssets(video as File)).sourceVideoUrl;
       const project = await createDirectSeedanceProject({
+        projectId: directProjectId,
         creatorName: parsed.data.creatorName,
         title: parsed.data.title,
         templateId: parsed.data.templateId,
@@ -296,7 +304,7 @@ export async function POST(request: Request) {
         requestOrigin: new URL(request.url).origin,
       });
       retainDirectVideoBlob = Boolean(directVideoBlobUrl);
-      await updateGenerationReservation(generationReservationId, "submitted", project.id);
+      await updateGenerationReservation(generationReservation, "submitted", project.id);
 
       return NextResponse.json({
         slug: project.slug,
@@ -340,7 +348,7 @@ export async function POST(request: Request) {
       }
 
       finalProject = (await getProjectById(project.id)) ?? finalProject;
-      await updateGenerationReservation(generationReservationId, "submitted", finalProject.id);
+      await updateGenerationReservation(generationReservation, "submitted", finalProject.id);
       if (finalProject.status === "published" || finalProject.status === "failed") {
         await syncGenerationReservationForProject(
           finalProject.id,
@@ -369,7 +377,7 @@ export async function POST(request: Request) {
     project.deleteTokenHash = deleteCredential.tokenHash;
 
     await addProject(project);
-    await updateGenerationReservation(generationReservationId, "submitted", project.id);
+    await updateGenerationReservation(generationReservation, "submitted", project.id);
     if (project.status === "published" || project.status === "failed") {
       await syncGenerationReservationForProject(
         project.id,
@@ -384,12 +392,23 @@ export async function POST(request: Request) {
       deleteToken: deleteCredential.token,
     });
   } catch (error) {
-    await updateGenerationReservation(generationReservationId, "failed");
+    const paidSubmissionNeedsReconciliation =
+      generationReservation?.kind === "paid" && error instanceof ProviderSubmissionUncertainError;
+    if (!paidSubmissionNeedsReconciliation) {
+      await updateGenerationReservation(generationReservation, "failed");
+    }
 
     if (error instanceof GenerationAccessError) {
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: error.status },
+      );
+    }
+
+    if (error instanceof ProviderSubmissionUncertainError) {
+      return NextResponse.json(
+        { error: error.message, code: "provider_submission_uncertain" },
+        { status: 503 },
       );
     }
 

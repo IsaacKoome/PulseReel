@@ -16,7 +16,9 @@ export default async function BillingPage() {
   return (
     <main style={{ maxWidth: 760, margin: "64px auto", padding: 24 }}>
       <Link className="button-secondary" href="/">Back to home</Link>
-      <p className="eyebrow" style={{ marginTop: 40 }}>PulseReel credits · Coming soon</p>
+      <p className="eyebrow" style={{ marginTop: 40 }}>
+        PulseReel credits · {ready ? "Live payments" : "Coming soon"}
+      </p>
       <h1>{LAUNCH_PACK.attempts} video attempts</h1>
       <p style={{ fontSize: "2rem", fontWeight: 700, marginBottom: 8 }}>
         Approximately US${LAUNCH_PACK.approximateUsd}

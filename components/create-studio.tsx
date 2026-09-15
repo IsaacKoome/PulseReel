@@ -522,7 +522,7 @@ export function CreateStudio({
 
     if (usesManagedProvider && betaAccess.controlsEnabled) {
       setIsSubmitting(true);
-      setStatus({ tone: "idle", message: "Checking your free beta movie..." });
+      setStatus({ tone: "idle", message: "Checking your available generation attempts..." });
       try {
         const eligibilityResponse = await fetch("/api/beta/status", { cache: "no-store" });
         const eligibility = (await eligibilityResponse.json()) as BetaAccessStatus;
@@ -530,17 +530,22 @@ export function CreateStudio({
         if (!eligibilityResponse.ok || !eligibility.eligible) {
           throw new Error(eligibility.message || "This generation is not currently available.");
         }
-        // The reservation is created at the start of the server request. Reflect it
-        // immediately so the beta counter does not remain stale while generation waits.
+        const usesPaidAttempt = eligibility.reason === "paid_available";
         setBetaAccess({
           ...eligibility,
           eligible: false,
-          reason: "free_generation_used",
-          message: "Your free beta AI movie is being created.",
-          totalAttemptCount:
-            eligibility.totalAttemptCount === null ? null : eligibility.totalAttemptCount + 1,
-          remainingAttempts:
-            eligibility.remainingAttempts === null ? null : Math.max(0, eligibility.remainingAttempts - 1),
+          message: usesPaidAttempt
+            ? "Your paid attempt is being reserved for this movie."
+            : "Your free beta AI movie is being created.",
+          paidAttemptsRemaining: usesPaidAttempt
+            ? Math.max(0, (eligibility.paidAttemptsRemaining ?? 0) - 1)
+            : eligibility.paidAttemptsRemaining,
+          totalAttemptCount: usesPaidAttempt || eligibility.totalAttemptCount === null
+            ? eligibility.totalAttemptCount
+            : eligibility.totalAttemptCount + 1,
+          remainingAttempts: usesPaidAttempt || eligibility.remainingAttempts === null
+            ? eligibility.remainingAttempts
+            : Math.max(0, eligibility.remainingAttempts - 1),
           reservationStatus: "reserved",
         });
       } catch (error) {
@@ -876,8 +881,14 @@ export function CreateStudio({
 
         {betaAccess.controlsEnabled && modelChoice !== "local-heavy-v1" ? (
           <div className={`beta-access-card ${betaAccess.eligible ? "available" : "unavailable"}`}>
-            <strong>{betaAccess.eligible ? "Your first AI movie is free" : "Free beta status"}</strong>
+            <strong>{betaAccess.reason === "paid_available" ? "Paid attempts" : betaAccess.eligible ? "Your first AI movie is free" : "Generation status"}</strong>
             <span>{betaAccess.message}</span>
+            {betaAccess.paidAttemptsRemaining !== null && betaAccess.paidAttemptsRemaining > 0 ? (
+              <small>{betaAccess.paidAttemptsRemaining} paid {betaAccess.paidAttemptsRemaining === 1 ? "attempt" : "attempts"} available.</small>
+            ) : null}
+            {!betaAccess.eligible && betaAccess.reason === "free_generation_used" ? (
+              <a className="button-secondary" href="/billing">Buy generation attempts</a>
+            ) : null}
             {betaAccess.remainingAttempts !== null ? (
               <small>{betaAccess.remainingAttempts} of {betaAccess.totalAttemptLimit} beta attempts remain.</small>
             ) : null}
