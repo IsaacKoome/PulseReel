@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { LAUNCH_PACK, launchPackPrice } from "@/lib/billing-pack";
 import { getCurrentUser } from "@/lib/auth/user";
-import { isLiveCheckoutReady, paidAttemptBalance } from "@/lib/paystack-live";
+import {
+  isLiveCheckoutReady,
+  paidAttemptBalance,
+  paidOrderHistory,
+  type PaidOrderSummary,
+} from "@/lib/paystack-live";
 import BillingCheckout from "./checkout";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +14,16 @@ export const dynamic = "force-dynamic";
 export default async function BillingPage() {
   const user = await getCurrentUser();
   let attempts = 0;
+  let orders: PaidOrderSummary[] = [];
   if (user?.email_confirmed_at) {
-    try { attempts = await paidAttemptBalance(user.id); } catch { /* Migration or storage unavailable. */ }
+    try {
+      [attempts, orders] = await Promise.all([
+        paidAttemptBalance(user.id),
+        paidOrderHistory(user.id),
+      ]);
+    } catch {
+      /* Migration or storage unavailable. */
+    }
   }
   const ready = Boolean(user?.email_confirmed_at && isLiveCheckoutReady());
   return (
@@ -32,7 +45,12 @@ export default async function BillingPage() {
           <li>Technical generation failures return the attempt automatically once confirmed.</li>
           <li>AI results can vary. Exact likeness and a particular creative result are not guaranteed.</li>
         </ul>
-        <BillingCheckout signedIn={Boolean(user?.email_confirmed_at)} ready={ready} initialAttempts={attempts} />
+        <BillingCheckout
+          signedIn={Boolean(user?.email_confirmed_at)}
+          ready={ready}
+          initialAttempts={attempts}
+          initialOrders={orders}
+        />
       </section>
       <p>Sandbox credits are for testing only and are separate from paid attempts.</p>
       <p><Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy</Link></p>

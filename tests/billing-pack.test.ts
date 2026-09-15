@@ -21,3 +21,24 @@ test("billing remains disabled and displays the actual checkout currency", () =>
   assert.match(checkout, /Purchases coming soon/);
   assert.match(checkout, /disabled=\{!ready \|\| busy\}/);
 });
+
+test("billing exposes customer history and safe payment rechecks", () => {
+  const checkout = readFileSync(new URL("../app/billing/checkout.tsx", import.meta.url), "utf8");
+  const billing = readFileSync(new URL("../lib/paystack-live.ts", import.meta.url), "utf8");
+  assert.match(checkout, /Billing activity/);
+  assert.match(checkout, /Recheck payment/);
+  assert.match(checkout, /Not completed/);
+  assert.match(billing, /paidOrderHistory/);
+  assert.match(billing, /transaction\.status !== "success"/);
+  assert.match(billing, /matchesLiveOrder\(transaction, order\)/);
+});
+
+test("admin billing operations surface stale reservations without guessing refunds", () => {
+  const admin = readFileSync(new URL("../app/admin/billing/page.tsx", import.meta.url), "utf8");
+  const actions = readFileSync(new URL("../app/admin/billing/actions.ts", import.meta.url), "utf8");
+  assert.match(admin, /staleReservations/);
+  assert.match(admin, /Private payment operations/);
+  assert.match(actions, /verifyLivePayment/);
+  assert.match(actions, /reconcileDirectReplicateProject/);
+  assert.match(actions, /provider has not supplied a final state yet/);
+});

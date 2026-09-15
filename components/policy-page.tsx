@@ -5,11 +5,13 @@ export function PolicyPage({
   eyebrow,
   title,
   intro,
+  updated = "August 19, 2026",
   children,
 }: {
   eyebrow: string;
   title: string;
   intro: string;
+  updated?: string;
   children: ReactNode;
 }) {
   return (
@@ -22,7 +24,7 @@ export function PolicyPage({
         <p className="eyebrow-copy">{eyebrow}</p>
         <h1>{title}</h1>
         <p className="policy-intro">{intro}</p>
-        <p className="policy-updated">Last updated: August 19, 2026</p>
+        <p className="policy-updated">Last updated: {updated}</p>
         <div className="policy-content">{children}</div>
       </article>
       <SiteFooter />

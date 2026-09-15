@@ -17,33 +17,27 @@
   orders, attempt reservations and audit ledger. It does not touch beta or test tables.
 - Grant, reserve and confirmed-failure restore functions are transactional and service-role-only.
   Row locks serialize wallet spending; repeated terminal events do not restore again.
+- Paid balances now participate in hosted-generation eligibility after the free allowance is used.
+  A paid attempt is bound to the project before Replicate submission and reconciled only from a
+  confirmed provider outcome. Ambiguous submissions remain reserved for review.
+- Customer billing activity shows paid and incomplete orders and supports a server-verified recheck.
+- `/admin/billing` provides private order, reservation and ledger visibility, highlights reservations
+  older than 30 minutes, and exposes guarded Paystack/project reconciliation actions.
+- Live checkout initialization is limited per verified account, and live billing/webhook failures
+  produce structured Vercel logs without exposing secrets to the customer.
 
-## Database step
+## Database step — completed by the owner
 
 Review and apply the complete migration in Supabase SQL Editor for PulseReel.
 It must succeed as one transaction. Never paste Paystack keys into SQL.
-This migration has not been executed against the hosted database by the coding agent.
+The owner applied the migration and the rollback-only smoke test successfully in Supabase.
 
-## Remaining before paid launch (do not turn on live keys yet)
+## Remaining launch verification
 
-1. Exercise the SQL functions on a test database: duplicate grant; concurrent reservations
-   from a one-attempt wallet; duplicate failure restore; completed-then-failed event;
-   rollback on mismatched attempts; anonymous/authenticated access rejection.
-2. Add rate limiting to the implemented live order initialize/verify endpoints. They already
-   require verified-user auth, enforce same-origin writes, use the fixed server pack, verify
-   the live domain, and use a separate live key. New purchases remain behind the default-off
-   `PULSEREEL_PAYSTACK_LIVE_ENABLED` flag; existing-order verification remains available.
-3. The separate live webhook route verifies the raw-body signature and then reverifies the
-   reference, amount, currency, customer and live domain before calling the grant function.
-   Configure it in Paystack only after approval; never grant from browser callback data alone.
-4. Connect paid generation before provider submission: persist project and reservation
-   first, use stable idempotency identifiers, enforce provider/settings and spending caps.
-   Do not refund ambiguous provider timeouts; reconcile them to a confirmed final status.
-   Do not allow retries of a finished reservation to launch a new provider job for free.
-5. Add balance/history and purchase return UI. Test purchase-to-generation end to end,
-   including provider success before webhook delivery, failed delivery, and concurrency.
-6. Review refund/support terms and chargeback handling, obtain Paystack approval, confirm
-   international-card enablement and payout account. Owner then authorizes a small live test.
+1. Complete one owner-authorized KES 675 live purchase and confirm exactly five attempts appear.
+2. Generate one movie from the paid balance and confirm the balance decreases exactly once.
+3. Confirm successful generation remains deducted and a confirmed provider failure restores once.
+4. Confirm the live order, purchase ledger entry and attempt appear correctly in `/admin/billing`.
+5. Review Vercel logs after the live test and confirm Paystack delivered the live webhook.
 
-Neither the disabled pricing page nor the SQL migration makes live billing launch-ready.
 Test credits remain isolated and cannot purchase actual generation.

@@ -36,6 +36,9 @@ export function AccountNav({
         <a className="button-secondary account-nav-link" href="/billing/test">
           Paystack Test
         </a>
+        <a className="button-secondary account-nav-link" href="/admin/billing">
+          Billing Admin
+        </a>
         </>
       ) : null}
       <a className="button-secondary account-nav-link" href="/movies">

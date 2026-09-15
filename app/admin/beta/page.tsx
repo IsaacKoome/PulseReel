@@ -51,6 +51,9 @@ export default async function BetaAdminPage() {
           <Link className="button-secondary" href="/movies">
             My Movies
           </Link>
+          <Link className="button-secondary" href="/admin/billing">
+            Billing Admin
+          </Link>
         </div>
       </header>
 

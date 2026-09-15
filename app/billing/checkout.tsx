@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { PaidOrderSummary } from "@/lib/paystack-live";
 
 export default function BillingCheckout({
   signedIn,
   ready,
   initialAttempts,
+  initialOrders,
 }: {
   signedIn: boolean;
   ready: boolean;
   initialAttempts: number;
+  initialOrders: PaidOrderSummary[];
 }) {
   const [attempts, setAttempts] = useState(initialAttempts);
+  const [orders, setOrders] = useState(initialOrders);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const verifiedReference = useRef<string | null>(null);
@@ -30,7 +34,10 @@ export default function BillingCheckout({
       if (action === "initialize") window.location.assign(data.url);
       else {
         setAttempts(data.attempts);
-        setMessage("Payment verified. Your attempts are ready.");
+        setOrders((current) => current.map((order) =>
+          order.reference === reference ? { ...order, paid: true } : order,
+        ));
+        setMessage("Payment verified. Your five attempts are ready to use.");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Billing request failed.");
@@ -40,7 +47,8 @@ export default function BillingCheckout({
   }
 
   useEffect(() => {
-    const reference = new URLSearchParams(window.location.search).get("reference");
+    const parameters = new URLSearchParams(window.location.search);
+    const reference = parameters.get("reference") ?? parameters.get("trxref");
     if (!reference || verifiedReference.current === reference) return;
     verifiedReference.current = reference;
     void run("verify", reference);
@@ -74,6 +82,48 @@ export default function BillingCheckout({
           : "Payments are not open yet. No money can be charged from this page."}
       </p>
       <p role="status">{message}</p>
+      {signedIn ? (
+        <section style={{ marginTop: 28 }} aria-labelledby="billing-history-heading">
+          <h3 id="billing-history-heading">Billing activity</h3>
+          {orders.length ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Date</th><th>Pack</th><th>Amount</th><th>Status</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => (
+                    <tr key={order.reference}>
+                      <td>{new Date(order.createdAt).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })}</td>
+                      <td>{order.attempts} attempts</td>
+                      <td>{order.currency} {(order.amount / 100).toLocaleString("en-KE")}</td>
+                      <td>
+                        <span className={`reservation-status ${order.paid ? "completed" : "reserved"}`}>
+                          {order.paid ? "Paid" : "Not completed"}
+                        </span>
+                      </td>
+                      <td>
+                        {order.paid ? "—" : (
+                          <button
+                            className="button-secondary"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void run("verify", order.reference)}
+                          >
+                            Recheck payment
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p>No purchases yet.</p>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -17,7 +17,8 @@ export async function POST(request: Request) {
       await verifyLivePayment(event.data.reference);
     }
     return NextResponse.json({ received: true });
-  } catch {
+  } catch (error) {
+    console.error("PulseReel live Paystack webhook failed.", error);
     return new NextResponse("Webhook processing unavailable; retry", { status: 503 });
   }
 }

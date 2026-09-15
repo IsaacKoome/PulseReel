@@ -11,6 +11,7 @@ export default function TermsPage() {
       eyebrow="Beta terms"
       title="Create responsibly."
       intro="PulseReel is an early identity-first movie-generation beta. These terms are intentionally written in plain language."
+      updated="September 15, 2026"
     >
       <section>
         <h2>Your permission</h2>
@@ -42,6 +43,27 @@ export default function TermsPage() {
           Models, durations, audio, generation limits, and availability may change. A generation can fail
           because of provider limits or invalid input. PulseReel may pause generation to control spending,
           protect users, or maintain the service.
+        </p>
+      </section>
+      <section>
+        <h2>Paid attempts</h2>
+        <p>
+          A paid pack adds the number of generation attempts displayed at checkout. One attempt is
+          reserved when PulseReel accepts a generation request for submission to its AI provider.
+          Creating a new variation uses another attempt. A confirmed technical generation failure
+          restores the reserved attempt automatically. Differences in style, likeness, or creative
+          outcome are limitations of AI output and are not technical failures.
+        </p>
+      </section>
+      <section>
+        <h2>Payment problems and refunds</h2>
+        <p>
+          If you are charged but attempts do not appear, contact PulseReel support with the Paystack
+          reference shown in your billing activity. Duplicate or incorrect charges and other refund
+          requests will be reviewed using the payment and attempt ledger. Approved monetary refunds
+          are returned through the original payment channel where supported. Chargebacks or reversed
+          payments may result in unused attempts from that purchase being removed. Nothing here limits
+          rights that cannot legally be excluded.
         </p>
       </section>
       <section>
