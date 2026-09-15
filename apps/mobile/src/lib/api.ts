@@ -1,4 +1,6 @@
 import type { GenerationAccess, MovieProject } from "@/types";
+import { fetch } from "expo/fetch";
+import { File } from "expo-file-system";
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || "https://pulse-reel.vercel.app").replace(/\/$/, "");
 
@@ -51,12 +53,8 @@ export async function setMovieVisibility(
 
 type LocalAsset = { uri: string; mimeType?: string | null; fileName?: string | null };
 
-function nativeUpload(asset: LocalAsset, fallbackName: string, fallbackType: string) {
-  return {
-    uri: asset.uri,
-    name: asset.fileName || fallbackName,
-    type: asset.mimeType || fallbackType,
-  } as unknown as Blob;
+function nativeUpload(asset: LocalAsset) {
+  return new File(asset.uri);
 }
 
 export async function createMovie(input: {
@@ -66,8 +64,8 @@ export async function createMovie(input: {
   token: string;
 }) {
   const form = new FormData();
-  form.append("video", nativeUpload(input.clip, "pulsereel-clip.mp4", "video/mp4"));
-  form.append("selfie", nativeUpload(input.identity, "pulsereel-identity.jpg", "image/jpeg"));
+  form.append("video", nativeUpload(input.clip));
+  form.append("selfie", nativeUpload(input.identity));
   form.append("quickPrompt", input.prompt);
   form.append("templateId", "identity-cinematic");
   form.append("cameraMode", "cinematic");

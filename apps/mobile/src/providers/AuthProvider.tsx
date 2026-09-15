@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 import * as WebBrowser from "expo-web-browser";
@@ -12,6 +12,7 @@ type AuthValue = {
   configured: boolean;
   session: Session | null;
   user: User | null;
+  completeOAuthCode: (code: string) => Promise<Session>;
   signInWithGoogle: () => Promise<Session | null>;
   signOut: () => Promise<void>;
 };
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const oauthExchange = useRef<{ code: string; promise: Promise<Session> } | null>(null);
 
   useEffect(() => {
     const client = supabase;
@@ -51,6 +53,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const completeOAuthCode = useCallback((code: string) => {
+    if (!supabase) {
+      throw new Error("Add the Supabase public URL and publishable key to the mobile .env file first.");
+    }
+
+    if (oauthExchange.current?.code === code) {
+      return oauthExchange.current.promise;
+    }
+
+    const promise = supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+      if (error) throw error;
+      setSession(data.session);
+      return data.session;
+    });
+    oauthExchange.current = { code, promise };
+    return promise;
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) {
       throw new Error("Add the Supabase public URL and publishable key to the mobile .env file first.");
@@ -69,11 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const code = new URL(result.url).searchParams.get("code");
     if (!code) throw new Error("Google sign-in returned without an authorization code.");
-    const exchanged = await supabase.auth.exchangeCodeForSession(code);
-    if (exchanged.error) throw exchanged.error;
-    setSession(exchanged.data.session);
-    return exchanged.data.session;
-  }, []);
+    return completeOAuthCode(code);
+  }, [completeOAuthCode]);
 
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
@@ -86,10 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       configured: isSupabaseReady,
       session,
       user: session?.user ?? null,
+      completeOAuthCode,
       signInWithGoogle,
       signOut,
     }),
-    [ready, session, signInWithGoogle, signOut],
+    [ready, session, completeOAuthCode, signInWithGoogle, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
