@@ -108,6 +108,11 @@ export default function ProfileScreen() {
   const fullName = String(user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator");
   const initial = fullName.trim().charAt(0).toUpperCase();
   const paid = access?.paidAttemptsRemaining ?? 0;
+  const needsAttempts = Boolean(
+    access
+    && !access.eligible
+    && (access.reason === "free_generation_used" || access.reason === "global_limit_reached"),
+  );
 
   return (
     <View style={styles.screen}>
@@ -138,6 +143,12 @@ export default function ProfileScreen() {
           <View style={styles.attemptIcon}><Ionicons name="sparkles" size={22} color={colors.orange} /></View>
         </View>
         {access?.message ? <Text style={styles.accessMessage}>{access.message}</Text> : null}
+        {needsAttempts ? (
+          <Pressable style={styles.attemptButton} onPress={() => router.push("/billing")}>
+            <Ionicons name="card-outline" size={19} color={colors.black} />
+            <Text style={styles.attemptButtonText}>Get 5 attempts</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>Your movies</Text>
@@ -185,6 +196,8 @@ const styles = StyleSheet.create({
   attemptCount: { color: colors.ivory, fontSize: 44, fontWeight: "900", marginTop: 4 },
   attemptIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,122,26,0.12)", alignItems: "center", justifyContent: "center" },
   accessMessage: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  attemptButton: { marginTop: 14, height: 50, borderRadius: 25, backgroundColor: colors.orange, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
+  attemptButtonText: { color: colors.black, fontSize: 15, fontWeight: "900" },
   sectionRow: { marginTop: 32, marginBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionTitle: { color: colors.ivory, fontSize: 22, fontWeight: "900" },
   createText: { color: colors.orangeSoft, fontSize: 14, fontWeight: "800" },

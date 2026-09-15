@@ -13,14 +13,23 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { createMovie } from "@/lib/api";
+import { createMovie, getGenerationAccess, PulseReelApiError } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
 
-type Asset = { uri: string; mimeType?: string | null; fileName?: string | null };
+const MAX_UPLOADED_VIDEO_BYTES = 50_000_000;
+
+type Asset = {
+  uri: string;
+  mimeType?: string | null;
+  fileName?: string | null;
+  fileSize?: number;
+  uploadDirectly?: boolean;
+};
 type Stage = "capture" | "identity" | "describe" | "making";
 
 function ClipPreview({ uri }: { uri: string }) {
@@ -87,7 +96,7 @@ export default function CreateScreen() {
     try {
       const movie = await camera.current.recordAsync({ maxDuration: 10, maxFileSize: 2_800_000 });
       if (!movie?.uri) return;
-      setClip({ uri: movie.uri, mimeType: "video/mp4", fileName: "clip.mp4" });
+      setClip({ uri: movie.uri, mimeType: "video/mp4", fileName: "clip.mp4", uploadDirectly: false });
       setIdentity(null);
       setStage("identity");
     } catch (caught) {
@@ -105,22 +114,24 @@ export default function CreateScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["videos"],
-      allowsEditing: true,
-      quality: 0.6,
-      videoMaxDuration: 10,
+      allowsEditing: false,
+      quality: 1,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
     if (!asset) return;
-    if (asset.duration && asset.duration > 10_500) {
-      Alert.alert("Keep it short", "Choose a clip that is ten seconds or shorter.");
+    const fileSize = asset.fileSize ?? new File(asset.uri).size;
+    if (fileSize > MAX_UPLOADED_VIDEO_BYTES) {
+      Alert.alert("Clip is too large", "Choose an uploaded video no larger than 50 MB.");
       return;
     }
-    if (asset.fileSize && asset.fileSize > 3_000_000) {
-      Alert.alert("Clip is too large", "For this first build, choose a ten-second clip smaller than 3 MB.");
-      return;
-    }
-    setClip({ uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName });
+    setClip({
+      uri: asset.uri,
+      mimeType: asset.mimeType,
+      fileName: asset.fileName,
+      fileSize,
+      uploadDirectly: true,
+    });
     setIdentity(null);
     setStage("identity");
   }
@@ -147,14 +158,32 @@ export default function CreateScreen() {
         setStage("describe");
         return;
       }
+      const access = await getGenerationAccess(activeSession.access_token);
+      if (
+        !access.eligible
+        && (access.reason === "free_generation_used" || access.reason === "global_limit_reached")
+      ) {
+        setStage("describe");
+        router.push("/billing");
+        return;
+      }
       const result = await createMovie({
         clip,
         identity,
         prompt: prompt.trim(),
         token: activeSession.access_token,
+        ownerId: activeSession.user.id,
       });
       router.replace({ pathname: "/movie/[slug]", params: { slug: result.slug, fresh: "1" } });
     } catch (caught) {
+      if (
+        caught instanceof PulseReelApiError
+        && (caught.code === "paid_attempts_required" || caught.code === "free_generation_used")
+      ) {
+        setStage("describe");
+        router.push("/billing");
+        return;
+      }
       setError(caught instanceof Error ? caught.message : "Your movie could not be started.");
       setStage("describe");
     }
@@ -206,13 +235,14 @@ export default function CreateScreen() {
           <View style={styles.cameraScrim} />
           <View style={[styles.captureCopy, { top: insets.top + 70 }]}>
             <Text style={styles.eyebrow}>CAST YOURSELF</Text>
-            <Text style={styles.captureTitle}>Give us ten seconds.</Text>
-            <Text style={styles.captureBody}>Look toward the camera. Move naturally. Your clip stays private unless you publish the finished movie.</Text>
+            <Text style={styles.captureTitle}>Record ten seconds.</Text>
+            <Text style={styles.captureBody}>Look toward the camera and move naturally, or upload any video up to 50 MB. Your clip stays private unless you publish.</Text>
           </View>
           <View style={[styles.captureControls, { bottom: insets.bottom + 32 }]}>
             <Pressable style={styles.upload} onPress={pickVideo} disabled={recording}>
               <Ionicons name="images-outline" size={24} color={colors.ivory} />
               <Text style={styles.uploadText}>Upload</Text>
+              <Text style={styles.uploadLimit}>≤ 50 MB</Text>
             </Pressable>
             <Pressable style={[styles.recordOuter, recording && styles.recordingOuter]} onPress={record}>
               <View style={[styles.recordInner, recording && styles.recordingInner]} />
@@ -313,6 +343,7 @@ const styles = StyleSheet.create({
   captureControls: { position: "absolute", left: 28, right: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   upload: { width: 68, alignItems: "center", gap: 5 },
   uploadText: { color: colors.ivory, fontSize: 12, fontWeight: "700" },
+  uploadLimit: { color: colors.muted, fontSize: 9, fontWeight: "700" },
   timerSlot: { width: 68, alignItems: "center" },
   timer: { color: colors.ivory, fontSize: 13, fontWeight: "800" },
   recordOuter: { width: 78, height: 78, borderRadius: 39, borderWidth: 4, borderColor: colors.ivory, alignItems: "center", justifyContent: "center" },

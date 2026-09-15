@@ -31,3 +31,14 @@ export type GenerationAccess = {
   paidAttemptsRemaining?: number | null;
   remainingAttempts?: number | null;
 };
+
+export type BillingStatus = {
+  attempts: number;
+  ready: boolean;
+  offer: {
+    attempts: number;
+    amount: number;
+    currency: string;
+    approximateUsd: number;
+  };
+};

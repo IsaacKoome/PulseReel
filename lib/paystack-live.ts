@@ -177,7 +177,11 @@ export async function getBillingAdminSnapshot(): Promise<BillingAdminSnapshot> {
   };
 }
 
-export async function initializeLivePayment(userId: string, email: string) {
+export async function initializeLivePayment(
+  userId: string,
+  email: string,
+  callbackPath: "/billing" | "/billing/mobile-return" = "/billing",
+) {
   if (!areLivePurchasesEnabled()) throw new Error("Live purchases are disabled.");
   liveKey();
   const reference = `pr-live-${randomUUID()}`;
@@ -213,7 +217,7 @@ export async function initializeLivePayment(userId: string, email: string) {
     email,
     amount: LAUNCH_PACK.amount,
     currency: LAUNCH_PACK.currency,
-    callback_url: `${origin}/billing`,
+    callback_url: `${origin}${callbackPath}`,
     metadata: { product: "pulsereel", pack: LAUNCH_PACK.id },
   });
   const url = new URL(String(data.authorization_url ?? ""));

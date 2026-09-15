@@ -33,6 +33,18 @@ test("billing exposes customer history and safe payment rechecks", () => {
   assert.match(billing, /matchesLiveOrder\(transaction, order\)/);
 });
 
+test("mobile billing uses bearer auth and a safe app return page", () => {
+  const route = readFileSync(new URL("../app/api/billing/route.ts", import.meta.url), "utf8");
+  const billing = readFileSync(new URL("../lib/paystack-live.ts", import.meta.url), "utf8");
+  const mobileReturn = readFileSync(new URL("../app/billing/mobile-return/page.tsx", import.meta.url), "utf8");
+
+  assert.match(route, /getRequestUser\(request\)/);
+  assert.match(route, /body\.client === "mobile"/);
+  assert.match(billing, /"\/billing\/mobile-return"/);
+  assert.match(mobileReturn, /verifyLivePayment\(reference\)/);
+  assert.match(mobileReturn, /pulsereel:\/\/billing/);
+});
+
 test("admin billing operations surface stale reservations without guessing refunds", () => {
   const admin = readFileSync(new URL("../app/admin/billing/page.tsx", import.meta.url), "utf8");
   const actions = readFileSync(new URL("../app/admin/billing/actions.ts", import.meta.url), "utf8");
