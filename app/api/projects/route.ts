@@ -6,7 +6,7 @@ import { createHeavyProject, enqueueHeavyGeneration } from "@/lib/heavy-worker";
 import { saveSourceAssets, saveSourceFile } from "@/lib/project-draft";
 import { isVercelRuntime } from "@/lib/runtime-storage";
 import { createSeedanceProject } from "@/lib/seedance-provider";
-import { addProject, getProjectById } from "@/lib/store";
+import { addProject, getProjectById, getProjects } from "@/lib/store";
 import { createProjectDeleteCredential } from "@/lib/project-ownership";
 import {
   GenerationAccessError,
@@ -17,7 +17,7 @@ import {
   updateGenerationReservation,
 } from "@/lib/generation-access";
 import { isAuthEnabled } from "@/lib/auth/config";
-import { getCurrentUser } from "@/lib/auth/user";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
 import {
   createDirectSeedanceProject,
@@ -106,13 +106,48 @@ function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string
   return publicProject;
 }
 
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const scope = url.searchParams.get("scope") === "mine" ? "mine" : "feed";
+    const requestedLimit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 50)
+      : 20;
+    const user = scope === "mine" ? await getRequestUser(request) : null;
+
+    if (scope === "mine" && !user) {
+      return NextResponse.json({ error: "Sign in to see your movies." }, { status: 401 });
+    }
+
+    const projects = (await getProjects())
+      .filter((project) =>
+        scope === "mine"
+          ? project.ownerId === user?.id
+          : project.visibility === "public" && project.status === "published",
+      )
+      .slice(0, limit)
+      .map(projectForClient);
+
+    return NextResponse.json(
+      { projects },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Movies could not be loaded." },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   let generationReservation: GenerationReservation | null = null;
   let directVideoBlobUrl: string | null = null;
   let retainDirectVideoBlob = false;
 
   try {
-    const user = await getCurrentUser();
+    const user = await getRequestUser(request);
     if (isAuthEnabled() && !user) {
       return NextResponse.json(
         { error: "Sign in before creating a movie." },

@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "PulseReel",
+    "slug": "pulsereel",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "pulsereel",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#050505",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.pulsereel.app"
+    },
+    "android": {
+      "package": "com.pulsereel.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "PulseReel uses your camera to record the clip you choose for your movie.",
+          "microphonePermission": "PulseReel uses your microphone to include your voice in the clip you record.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PulseReel lets you choose a video you want to turn into a movie."
+        }
+      ]
+    ]
+  }
+}
