@@ -137,11 +137,20 @@ export default async function BetaAdminPage() {
             </p>
           </div>
         </div>
+        {snapshot.remainingAttempts === 0 ? (
+          <div className="admin-warning" role="alert">
+            <strong>Personal allowances are currently blocked by the shared cap.</strong>
+            <span>
+              The individual balances below are saved, but nobody can use a free attempt until
+              the Total attempt limit is raised above {snapshot.totalAttemptCount}.
+            </span>
+          </div>
+        ) : null}
         {betaUsers.length ? (
           <div className="admin-table-wrap">
             <table className="admin-table admin-user-limits-table">
               <thead>
-                <tr><th>User</th><th>Used</th><th>Remaining</th><th>Personal limit</th><th>Last sign-in</th></tr>
+                <tr><th>User</th><th>Used</th><th>Personal remaining</th><th>Personal limit</th><th>Last sign-in</th></tr>
               </thead>
               <tbody>
                 {betaUsers.map((betaUser) => (

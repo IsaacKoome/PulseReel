@@ -94,7 +94,7 @@ function accessMessage(reason: BetaAccessReason) {
     case "paused":
       return "Free beta generation is temporarily paused while we protect the project budget.";
     case "global_limit_reached":
-      return "The current free-beta movie limit has been reached.";
+      return "Your personal free allowance is saved, but the shared free-beta generation cap has been reached. An admin must raise the total attempt limit before free generation can resume.";
     case "free_generation_used":
       return "You have used your free beta AI movie. Buy a pack to continue generating.";
     case "sign_in_required":

@@ -159,12 +159,14 @@ export default function CreateScreen() {
         return;
       }
       const access = await getGenerationAccess(activeSession.access_token);
-      if (
-        !access.eligible
-        && (access.reason === "free_generation_used" || access.reason === "global_limit_reached")
-      ) {
+      if (!access.eligible && access.reason === "free_generation_used") {
         setStage("describe");
         router.push("/billing");
+        return;
+      }
+      if (!access.eligible && access.reason === "global_limit_reached") {
+        setError(access.message || "The shared free-beta generation cap has been reached.");
+        setStage("describe");
         return;
       }
       const result = await createMovie({
