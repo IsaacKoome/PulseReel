@@ -1,8 +1,24 @@
-import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { colors } from "@/theme";
+
+function ActiveVideo({ videoUrl }: { videoUrl: string }) {
+  const player = useVideoPlayer(videoUrl, (instance) => {
+    instance.loop = true;
+    instance.muted = false;
+    instance.play();
+  });
+
+  return (
+    <VideoView
+      style={StyleSheet.absoluteFill}
+      player={player}
+      nativeControls={false}
+      contentFit="cover"
+    />
+  );
+}
 
 export function MoviePlayer({
   videoUrl,
@@ -13,19 +29,8 @@ export function MoviePlayer({
   posterUrl?: string;
   active?: boolean;
 }) {
-  const player = useVideoPlayer(videoUrl || null, (instance) => {
-    instance.loop = true;
-    instance.muted = false;
-  });
-
-  useEffect(() => {
-    if (!videoUrl) return;
-    if (active) player.play();
-    else player.pause();
-  }, [active, player, videoUrl]);
-
-  if (videoUrl) {
-    return <VideoView style={StyleSheet.absoluteFill} player={player} nativeControls={false} contentFit="cover" />;
+  if (videoUrl && active) {
+    return <ActiveVideo videoUrl={videoUrl} />;
   }
 
   if (posterUrl) {

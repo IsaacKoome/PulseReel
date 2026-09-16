@@ -12,7 +12,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MoviePlayer } from "@/components/MoviePlayer";
 import { PulseDock } from "@/components/PulseDock";
@@ -85,6 +85,14 @@ export default function WatchScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focused, setFocused] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -129,10 +137,14 @@ export default function WatchScreen() {
           data={visibleProjects}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
-            <MovieCard project={item} active={index === activeIndex} height={contentHeight} />
+            <MovieCard project={item} active={focused && index === activeIndex} height={contentHeight} />
           )}
           pagingEnabled
           showsVerticalScrollIndicator={false}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+          removeClippedSubviews
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={{ itemVisiblePercentThreshold: 72 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.orange} />}
