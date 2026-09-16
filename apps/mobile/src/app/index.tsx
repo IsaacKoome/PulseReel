@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +18,14 @@ import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MoviePlayer } from "@/components/MoviePlayer";
 import { PulseDock } from "@/components/PulseDock";
-import { getMovies } from "@/lib/api";
+import {
+  API_URL,
+  getMovies,
+  recordMovieShare,
+  setCreatorFollow,
+  setMovieLike,
+} from "@/lib/api";
+import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
 import type { MovieProject } from "@/types";
 
@@ -25,18 +34,44 @@ function compactCount(value = 0) {
   return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)}k`;
 }
 
-function RailButton({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+function RailButton({
+  icon,
+  label,
+  active = false,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
   return (
-    <Pressable style={styles.railButton}>
-      <View style={styles.railIcon}>
-        <Ionicons name={icon} size={24} color={colors.ivory} />
+    <Pressable style={styles.railButton} onPress={onPress}>
+      <View style={[styles.railIcon, active && styles.railIconActive]}>
+        <Ionicons name={icon} size={24} color={active ? colors.orange : colors.ivory} />
       </View>
       <Text style={styles.railLabel}>{label}</Text>
     </Pressable>
   );
 }
 
-function MovieCard({ project, active, height }: { project: MovieProject; active: boolean; height: number }) {
+function MovieCard({
+  project,
+  active,
+  height,
+  onLike,
+  onTalk,
+  onShare,
+  onFollow,
+}: {
+  project: MovieProject;
+  active: boolean;
+  height: number;
+  onLike: () => void;
+  onTalk: () => void;
+  onShare: () => void;
+  onFollow: () => void;
+}) {
   return (
     <View style={[styles.card, { height }]}>
       <MoviePlayer
@@ -48,13 +83,35 @@ function MovieCard({ project, active, height }: { project: MovieProject; active:
       <View style={styles.scrimBottom} />
 
       <View style={styles.rail}>
-        <RailButton icon="heart-outline" label={compactCount(project.metrics?.likes)} />
-        <RailButton icon="chatbubble-outline" label="Talk" />
-        <RailButton icon="paper-plane-outline" label={compactCount(project.metrics?.shares)} />
+        <RailButton
+          icon={project.viewer?.liked ? "heart" : "heart-outline"}
+          label={compactCount(project.metrics?.likes)}
+          active={project.viewer?.liked}
+          onPress={onLike}
+        />
+        <RailButton
+          icon="chatbubble-outline"
+          label={project.metrics?.comments ? compactCount(project.metrics.comments) : "Talk"}
+          onPress={onTalk}
+        />
+        <RailButton
+          icon="paper-plane-outline"
+          label={compactCount(project.metrics?.shares)}
+          onPress={onShare}
+        />
       </View>
 
       <View style={styles.story}>
-        <Text style={styles.creator}>@{project.creatorName.replace(/\s+/g, "").toLowerCase()}</Text>
+        <View style={styles.creatorRow}>
+          <Text style={styles.creator}>@{project.creatorName.replace(/\s+/g, "").toLowerCase()}</Text>
+          {project.creatorId && !project.viewer?.owns ? (
+            <Pressable style={styles.followButton} onPress={onFollow}>
+              <Text style={[styles.followText, project.viewer?.following && styles.followingText]}>
+                {project.viewer?.following ? "Following" : "Follow"}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
         <Text style={styles.title}>{project.title}</Text>
         <Text style={styles.premise} numberOfLines={2}>{project.caption || project.premise}</Text>
         <View style={styles.genreRow}>
@@ -77,6 +134,7 @@ function MovieCard({ project, active, height }: { project: MovieProject; active:
 export default function WatchScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  const { ready, session, signInWithGoogle } = useAuth();
   const [tab, setTab] = useState<"following" | "for-you">("for-you");
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
@@ -87,19 +145,22 @@ export default function WatchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      setFocused(true);
-      return () => setFocused(false);
-    }, []),
-  );
-
   const load = useCallback(async (refresh = false) => {
+    if (!ready) return;
     if (refresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const data = await getMovies("feed");
+      if (tab === "following" && !session?.access_token) {
+        setProjects([]);
+        setError(null);
+        return;
+      }
+      const data = await getMovies(
+        tab === "following" ? "following" : "feed",
+        session?.access_token,
+      );
       setProjects(data.projects);
+      setActiveIndex(0);
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The feed could not load.");
@@ -107,11 +168,102 @@ export default function WatchScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [ready, session?.access_token, tab]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      void load();
+      return () => setFocused(false);
+    }, [load]),
+  );
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (tab === "following") setQuery("");
+  }, [tab]);
+
+  async function signedInToken() {
+    if (session?.access_token) return session.access_token;
+    const activeSession = await signInWithGoogle();
+    return activeSession?.access_token ?? null;
+  }
+
+  function updateProject(projectId: string, updater: (project: MovieProject) => MovieProject) {
+    setProjects((current) => current.map((project) => (
+      project.id === projectId ? updater(project) : project
+    )));
+  }
+
+  async function like(project: MovieProject) {
+    try {
+      const token = await signedInToken();
+      if (!token) return;
+      const liked = !project.viewer?.liked;
+      updateProject(project.id, (current) => ({
+        ...current,
+        metrics: { ...current.metrics, likes: Math.max(0, current.metrics.likes + (liked ? 1 : -1)) },
+        viewer: { liked, following: Boolean(current.viewer?.following), owns: Boolean(current.viewer?.owns) },
+      }));
+      const saved = await setMovieLike(project.slug, liked, token);
+      updateProject(project.id, (current) => ({
+        ...current,
+        metrics: { ...current.metrics, likes: saved.likes },
+        viewer: { liked: saved.liked, following: Boolean(current.viewer?.following), owns: Boolean(current.viewer?.owns) },
+      }));
+    } catch (caught) {
+      void load(true);
+      Alert.alert("Like not saved", caught instanceof Error ? caught.message : "Please try again.");
+    }
+  }
+
+  async function follow(project: MovieProject) {
+    try {
+      const token = await signedInToken();
+      if (!token) return;
+      const following = !project.viewer?.following;
+      setProjects((current) => current.map((item) => (
+        item.creatorId && item.creatorId === project.creatorId
+          ? {
+              ...item,
+              viewer: {
+                liked: Boolean(item.viewer?.liked),
+                following,
+                owns: Boolean(item.viewer?.owns),
+              },
+            }
+          : item
+      )));
+      await setCreatorFollow(project.slug, following, token);
+      if (!following && tab === "following") {
+        setProjects((current) => current.filter((item) => item.creatorId !== project.creatorId));
+      }
+    } catch (caught) {
+      void load(true);
+      Alert.alert("Follow not saved", caught instanceof Error ? caught.message : "Please try again.");
+    }
+  }
+
+  async function share(project: MovieProject) {
+    try {
+      const result = await Share.share(
+        {
+          title: project.title,
+          message: `${project.title} on PulseReel\n${API_URL}/watch/${encodeURIComponent(project.slug)}`,
+        },
+        { dialogTitle: `Share ${project.title}` },
+      );
+      if (result.action !== Share.sharedAction) return;
+      const saved = await recordMovieShare(project.slug, session?.access_token);
+      if (saved.tracked && typeof saved.shares === "number") {
+        updateProject(project.id, (current) => ({
+          ...current,
+          metrics: { ...current.metrics, shares: saved.shares! },
+        }));
+      }
+    } catch (caught) {
+      Alert.alert("Could not share", caught instanceof Error ? caught.message : "Please try again.");
+    }
+  }
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken<MovieProject>[] }) => {
@@ -132,12 +284,20 @@ export default function WatchScreen() {
 
   return (
     <View style={styles.screen}>
-      {tab === "for-you" && visibleProjects.length > 0 ? (
+      {visibleProjects.length > 0 ? (
         <FlatList
           data={visibleProjects}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
-            <MovieCard project={item} active={focused && index === activeIndex} height={contentHeight} />
+            <MovieCard
+              project={item}
+              active={focused && index === activeIndex}
+              height={contentHeight}
+              onLike={() => void like(item)}
+              onTalk={() => router.push({ pathname: "/comments/[slug]", params: { slug: item.slug, title: item.title } })}
+              onShare={() => void share(item)}
+              onFollow={() => void follow(item)}
+            />
           )}
           pagingEnabled
           showsVerticalScrollIndicator={false}
@@ -162,11 +322,31 @@ export default function WatchScreen() {
                 {tab === "following" ? "The people you follow will appear here." : normalizedQuery ? "Try another story, star, or genre." : "Your first story can start here."}
               </Text>
               <Text style={styles.emptyBody}>
-                {error || (normalizedQuery ? `Nothing in the feed matches “${query.trim()}”.` : "Record ten seconds. Say what happens. PulseReel turns you into the lead.")}
+                {error || (tab === "following"
+                  ? session
+                    ? "Follow creators from For you and their public movies will collect here."
+                    : "Sign in, follow creators you like, and their new movies will collect here."
+                  : normalizedQuery
+                    ? `Nothing in the feed matches “${query.trim()}”.`
+                    : "Record ten seconds. Say what happens. PulseReel turns you into the lead.")}
               </Text>
-              <Pressable style={styles.emptyButton} onPress={() => normalizedQuery ? setQuery("") : router.push("/create")}>
-                <Ionicons name={normalizedQuery ? "close" : "add"} size={22} color={colors.black} />
-                <Text style={styles.emptyButtonText}>{normalizedQuery ? "Clear search" : "Create a movie"}</Text>
+              <Pressable
+                style={styles.emptyButton}
+                onPress={() => {
+                  if (normalizedQuery) setQuery("");
+                  else if (tab === "following" && !session) void signInWithGoogle();
+                  else if (tab === "following") setTab("for-you");
+                  else router.push("/create");
+                }}
+              >
+                <Ionicons
+                  name={normalizedQuery ? "close" : tab === "following" && !session ? "logo-google" : tab === "following" ? "compass-outline" : "add"}
+                  size={22}
+                  color={colors.black}
+                />
+                <Text style={styles.emptyButtonText}>
+                  {normalizedQuery ? "Clear search" : tab === "following" && !session ? "Sign in" : tab === "following" ? "Explore stories" : "Create a movie"}
+                </Text>
               </Pressable>
             </View>
           )}
@@ -226,9 +406,14 @@ const styles = StyleSheet.create({
   rail: { position: "absolute", right: 16, bottom: 188, gap: 16, alignItems: "center" },
   railButton: { alignItems: "center", gap: 3 },
   railIcon: { width: 45, height: 45, borderRadius: 23, backgroundColor: "rgba(0,0,0,0.36)", alignItems: "center", justifyContent: "center" },
+  railIconActive: { backgroundColor: "rgba(255,122,26,0.18)", borderWidth: 1, borderColor: "rgba(255,122,26,0.5)" },
   railLabel: { color: colors.ivory, fontSize: 11, fontWeight: "700" },
   story: { position: "absolute", left: 18, right: 82, bottom: 104, gap: 7 },
+  creatorRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   creator: { color: colors.ivory, fontSize: 14, fontWeight: "800" },
+  followButton: { borderWidth: 1, borderColor: "rgba(255,245,231,0.5)", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "rgba(0,0,0,0.25)" },
+  followText: { color: colors.ivory, fontSize: 11, fontWeight: "900" },
+  followingText: { color: colors.orangeSoft },
   title: { color: colors.ivory, fontSize: 28, fontWeight: "900", letterSpacing: -0.7 },
   premise: { color: colors.ivory, fontSize: 15, lineHeight: 20 },
   genreRow: { flexDirection: "row", alignItems: "center", gap: 6 },

@@ -11,17 +11,31 @@ export type MovieProject = {
   posterUrl?: string;
   processedVideoUrl?: string;
   sourceVideoUrl?: string;
+  creatorId?: string | null;
   createdAt: string;
   metrics: {
     plays: number;
     likes: number;
     shares: number;
+    comments?: number;
+  };
+  viewer?: {
+    liked: boolean;
+    following: boolean;
+    owns: boolean;
   };
   workerJob?: {
     progress: number;
     stage: string;
     error?: string;
   };
+};
+
+export type MovieComment = {
+  id: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
 };
 
 export type GenerationAccess = {

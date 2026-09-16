@@ -9,6 +9,11 @@ import { createSeedanceProject } from "@/lib/seedance-provider";
 import { addProject, getProjectById, getProjects } from "@/lib/store";
 import { createProjectDeleteCredential } from "@/lib/project-ownership";
 import {
+  getFollowedCreatorIds,
+  getProjectSocialSnapshots,
+  type ProjectSocialSnapshot,
+} from "@/lib/social";
+import {
   GenerationAccessError,
   type GenerationReservation,
   isManagedGeneration,
@@ -97,40 +102,75 @@ function autoFillFromPrompt(prompt: string) {
   return { creatorName, title, genre, persona, premise, scenePrompt };
 }
 
-function projectForClient<T extends { deleteTokenHash?: string; ownerId?: string }>(project: T) {
+function projectForClient<
+  T extends {
+    deleteTokenHash?: string;
+    ownerId?: string;
+    metrics?: { plays: number; likes: number; shares: number };
+  },
+>(project: T, social?: ProjectSocialSnapshot) {
   const {
     deleteTokenHash: _deleteTokenHash,
     ownerId: _ownerId,
     ...publicProject
   } = project;
-  return publicProject;
+  return {
+    ...publicProject,
+    creatorId: project.ownerId ?? null,
+    metrics: project.metrics
+      ? {
+          ...project.metrics,
+          likes: project.metrics.likes + (social?.recordedLikes ?? 0),
+          shares: project.metrics.shares + (social?.recordedShares ?? 0),
+          comments: social?.comments ?? 0,
+        }
+      : undefined,
+    viewer: social
+      ? {
+          liked: social.liked,
+          following: social.following,
+          owns: social.owns,
+        }
+      : undefined,
+  };
 }
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const scope = url.searchParams.get("scope") === "mine" ? "mine" : "feed";
+    const requestedScope = url.searchParams.get("scope");
+    const scope = requestedScope === "mine" || requestedScope === "following"
+      ? requestedScope
+      : "feed";
     const requestedLimit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(requestedLimit, 1), 50)
       : 20;
-    const user = scope === "mine" ? await getRequestUser(request) : null;
+    const user = await getRequestUser(request);
 
-    if (scope === "mine" && !user) {
-      return NextResponse.json({ error: "Sign in to see your movies." }, { status: 401 });
+    if ((scope === "mine" || scope === "following") && !user) {
+      return NextResponse.json(
+        { error: scope === "mine" ? "Sign in to see your movies." : "Sign in to see creators you follow." },
+        { status: 401 },
+      );
     }
 
+    const followedCreatorIds = scope === "following" && user
+      ? new Set(await getFollowedCreatorIds(user.id))
+      : null;
     const projects = (await getProjects())
       .filter((project) =>
         scope === "mine"
           ? project.ownerId === user?.id
-          : project.visibility === "public" && project.status === "published",
+          : project.visibility === "public"
+            && project.status === "published"
+            && (scope !== "following" || Boolean(project.ownerId && followedCreatorIds?.has(project.ownerId))),
       )
-      .slice(0, limit)
-      .map(projectForClient);
+      .slice(0, limit);
+    const social = await getProjectSocialSnapshots(projects, user?.id);
 
     return NextResponse.json(
-      { projects },
+      { projects: projects.map((project) => projectForClient(project, social.get(project.id))) },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

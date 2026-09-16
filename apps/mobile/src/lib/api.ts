@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto";
-import type { BillingStatus, GenerationAccess, MovieProject } from "@/types";
+import type { BillingStatus, GenerationAccess, MovieComment, MovieProject } from "@/types";
 import { fetch } from "expo/fetch";
 import { File } from "expo-file-system";
 
@@ -28,11 +28,52 @@ function authHeaders(token?: string | null) {
   return token ? { Authorization: `Bearer ${token}` } : undefined;
 }
 
-export async function getMovies(scope: "feed" | "mine", token?: string | null) {
+export async function getMovies(scope: "feed" | "mine" | "following", token?: string | null) {
   const response = await fetch(`${API_URL}/api/projects?scope=${scope}&limit=30`, {
     headers: authHeaders(token),
   });
   return readJson<{ projects: MovieProject[] }>(response);
+}
+
+export async function setMovieLike(slug: string, liked: boolean, token: string) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/like`, {
+    method: liked ? "POST" : "DELETE",
+    headers: authHeaders(token),
+  });
+  return readJson<{ liked: boolean; likes: number }>(response);
+}
+
+export async function setCreatorFollow(slug: string, following: boolean, token: string) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/follow`, {
+    method: following ? "POST" : "DELETE",
+    headers: authHeaders(token),
+  });
+  return readJson<{ following: boolean }>(response);
+}
+
+export async function getMovieComments(slug: string) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/comments`);
+  return readJson<{ comments: MovieComment[]; count: number }>(response);
+}
+
+export async function postMovieComment(slug: string, body: string, token: string) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/comments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ body }),
+  });
+  return readJson<{ comment: MovieComment }>(response);
+}
+
+export async function recordMovieShare(slug: string, token?: string | null) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/share`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return readJson<{ tracked: boolean; shares?: number }>(response);
 }
 
 export async function getMovie(slug: string) {
