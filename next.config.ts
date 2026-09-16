@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
       "./data/projects.json",
       "./workers/**/*",
       "./tools/**/*",
+      // The hosted app delegates movie rendering to managed/remote providers.
+      // Keep the local-only renderer and its native assets out of every Vercel
+      // Function bundle; they remain installed and available for local runs.
+      "./node_modules/ffmpeg-static/**/*",
+      "./node_modules/@imgly/background-removal-node/**/*",
       "./.codex-pulsereel-rollback*/**/*",
       "./.codex-pulsereel-rollback*.zip",
     ],
