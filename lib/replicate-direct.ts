@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { del, put } from "@vercel/blob";
-import sharp from "sharp";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
+import { portraitIdentityBuffer } from "@/lib/identity-portrait";
 import { createMovieProjectDraft } from "@/lib/project-draft";
 import { addProject, getProjectById, updateProject } from "@/lib/store";
 import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
@@ -76,31 +76,6 @@ function requireBlobStorage() {
 function publicAppOrigin(requestOrigin: string) {
   const configured = process.env.PULSEREEL_PUBLIC_BASE_URL?.trim();
   return (configured || requestOrigin).replace(/\/$/, "");
-}
-
-async function portraitIdentityBuffer(file: File) {
-  const input = Buffer.from(await file.arrayBuffer());
-  const background = await sharp(input)
-    .rotate()
-    .resize(480, 832, { fit: "cover" })
-    .blur(18)
-    .jpeg({ quality: 84 })
-    .toBuffer();
-  const foreground = await sharp(input)
-    .rotate()
-    .resize(480, 832, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .png()
-    .toBuffer();
-
-  const portrait = await sharp(background)
-    .composite([{ input: foreground, gravity: "center" }])
-    .jpeg({ quality: 84 })
-    .toBuffer();
-  if (portrait.byteLength <= 240_000) return portrait;
-  return sharp(portrait).jpeg({ quality: 70 }).toBuffer();
 }
 
 async function createPrediction(project: MovieProject, identityImageUrl: string, requestOrigin: string) {
