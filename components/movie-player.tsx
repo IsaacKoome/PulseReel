@@ -38,7 +38,7 @@ export function MoviePlayer({
   }
 
   async function shareMovie() {
-    const shareData = { title: `${title} · PulseReel`, text: "Watch my PulseReel movie.", url: window.location.href };
+    const shareData = { title: `${title} · MimiReel`, text: "Watch my MimiReel movie.", url: window.location.href };
     try {
       if (navigator.share) {
         await navigator.share(shareData);

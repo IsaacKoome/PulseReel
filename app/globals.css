@@ -72,9 +72,11 @@ select {
 }
 
 .brand-mark {
-  font-size: 1.75rem;
+  color: #ffae78;
+  font-size: 1.05rem;
   font-weight: 900;
-  letter-spacing: 0;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
 }
 
 .create-pill {
@@ -990,6 +992,483 @@ select {
   color: #fca5a5;
 }
 
+/* MimiReel's web studio follows the same quiet, identity-first path as the app. */
+.mimi-studio {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.mimi-studio-intro {
+  padding: 12px 0 30px;
+  text-align: center;
+}
+
+.mimi-kicker {
+  margin: 0 0 12px;
+  color: #ffae78;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+}
+
+.mimi-studio-intro h1 {
+  margin: 0;
+  color: #fffaf3;
+  font-size: clamp(2.35rem, 5vw, 4.25rem);
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 1.04;
+}
+
+.mimi-studio-intro > p:last-child {
+  margin: 14px auto 0;
+  max-width: 600px;
+  color: #bcb7b0;
+  font-size: 1.08rem;
+  line-height: 1.5;
+}
+
+.mimi-studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.mimi-studio-card {
+  min-width: 0;
+  padding: clamp(20px, 2.5vw, 32px);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 30px;
+  background: #151412;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+}
+
+.mimi-step-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.mimi-step-number {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  border-radius: 50%;
+  background: #ff7a1a;
+  color: #14100c;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.mimi-step-heading h2 {
+  margin: 0;
+  color: #fffaf3;
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  letter-spacing: -0.035em;
+  line-height: 1.14;
+}
+
+.mimi-step-heading p {
+  margin: 7px 0 0;
+  color: #bcb7b0;
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.mimi-camera-stage {
+  position: relative;
+  width: min(100%, 300px);
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 24px;
+  background: #090807;
+}
+
+.mimi-camera-stage .camera-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mimi-camera-empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: radial-gradient(circle at 65% 30%, rgba(255, 122, 26, 0.34), transparent 42%), #0b0a09;
+  text-align: center;
+}
+
+.mimi-camera-symbol {
+  display: grid;
+  place-items: center;
+  width: 90px;
+  height: 90px;
+  margin-bottom: 27px;
+  border: 1px solid rgba(255, 122, 26, 0.48);
+  border-radius: 50%;
+  background: rgba(255, 122, 26, 0.13);
+  color: #ff8a37;
+  font-size: 2.1rem;
+  line-height: 1;
+}
+
+.mimi-camera-empty strong {
+  color: #fffaf3;
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.mimi-camera-empty p {
+  margin: 10px 0 0;
+  color: #bcb7b0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.mimi-camera-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fffaf3;
+}
+
+.mimi-record-state {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fffaf3;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.mimi-capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.mimi-capture-actions .button,
+.mimi-upload-button {
+  min-height: 50px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.mimi-upload-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #23211f;
+  color: #fffaf3;
+  cursor: pointer;
+}
+
+.mimi-upload-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.mimi-upload-button.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.mimi-upload-button:focus-within,
+.mimi-choice:focus-within,
+.mimi-advanced summary:focus-visible,
+.mimi-studio button:focus-visible {
+  outline: 2px solid #ffae78;
+  outline-offset: 3px;
+}
+
+.mimi-text-button {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: #bcb7b0;
+  cursor: pointer;
+}
+
+.mimi-selected-clip {
+  overflow: hidden;
+  margin: 17px 0 0;
+  color: #ffae78;
+  font-size: 0.9rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mimi-help-note {
+  margin: 17px auto 0;
+  max-width: 370px;
+  color: #9d9892;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.mimi-field-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #fffaf3;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.mimi-idea-input {
+  width: 100%;
+  min-height: 210px;
+  padding: 20px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  outline: none;
+  background: #0b0b0b;
+  color: #fffaf3;
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+.mimi-idea-input::placeholder {
+  color: #817d78;
+}
+
+.mimi-idea-input:focus {
+  border-color: #ff8a37;
+  box-shadow: 0 0 0 3px rgba(255, 122, 26, 0.15);
+}
+
+.mimi-prompt-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 9px 2px 0;
+  color: #9d9892;
+  font-size: 0.79rem;
+}
+
+.mimi-advanced {
+  margin-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.mimi-advanced summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  color: #fffaf3;
+  cursor: pointer;
+  font-size: 0.93rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.mimi-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.mimi-advanced summary span {
+  color: #9d9892;
+  font-size: 0.77rem;
+  font-weight: 500;
+}
+
+.mimi-advanced summary::after {
+  content: "+";
+  margin-left: auto;
+  color: #ffae78;
+  font-size: 1.35rem;
+}
+
+.mimi-advanced[open] summary::after {
+  content: "−";
+}
+
+.mimi-advanced-body {
+  display: grid;
+  gap: 23px;
+  padding: 10px 0 24px;
+}
+
+.mimi-advanced fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mimi-advanced legend,
+.mimi-extra-photo > span {
+  margin-bottom: 10px;
+  color: #fffaf3;
+  font-size: 0.91rem;
+  font-weight: 800;
+}
+
+.mimi-advanced fieldset > p,
+.mimi-extra-photo > small {
+  margin: 0 0 10px;
+  color: #9d9892;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.mimi-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.mimi-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: #1e1c1a;
+  color: #fffaf3;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.mimi-choice.active {
+  border-color: #ff8a37;
+  background: rgba(255, 122, 26, 0.14);
+}
+
+.mimi-choice.disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.mimi-choice input {
+  position: absolute;
+  opacity: 0;
+}
+
+.mimi-extra-photo {
+  display: grid;
+  gap: 8px;
+}
+
+.mimi-extra-photo > span small {
+  color: #9d9892;
+  font-weight: 500;
+}
+
+.mimi-extra-photo input {
+  max-width: 100%;
+  color: #bcb7b0;
+  font-size: 0.85rem;
+}
+
+.mimi-access {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: #1d1b18;
+}
+
+.mimi-access.available {
+  border-color: rgba(255, 122, 26, 0.35);
+}
+
+.mimi-access strong {
+  color: #fffaf3;
+  font-size: 0.95rem;
+}
+
+.mimi-access p {
+  margin: 6px 0 0;
+  color: #bcb7b0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.mimi-access a {
+  display: inline-block;
+  margin-top: 10px;
+  color: #ffae78;
+  font-weight: 800;
+}
+
+.mimi-status {
+  margin: 16px 0 0;
+  color: #b1e8bb;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mimi-status.error {
+  color: #ffaaa2;
+}
+
+.mimi-make-button {
+  width: 100%;
+  min-height: 62px;
+  margin-top: 24px;
+  background: #ff7a1a;
+  color: #110d09;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.mimi-make-button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.mimi-consent {
+  margin: 13px auto 0;
+  max-width: 460px;
+  color: #9d9892;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.mimi-consent a {
+  color: #ffae78;
+}
+
 .watch-card {
   padding: 18px;
 }
@@ -1456,6 +1935,7 @@ select {
   .hero-grid,
   .studio-layout,
   .studio-simple,
+  .mimi-studio-grid,
   .watch-grid,
   .grid-2,
   .grid-3,
@@ -1512,5 +1992,30 @@ select {
 
   .site-footer nav {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .mimi-studio-intro {
+    padding: 8px 0 24px;
+    text-align: left;
+  }
+
+  .mimi-studio-card {
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .mimi-step-heading {
+    gap: 12px;
+  }
+
+  .mimi-camera-stage {
+    width: min(100%, 260px);
+  }
+
+  .mimi-capture-actions .button,
+  .mimi-upload-button {
+    flex: 1 1 140px;
   }
 }

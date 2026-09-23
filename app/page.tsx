@@ -32,7 +32,7 @@ export default async function HomePage() {
     <main className="app-home shell">
       <header className="app-header">
         <Link className="brand-mark" href="/">
-          PulseReel
+          MimiReel
         </Link>
         <div className="header-actions">
           <AccountNav enabled={authEnabled} user={user} compact isAdmin={isPulseReelAdmin(user)} />

@@ -42,7 +42,7 @@ test("mobile billing uses bearer auth and a safe app return page", () => {
   assert.match(route, /body\.client === "mobile"/);
   assert.match(billing, /"\/billing\/mobile-return"/);
   assert.match(mobileReturn, /verifyLivePayment\(reference\)/);
-  assert.match(mobileReturn, /pulsereel:\/\/billing/);
+  assert.match(mobileReturn, /mimireel:\/\/billing/);
 });
 
 test("admin billing operations surface stale reservations without guessing refunds", () => {

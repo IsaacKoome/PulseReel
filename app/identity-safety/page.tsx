@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Identity Safety | PulseReel",
-  description: "Consent and identity-safety rules for PulseReel movies.",
+  title: "Identity Safety | MimiReel",
+  description: "Consent and identity-safety rules for MimiReel movies.",
 };
 
 export default function IdentitySafetyPage() {
@@ -10,12 +10,12 @@ export default function IdentitySafetyPage() {
     <PolicyPage
       eyebrow="Identity safety"
       title="A face is not just an input."
-      intro="PulseReel is built around personal identity. That makes meaningful consent and careful sharing essential."
+      intro="MimiReel is built around personal identity. That makes meaningful consent and careful sharing essential."
     >
       <section>
         <h2>Use your own identity</h2>
         <p>
-          The safest use of PulseReel is creating a fictional movie starring yourself. If another person is
+          The safest use of MimiReel is creating a fictional movie starring yourself. If another person is
           visible or identifiable, obtain their informed permission before uploading or generating anything.
         </p>
       </section>
@@ -29,14 +29,14 @@ export default function IdentitySafetyPage() {
       <section>
         <h2>Sharing an unlisted movie</h2>
         <p>
-          Unlisted means a movie is omitted from PulseReel&apos;s public feed; it does not make the watch link a
+          Unlisted means a movie is omitted from MimiReel&apos;s public feed; it does not make the watch link a
           secret vault. A recipient can forward or download the movie. Share only with people you trust.
         </p>
       </section>
       <section>
         <h2>Report or remove identity content</h2>
         <p>
-          Account owners can delete their movies from My Movies. If your identity appears in a PulseReel movie
+          Account owners can delete their movies from My Movies. If your identity appears in a MimiReel movie
           without permission, include the watch link in a removal request.
         </p>
         <SupportContact />

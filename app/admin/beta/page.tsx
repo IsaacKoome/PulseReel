@@ -42,7 +42,7 @@ export default async function BetaAdminPage() {
     <main className="admin-shell shell">
       <header className="app-header compact-header">
         <Link className="brand-mark" href="/">
-          PulseReel
+          MimiReel
         </Link>
         <div className="header-actions">
           <Link className="button-secondary" href="/create">

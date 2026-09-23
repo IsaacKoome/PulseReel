@@ -106,7 +106,7 @@ export function RecentMovies({
     return (
       <article className="feed-card glass" style={{ padding: 24 }}>
         <h3>No movies yet</h3>
-        <p className="body-copy">Create the first PulseReel movie.</p>
+        <p className="body-copy">Create the first MimiReel movie.</p>
         <Link className="button" href="/create">
           Start
         </Link>
@@ -121,7 +121,7 @@ export function RecentMovies({
       return;
     }
 
-    const confirmed = window.confirm(`Delete "${project.title}" from PulseReel?`);
+    const confirmed = window.confirm(`Delete "${project.title}" from MimiReel?`);
     if (!confirmed) {
       return;
     }

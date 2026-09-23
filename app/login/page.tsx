@@ -28,7 +28,7 @@ export default async function LoginPage({
   return (
     <main className="auth-shell shell">
       <Link className="brand-mark" href="/">
-        PulseReel
+        MimiReel
       </Link>
       <section className="auth-card glass">
         <span className="eyebrow">Your movies, your account</span>

@@ -57,7 +57,7 @@ export function RecoveredWatchProject({ slug }: { slug: string }) {
 
       <div className="watch-grid">
         <section className="watch-card glass">
-          <p className="eyebrow-copy">PulseReel movie</p>
+          <p className="eyebrow-copy">MimiReel movie</p>
           <h1 className="heading" style={{ marginBottom: 10 }}>{project.title}</h1>
           <p className="subtle">By {project.creatorName}. {project.caption}</p>
 

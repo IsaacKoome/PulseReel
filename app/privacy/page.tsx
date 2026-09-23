@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Privacy | PulseReel",
-  description: "How PulseReel handles account, identity, and movie-generation data.",
+  title: "Privacy | MimiReel",
+  description: "How MimiReel handles account, identity, and movie-generation data.",
 };
 
 export default function PrivacyPage() {
@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <PolicyPage
       eyebrow="Privacy"
       title="Your identity deserves careful handling."
-      intro="This notice explains what PulseReel collects during the beta, why it is needed, and the choices available to you."
+      intro="This notice explains what MimiReel collects during the beta, why it is needed, and the choices available to you."
     >
       <section>
         <h2>Information we handle</h2>
@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Processors and AI providers</h2>
         <p>
-          PulseReel relies on service providers including Supabase for authentication, Vercel for hosting
+          MimiReel relies on service providers including Supabase for authentication, Vercel for hosting
           and storage, and the AI provider selected for generation, such as Replicate. The minimum inputs
           needed to perform a generation may be sent to those providers and handled under their own service terms.
         </p>

@@ -46,7 +46,7 @@ export default async function WatchPage({
 
       <div className="watch-grid">
         <section className="watch-card glass">
-          <p className="eyebrow-copy">PulseReel movie</p>
+          <p className="eyebrow-copy">MimiReel movie</p>
           <h1 className="heading" style={{ marginBottom: 10 }}>
             {project.title}
           </h1>
@@ -145,7 +145,7 @@ export default async function WatchPage({
 
         <section className="watch-card glass">
           <div className="poster-card poster-fallback">
-            <span>PulseReel Original</span>
+            <span>MimiReel Original</span>
             <strong>{project.title}</strong>
             <p>Identity-first AI movie</p>
           </div>

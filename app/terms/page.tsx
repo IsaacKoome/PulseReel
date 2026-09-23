@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Terms | PulseReel",
-  description: "Terms for using the PulseReel beta.",
+  title: "Terms | MimiReel",
+  description: "Terms for using the MimiReel beta.",
 };
 
 export default function TermsPage() {
@@ -10,7 +10,7 @@ export default function TermsPage() {
     <PolicyPage
       eyebrow="Beta terms"
       title="Create responsibly."
-      intro="PulseReel is an early identity-first movie-generation beta. These terms are intentionally written in plain language."
+      intro="MimiReel is an early identity-first movie-generation beta. These terms are intentionally written in plain language."
       updated="September 15, 2026"
     >
       <section>
@@ -24,7 +24,7 @@ export default function TermsPage() {
       <section>
         <h2>Prohibited use</h2>
         <p>
-          Do not use PulseReel for impersonation, fraud, harassment, non-consensual intimate content,
+          Do not use MimiReel for impersonation, fraud, harassment, non-consensual intimate content,
           deceptive political material, exploitation of minors, illegal activity, or infringement of
           another person&apos;s privacy, publicity, or intellectual-property rights.
         </p>
@@ -41,7 +41,7 @@ export default function TermsPage() {
         <h2>Beta availability and costs</h2>
         <p>
           Models, durations, audio, generation limits, and availability may change. A generation can fail
-          because of provider limits or invalid input. PulseReel may pause generation to control spending,
+          because of provider limits or invalid input. MimiReel may pause generation to control spending,
           protect users, or maintain the service.
         </p>
       </section>
@@ -49,7 +49,7 @@ export default function TermsPage() {
         <h2>Paid attempts</h2>
         <p>
           A paid pack adds the number of generation attempts displayed at checkout. One attempt is
-          reserved when PulseReel accepts a generation request for submission to its AI provider.
+          reserved when MimiReel accepts a generation request for submission to its AI provider.
           Creating a new variation uses another attempt. A confirmed technical generation failure
           restores the reserved attempt automatically. Differences in style, likeness, or creative
           outcome are limitations of AI output and are not technical failures.
@@ -58,7 +58,7 @@ export default function TermsPage() {
       <section>
         <h2>Payment problems and refunds</h2>
         <p>
-          If you are charged but attempts do not appear, contact PulseReel support with the Paystack
+          If you are charged but attempts do not appear, contact MimiReel support with the Paystack
           reference shown in your billing activity. Duplicate or incorrect charges and other refund
           requests will be reviewed using the payment and attempt ledger. Approved monetary refunds
           are returned through the original payment channel where supported. Chargebacks or reversed
@@ -69,7 +69,7 @@ export default function TermsPage() {
       <section>
         <h2>Processing permission</h2>
         <p>
-          You keep your rights in your uploads. You give PulseReel and its service providers the limited
+          You keep your rights in your uploads. You give MimiReel and its service providers the limited
           permission needed to store, transform, transmit, and process those materials to operate the service
           and produce the movie you requested.
         </p>

@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Delete My Data | PulseReel",
-  description: "How to delete a PulseReel movie or request account deletion.",
+  title: "Delete My Data | MimiReel",
+  description: "How to delete a MimiReel movie or request account deletion.",
 };
 
 export default function DataDeletionPage() {
@@ -24,7 +24,7 @@ export default function DataDeletionPage() {
         <h2>Request account deletion</h2>
         <p>
           Send a deletion request from the same email address used to sign in. Include the words
-          &quot;Delete my PulseReel account&quot;. We may ask you to confirm ownership before removing account-linked
+          &quot;Delete my MimiReel account&quot;. We may ask you to confirm ownership before removing account-linked
           project records and requesting deletion from applicable service providers.
         </p>
         <SupportContact />

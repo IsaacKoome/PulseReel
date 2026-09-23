@@ -36,7 +36,7 @@ export default async function MyMoviesPage() {
     <main className="app-home shell">
       <header className="app-header">
         <Link className="brand-mark" href="/">
-          PulseReel
+          MimiReel
         </Link>
         <AccountNav enabled={enabled} user={user} isAdmin={isPulseReelAdmin(user)} />
       </header>

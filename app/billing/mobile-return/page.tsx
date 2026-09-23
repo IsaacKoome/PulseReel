@@ -23,15 +23,15 @@ export default async function MobileBillingReturn({
 
   return (
     <main style={{ maxWidth: 620, margin: "80px auto", padding: 24, textAlign: "center" }}>
-      <p className="eyebrow">PULSEREEL CREDITS</p>
+      <p className="eyebrow">MIMIREEL CREDITS</p>
       <h1>{confirmed ? "Your attempts are ready." : "Payment submitted."}</h1>
       <p>
         {confirmed
-          ? "Return to PulseReel and start your next movie."
-          : "Return to PulseReel and check again in a moment while Paystack confirms the payment."}
+          ? "Return to MimiReel and start your next movie."
+          : "Return to MimiReel and check again in a moment while Paystack confirms the payment."}
       </p>
       <p style={{ marginTop: 28 }}>
-        <a className="button" href="pulsereel://billing">Return to PulseReel</a>
+        <a className="button" href="mimireel://billing">Return to MimiReel</a>
       </p>
     </main>
   );

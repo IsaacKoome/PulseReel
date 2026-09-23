@@ -45,3 +45,14 @@ test("mobile source uploads use short-lived signed URLs capped at 50 MB", () => 
   assert.doesNotMatch(creator, /videoMaxDuration/);
   assert.match(creator, /maxDuration: 10/);
 });
+
+test("web studio keeps creation to a clip and scene, with opt-in camera and optional settings", () => {
+  const studio = readFileSync(new URL("../components/create-studio.tsx", import.meta.url), "utf8");
+
+  assert.match(studio, /<h2 id="clip-heading">Your clip<\/h2>/);
+  assert.match(studio, /<h2 id="story-heading">Your scene<\/h2>/);
+  assert.match(studio, /<details className="mimi-advanced">/);
+  assert.match(studio, /onClick=\{\(\) => void startCamera\(\)\}/);
+  assert.doesNotMatch(studio, /void startCamera\(\);\s*return \(\) =>/);
+  assert.match(studio, /setProjectVideo\(formData, finalVideo/);
+});

@@ -17,7 +17,7 @@ export function PolicyPage({
   return (
     <main className="policy-shell shell">
       <header className="policy-header">
-        <a className="brand-mark" href="/">PulseReel</a>
+        <a className="brand-mark" href="/">MimiReel</a>
         <a className="button-secondary" href="/">Home</a>
       </header>
       <article className="policy-card glass">
@@ -38,7 +38,7 @@ export function SupportContact() {
   if (!supportEmail) {
     return (
       <p>
-        During the private beta, use the PulseReel support address displayed on the Google sign-in
+        During the private beta, use the MimiReel support address displayed on the Google sign-in
         consent screen. A dedicated public support address will be added before the open beta.
       </p>
     );

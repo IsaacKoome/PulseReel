@@ -31,7 +31,7 @@ const cameraVideoConstraints: MediaTrackConstraints = {
 
 function cleanStudioError(message: string) {
   if (/<!doctype html|<html|cloudflare|bad gateway|5xx-error-landing/i.test(message)) {
-    return "Remote worker is offline or unreachable. Start the PulseReel worker on your PC, confirm the worker health URL opens, then try again.";
+    return "Movie generation is temporarily unavailable. Please try again shortly.";
   }
 
   return message;
@@ -53,7 +53,7 @@ async function extractIdentityFrameFromVideo(videoFile: File) {
 
       video.onerror = () => {
         window.clearTimeout(timeout);
-        reject(new Error("PulseReel could not read this clip to preserve your identity."));
+        reject(new Error("MimiReel could not read this clip to preserve your identity."));
       };
       video.onloadeddata = () => {
         const duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -85,18 +85,18 @@ async function extractIdentityFrameFromVideo(videoFile: File) {
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) {
-      throw new Error("PulseReel could not prepare the creator identity frame.");
+      throw new Error("MimiReel could not prepare the creator identity frame.");
     }
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (value) => value ? resolve(value) : reject(new Error("PulseReel could not encode the identity frame.")),
+        (value) => value ? resolve(value) : reject(new Error("MimiReel could not encode the identity frame.")),
         "image/jpeg",
         0.88,
       );
     });
-    return new File([blob], "pulsereel-video-identity.jpg", { type: "image/jpeg" });
+    return new File([blob], "mimireel-video-identity.jpg", { type: "image/jpeg" });
   } finally {
     video.removeAttribute("src");
     video.load();
@@ -114,6 +114,8 @@ export function CreateStudio({
   uploadOwnerId?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mountedRef = useRef(true);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const canvasPreviewRef = useRef<HTMLCanvasElement | null>(null);
   const cameraRetryRef = useRef<number | null>(null);
   const trackFramePendingRef = useRef(false);
@@ -123,7 +125,6 @@ export function CreateStudio({
   const [recordedVideo, setRecordedVideo] = useState<File | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [modelChoice, setModelChoice] = useState<ModelChoice>(FREE_BETA_MANAGED_PROVIDER);
   const [cameraMode, setCameraMode] = useState<CameraMode>("cinematic");
   const [quickPrompt, setQuickPrompt] = useState("");
@@ -194,7 +195,7 @@ export function CreateStudio({
     }
 
     const draw = () => {
-      if (!streamRef.current || previewUrl || selfieUrl) {
+      if (!streamRef.current || previewUrl) {
         return;
       }
 
@@ -277,45 +278,10 @@ export function CreateStudio({
 
   function setVideoElement(element: HTMLVideoElement | null) {
     videoRef.current = element;
-    if (element && streamRef.current && isCameraActive && !previewUrl && !selfieUrl) {
+    if (element && streamRef.current && isCameraActive && !previewUrl) {
       void attachStreamToPreview(streamRef.current, element);
     }
   }
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: cameraVideoConstraints,
-          audio: false,
-        });
-        if (!isMounted) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        setIsCameraActive(true);
-        setIsPreviewReady(false);
-        setUseCanvasPreview(false);
-        await attachStreamToPreview(stream);
-      } catch {
-        setIsCameraActive(false);
-        setStatus({
-          tone: "error",
-          message: "Camera access was blocked. You can still upload a video manually below.",
-        });
-      }
-    }
-
-    void startCamera();
-
-    return () => {
-      isMounted = false;
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-    };
-  }, []);
 
   async function startCamera() {
     try {
@@ -323,12 +289,21 @@ export function CreateStudio({
         video: cameraVideoConstraints,
         audio: false,
       });
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+      setPreviewUrl(null);
+      setRecordedVideo(null);
+      setSelfieFile(null);
       streamRef.current = stream;
       setIsCameraActive(true);
       setIsPreviewReady(false);
       setUseCanvasPreview(false);
       await attachStreamToPreview(stream);
-      setStatus({ tone: "success", message: "Camera is live. Recording only happens when you press record." });
+      setStatus({ tone: "success", message: "Camera is ready. Recording starts only when you press Record." });
     } catch {
       setIsCameraActive(false);
       setStatus({
@@ -339,12 +314,12 @@ export function CreateStudio({
   }
 
   useEffect(() => {
-    if (!isCameraActive || previewUrl || selfieUrl || !streamRef.current) {
+    if (!isCameraActive || previewUrl || !streamRef.current) {
       return;
     }
 
     void attachStreamToPreview(streamRef.current);
-  }, [isCameraActive, previewUrl, selfieUrl]);
+  }, [isCameraActive, previewUrl]);
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -366,14 +341,37 @@ export function CreateStudio({
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
-      if (selfieUrl) {
-        URL.revokeObjectURL(selfieUrl);
-      }
-      if (cameraRetryRef.current) {
-        window.cancelAnimationFrame(cameraRetryRef.current);
-      }
     };
-  }, [previewUrl, selfieUrl]);
+  }, [previewUrl]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (cameraRetryRef.current) window.cancelAnimationFrame(cameraRetryRef.current);
+    };
+  }, []);
+
+  function chooseVideo(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const maxBytes = directVideoUploadEnabled && uploadOwnerId ? 50_000_000 : 3_500_000;
+    if (file.size > maxBytes) {
+      event.target.value = "";
+      setStatus({
+        tone: "error",
+        message: `Choose a clip under ${maxBytes === 50_000_000 ? "50 MB" : "3.5 MB"}.`,
+      });
+      return;
+    }
+    stopCamera();
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setRecordedVideo(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setSelfieFile(null);
+    setStatus({ tone: "success", message: "Clip selected. Add one scene idea to continue." });
+  }
 
   function startRecording() {
     if (!streamRef.current) {
@@ -398,7 +396,7 @@ export function CreateStudio({
     };
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "video/webm" });
-      const file = new File([blob], "pulsereel-recording.webm", { type: blob.type });
+      const file = new File([blob], "mimireel-recording.webm", { type: blob.type });
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
@@ -431,40 +429,11 @@ export function CreateStudio({
     setIsRecording(false);
   }
 
-  function captureSelfie() {
-    if (!videoRef.current || !isCameraActive) {
-      setStatus({ tone: "error", message: "Turn the camera on first if you want to capture a selfie." });
-      return;
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth || 720;
-    canvas.height = videoRef.current.videoHeight || 1280;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], "pulsereel-identity.jpg", { type: "image/jpeg" });
-      if (selfieUrl) {
-        URL.revokeObjectURL(selfieUrl);
-      }
-      setSelfieFile(file);
-      setSelfieUrl(URL.createObjectURL(file));
-      setStatus({
-        tone: "success",
-        message: "Identity selfie captured. PulseReel will use this clear frame to preserve your face.",
-      });
-    }, "image/jpeg", 0.9);
-  }
-
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const uploadInput = form.elements.namedItem("videoUpload") as HTMLInputElement | null;
-    const uploaded = uploadInput?.files?.[0];
-    const finalVideo = recordedVideo ?? uploaded ?? null;
+    const finalVideo = recordedVideo;
 
     if (!finalVideo) {
       setStatus({
@@ -478,7 +447,7 @@ export function CreateStudio({
     if (finalVideo.size > 50_000_000) {
       setStatus({
         tone: "error",
-        message: "That clip is larger than the current 50 MB PulseReel upload limit.",
+        message: "That clip is larger than the current 50 MB MimiReel upload limit.",
       });
       return;
     }
@@ -513,7 +482,7 @@ export function CreateStudio({
       } catch (error) {
         setStatus({
           tone: "error",
-          message: error instanceof Error ? error.message : "PulseReel could not prepare your identity frame.",
+          message: error instanceof Error ? error.message : "MimiReel could not prepare your identity frame.",
         });
         setIsSubmitting(false);
         return;
@@ -647,23 +616,27 @@ export function CreateStudio({
   }
 
   return (
-    <form className="studio-simple" onSubmit={onSubmit}>
-      <section className="studio-card glass capture-panel">
-        <div className="studio-section-title">
-          <span>1</span>
-          <h2>Your clip</h2>
-        </div>
-        <p className="capture-guidance">
-          PulseReel uses a clear frame from this clip as the movie&apos;s identity anchor. Face the camera in even light,
-          keep your full face visible, and hold still briefly. An Identity selfie gives the model an even stronger reference.
-        </p>
-        <div className="camera-shell">
-          <div className="camera-stage">
+    <form className="mimi-studio" onSubmit={onSubmit}>
+      <div className="mimi-studio-intro">
+        <p className="mimi-kicker">CAST YOURSELF</p>
+        <h1>Your story starts with you.</h1>
+        <p>Bring one short clip and one scene idea. MimiReel will make the movie.</p>
+      </div>
+
+      <div className="mimi-studio-grid">
+        <section className="mimi-studio-card" aria-labelledby="clip-heading">
+          <div className="mimi-step-heading">
+            <span className="mimi-step-number">01</span>
+            <div>
+              <h2 id="clip-heading">Your clip</h2>
+              <p>Record ten seconds or choose a video from your device.</p>
+            </div>
+          </div>
+
+          <div className="mimi-camera-stage">
             {previewUrl ? (
-              <video className="camera-video camera-playback" src={previewUrl} controls playsInline />
-            ) : selfieUrl ? (
-              <img alt="Captured selfie preview" src={selfieUrl} />
-            ) : (
+              <video className="camera-video camera-playback" src={previewUrl} controls playsInline aria-label="Your selected clip" />
+            ) : isCameraActive ? (
               <>
                 <video
                   className="camera-video camera-live"
@@ -676,252 +649,137 @@ export function CreateStudio({
                 <canvas
                   className="camera-video camera-live"
                   ref={canvasPreviewRef}
-                  style={{
-                    display: useCanvasPreview ? "block" : "none",
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
+                  style={{ display: useCanvasPreview ? "block" : "none" }}
                 />
+                {!isPreviewReady ? <p className="mimi-camera-loading">Starting camera…</p> : null}
               </>
+            ) : (
+              <div className="mimi-camera-empty">
+                <span className="mimi-camera-symbol" aria-hidden="true">▶</span>
+                <strong>Step into the scene.</strong>
+                <p>Face the camera briefly in even light so your movie can look like you.</p>
+              </div>
             )}
-            {isCameraActive && !previewUrl && !selfieUrl && !isPreviewReady ? (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "grid",
-                  placeItems: "center",
-                  background: "rgba(2, 6, 23, 0.16)",
-                  color: "rgba(244, 239, 230, 0.84)",
-                  pointerEvents: "none",
-                  fontSize: "0.95rem",
-                }}
-              >
-                Starting camera preview...
-              </div>
-            ) : null}
-            {isRecording ? (
-              <div className="record-badge">
-                <span className="dot" />
-                Recording
-              </div>
-            ) : isCameraActive && !previewUrl ? (
-              <div className="record-badge">
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 999,
-                    background: "#67e8f9",
-                    boxShadow: "0 0 18px rgba(103, 232, 249, 0.7)",
-                  }}
-                />
-                Camera live, not recording
-              </div>
-            ) : null}
+            {isRecording ? <span className="mimi-record-state"><span className="dot" /> Recording</span> : null}
           </div>
 
-          <div className="toolbar">
-            {!isRecording ? (
-              <button className="button" type="button" onClick={startRecording}>
-                Record 10s
-              </button>
-            ) : (
-              <button className="button-secondary" type="button" onClick={stopRecording}>
-                Stop
-              </button>
-            )}
+          <div className="mimi-capture-actions">
             {isCameraActive ? (
-              <button className="button-secondary" type="button" onClick={stopCamera}>
-                Camera Off
-              </button>
+              isRecording ? (
+                <button className="button" type="button" onClick={stopRecording}>Finish recording</button>
+              ) : (
+                <button className="button" type="button" onClick={startRecording}>Record 10s</button>
+              )
             ) : (
-              <button className="button-secondary" type="button" onClick={() => void startCamera()}>
-                Camera On
-              </button>
+              <button className="button" type="button" onClick={() => void startCamera()}>Use camera</button>
             )}
-            <button className="button-secondary" type="button" onClick={captureSelfie}>
-              Identity selfie
-            </button>
+            <label className={`mimi-upload-button ${isRecording ? "disabled" : ""}`}>
+              Choose a clip
+              <input ref={uploadInputRef} name="videoUpload" type="file" accept="video/*" disabled={isRecording} onChange={chooseVideo} />
+            </label>
+            {isCameraActive && !isRecording ? (
+              <button className="mimi-text-button" type="button" onClick={stopCamera}>Turn camera off</button>
+            ) : null}
+          </div>
+          {recordedVideo ? <p className="mimi-selected-clip">Ready: {recordedVideo.name}</p> : null}
+          <p className="mimi-help-note">Your camera starts only when you choose it. Nothing records until you press Record.</p>
+        </section>
+
+        <section className="mimi-studio-card mimi-story-card" aria-labelledby="story-heading">
+          <div className="mimi-step-heading">
+            <span className="mimi-step-number">02</span>
+            <div>
+              <h2 id="story-heading">Your scene</h2>
+              <p>One sentence is enough. Where do you want your story to go?</p>
+            </div>
           </div>
 
-          <label className="label">
-            <span>Upload instead</span>
-            <input className="input" name="videoUpload" type="file" accept="video/*" />
-          </label>
-        </div>
-      </section>
-
-      <section className="studio-card glass story-panel">
-        <div className="studio-section-title">
-          <span>2</span>
-          <h2>Movie idea</h2>
-        </div>
-
-        <label className="label">
+          <label className="mimi-field-label" htmlFor="movie-idea">What happens in your movie?</label>
           <textarea
-            className="textarea idea-box"
+            id="movie-idea"
+            className="mimi-idea-input"
             name="quickPrompt"
             onChange={(event) => setQuickPrompt(event.target.value)}
-            placeholder="Example: I am on an island with pirates and fishermen."
+            placeholder="I walk into a rain-soaked city and discover that everyone has frozen in time…"
             required
+            minLength={10}
+            maxLength={500}
             value={quickPrompt}
           />
-        </label>
-
-        <div className="studio-section-title compact">
-          <span>3</span>
-          <h2>Camera view</h2>
-        </div>
-
-        <div className="simple-template-list compact-list">
-          <label className={`template-option ${cameraMode === "cinematic" ? "active" : ""}`}>
-            <input
-              checked={cameraMode === "cinematic"}
-              name="cameraModeChoice"
-              onChange={() => setCameraMode("cinematic")}
-              type="radio"
-              value="cinematic"
-            />
-            <span>Cinematic scene</span>
-          </label>
-          <label className={`template-option ${cameraMode === "selfie" ? "active" : ""}`}>
-            <input
-              checked={cameraMode === "selfie"}
-              name="cameraModeChoice"
-              onChange={() => setCameraMode("selfie")}
-              type="radio"
-              value="selfie"
-            />
-            <span>Selfie story</span>
-          </label>
-        </div>
-
-        <p className="model-capability-note">
-          {cameraMode === "cinematic"
-            ? "Recommended for a movie look: another camera films you inside the scene."
-            : "Front-camera storytelling: you stay in frame while revealing the world around you."}
-        </p>
-
-        <div className="studio-section-title compact">
-          <span>4</span>
-          <h2>Model</h2>
-        </div>
-
-        <div className="simple-template-list compact-list">
-          <label className={`template-option ${modelChoice === "replicate-video-adapter" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
-            <input
-              checked={modelChoice === "replicate-video-adapter"}
-              disabled={betaAccess.controlsEnabled}
-              name="modelChoice"
-              onChange={() => setModelChoice("replicate-video-adapter")}
-              type="radio"
-              value="replicate-video-adapter"
-            />
-            <span>Replicate AI · MiniMax{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
-          </label>
-          <label className={`template-option ${modelChoice === "local-heavy-v1" ? "active" : ""}`}>
-            <input
-              checked={modelChoice === "local-heavy-v1"}
-              name="modelChoice"
-              onChange={() => setModelChoice("local-heavy-v1")}
-              type="radio"
-              value="local-heavy-v1"
-            />
-            <span>Local worker</span>
-          </label>
-          <label className={`template-option ${modelChoice === "replicate-kling-v3-omni" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
-            <input
-              checked={modelChoice === "replicate-kling-v3-omni"}
-              disabled={betaAccess.controlsEnabled}
-              name="modelChoice"
-              onChange={() => setModelChoice("replicate-kling-v3-omni")}
-              type="radio"
-              value="replicate-kling-v3-omni"
-            />
-            <span>Replicate Pro · Kling{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
-          </label>
-          <label className={`template-option ${modelChoice === "replicate-seedance-1.5-pro" ? "active" : ""}`}>
-            <input
-              checked={modelChoice === "replicate-seedance-1.5-pro"}
-              name="modelChoice"
-              onChange={() => setModelChoice("replicate-seedance-1.5-pro")}
-              type="radio"
-              value="replicate-seedance-1.5-pro"
-            />
-            <span>Seedance 1.5 Pro · Recommended</span>
-          </label>
-          <label className={`template-option ${modelChoice === "seedance-2-fast" ? "active" : ""} ${betaAccess.controlsEnabled ? "disabled" : ""}`}>
-            <input
-              checked={modelChoice === "seedance-2-fast"}
-              disabled={betaAccess.controlsEnabled}
-              name="modelChoice"
-              onChange={() => setModelChoice("seedance-2-fast")}
-              type="radio"
-              value="seedance-2-fast"
-            />
-            <span>Seedance AI{betaAccess.controlsEnabled ? " · Not in free beta" : ""}</span>
-          </label>
-        </div>
-
-        <p className="model-capability-note">
-          {modelChoice === "replicate-video-adapter"
-            ? "The MiniMax identity model creates a realistic 6-second silent clip."
-            : modelChoice === "replicate-seedance-1.5-pro"
-              ? "Recommended. Seedance 1.5 Pro creates a 5-second 480p portrait clip with native audio; estimated model cost is about $0.13."
-            : modelChoice === "replicate-kling-v3-omni"
-              ? "Experimental. Kling V3 Omni requests a 15-second portrait movie with native audio and costs more per run."
-            : modelChoice === "local-heavy-v1"
-              ? "Prototype renderer. It assembles a movie locally but is not a hosted generative video model."
-              : "Hosted Seedance generation requires separate provider credit."}
-        </p>
-
-        {betaAccess.controlsEnabled && modelChoice !== "local-heavy-v1" ? (
-          <div className={`beta-access-card ${betaAccess.eligible ? "available" : "unavailable"}`}>
-            <strong>{betaAccess.reason === "paid_available" ? "Paid attempts" : betaAccess.eligible ? "Your first AI movie is free" : "Generation status"}</strong>
-            <span>{betaAccess.message}</span>
-            {betaAccess.paidAttemptsRemaining !== null && betaAccess.paidAttemptsRemaining > 0 ? (
-              <small>{betaAccess.paidAttemptsRemaining} paid {betaAccess.paidAttemptsRemaining === 1 ? "attempt" : "attempts"} available.</small>
-            ) : null}
-            {!betaAccess.eligible && betaAccess.reason === "free_generation_used" ? (
-              <a className="button-secondary" href="/billing">Buy generation attempts</a>
-            ) : null}
-            {betaAccess.remainingAttempts !== null ? (
-              <small>{betaAccess.remainingAttempts} of {betaAccess.totalAttemptLimit} beta attempts remain.</small>
-            ) : null}
+          <div className="mimi-prompt-meta">
+            <span>No camera directions needed.</span>
+            <span>{quickPrompt.length}/500</span>
           </div>
-        ) : null}
 
-        <div className={`status ${status.tone === "error" ? "error" : ""}`}>{status.message}</div>
+          <details className="mimi-advanced">
+            <summary>Creative settings <span>Optional</span></summary>
+            <div className="mimi-advanced-body">
+              <fieldset>
+                <legend>Camera view</legend>
+                <div className="mimi-choice-grid">
+                  <label className={`mimi-choice ${cameraMode === "cinematic" ? "active" : ""}`}>
+                    <input type="radio" name="cameraModeChoice" value="cinematic" checked={cameraMode === "cinematic"} onChange={() => setCameraMode("cinematic")} />
+                    <span>Cinematic scene</span>
+                  </label>
+                  <label className={`mimi-choice ${cameraMode === "selfie" ? "active" : ""}`}>
+                    <input type="radio" name="cameraModeChoice" value="selfie" checked={cameraMode === "selfie"} onChange={() => setCameraMode("selfie")} />
+                    <span>Selfie story</span>
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Movie engine</legend>
+                <p>The recommended engine is chosen for you.</p>
+                <div className="mimi-choice-grid">
+                  {([
+                    ["replicate-seedance-1.5-pro", "Recommended AI movie"],
+                    ["local-heavy-v1", "Local worker · prototype"],
+                    ["replicate-video-adapter", "MiniMax AI"],
+                    ["replicate-kling-v3-omni", "Kling Pro"],
+                    ["seedance-2-fast", "Seedance AI"],
+                  ] as const).map(([value, label]) => {
+                    const disabled = betaAccess.controlsEnabled && value !== FREE_BETA_MANAGED_PROVIDER && value !== "local-heavy-v1";
+                    return (
+                      <label key={value} className={`mimi-choice ${modelChoice === value ? "active" : ""} ${disabled ? "disabled" : ""}`}>
+                        <input type="radio" name="modelChoice" value={value} checked={modelChoice === value} disabled={disabled} onChange={() => setModelChoice(value)} />
+                        <span>{label}{disabled ? " · Unavailable in beta" : ""}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <label className="mimi-extra-photo">
+                <span>Clear face photo <small>(optional)</small></span>
+                <input type="file" accept="image/*" onChange={(event) => setSelfieFile(event.target.files?.[0] ?? null)} />
+                <small>If you skip this, MimiReel selects a frame from your clip.</small>
+              </label>
+            </div>
+          </details>
 
-        <div className="generate-row">
+          {betaAccess.controlsEnabled && modelChoice !== "local-heavy-v1" ? (
+            <div className={`mimi-access ${betaAccess.eligible ? "available" : "unavailable"}`}>
+              <strong>{betaAccess.eligible ? "Ready when you are" : "Generation unavailable"}</strong>
+              <p>{betaAccess.message}</p>
+              {!betaAccess.eligible && betaAccess.reason === "free_generation_used" ? (
+                <a href="/billing">See generation options</a>
+              ) : null}
+            </div>
+          ) : null}
+
+          {status.message ? <p className={`mimi-status ${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.message}</p> : null}
+
           <button
-            className="button generate-button"
-            disabled={
-              isSubmitting ||
-              (modelChoice !== "local-heavy-v1" &&
-                betaAccess.controlsEnabled &&
-                !betaAccess.eligible)
-            }
+            className="button mimi-make-button"
+            disabled={isSubmitting || !recordedVideo || quickPrompt.trim().length < 10 || (modelChoice !== "local-heavy-v1" && betaAccess.controlsEnabled && !betaAccess.eligible)}
             type="submit"
           >
-            {isSubmitting
-              ? "Generating..."
-              : modelChoice !== "local-heavy-v1" &&
-                  betaAccess.controlsEnabled &&
-                  !betaAccess.eligible
-                ? "Generation unavailable"
-                : "Generate Movie"}
+            {isSubmitting ? "Making your movie…" : !recordedVideo ? "Add your clip to continue" : quickPrompt.trim().length < 10 ? "Describe your scene" : modelChoice !== "local-heavy-v1" && betaAccess.controlsEnabled && !betaAccess.eligible ? "Generation unavailable" : "Make my movie"}
           </button>
-          <p className="generation-consent">
-            By generating, you confirm that you have permission to use every person&apos;s identity in
-            your uploads and agree to the <a href="/terms">Terms</a> and <a href="/identity-safety">Identity safety rules</a>.
+          <p className="mimi-consent">
+            By continuing, you confirm you have permission to use everyone shown in your clip and agree to our <a href="/terms">Terms</a> and <a href="/identity-safety">identity safety rules</a>.
           </p>
-        </div>
-      </section>
+        </section>
+      </div>
     </form>
   );
 }

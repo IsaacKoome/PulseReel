@@ -48,7 +48,7 @@ export function MovieFeedbackForm({
 
   return (
     <section className="movie-feedback-card panel">
-      <p className="eyebrow-copy">Help shape PulseReel</p>
+      <p className="eyebrow-copy">Help shape MimiReel</p>
       <h3>How did your movie feel?</h3>
       <p className="body-copy">Three quick answers will help improve identity accuracy and the paid product.</p>
 

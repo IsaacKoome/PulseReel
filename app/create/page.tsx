@@ -24,7 +24,7 @@ export default async function CreatePage() {
     <main className="studio-shell shell">
       <div className="app-header compact-header">
         <a className="brand-mark" href="/">
-          PulseReel
+          MimiReel
         </a>
         <div className="header-actions">
           <AccountNav enabled={authEnabled} user={user} compact isAdmin={isPulseReelAdmin(user)} />
