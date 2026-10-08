@@ -14,6 +14,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { setVideoCacheSizeAsync } from "expo-video";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MoviePlayer } from "@/components/MoviePlayer";
@@ -58,6 +59,7 @@ function RailButton({
 function MovieCard({
   project,
   active,
+  preload,
   height,
   onLike,
   onTalk,
@@ -66,6 +68,7 @@ function MovieCard({
 }: {
   project: MovieProject;
   active: boolean;
+  preload: boolean;
   height: number;
   onLike: () => void;
   onTalk: () => void;
@@ -78,6 +81,7 @@ function MovieCard({
         videoUrl={project.processedVideoUrl || project.sourceVideoUrl}
         posterUrl={project.posterUrl}
         active={active}
+        preload={preload}
       />
       <View style={styles.scrimTop} />
       <View style={styles.scrimBottom} />
@@ -144,6 +148,11 @@ export default function WatchScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(true);
+
+  useEffect(() => {
+    // Bound the persistent replay cache on smaller phones.
+    void setVideoCacheSizeAsync(128 * 1024 * 1024).catch(() => undefined);
+  }, []);
 
   const load = useCallback(async (refresh = false) => {
     if (!ready) return;
@@ -292,6 +301,7 @@ export default function WatchScreen() {
             <MovieCard
               project={item}
               active={focused && index === activeIndex}
+              preload={focused && index === activeIndex + 1}
               height={contentHeight}
               onLike={() => void like(item)}
               onTalk={() => router.push({ pathname: "/comments/[slug]", params: { slug: item.slug, title: item.title } })}
@@ -301,7 +311,7 @@ export default function WatchScreen() {
           )}
           pagingEnabled
           showsVerticalScrollIndicator={false}
-          initialNumToRender={1}
+          initialNumToRender={2}
           maxToRenderPerBatch={2}
           windowSize={3}
           removeClippedSubviews

@@ -1,14 +1,30 @@
+import { useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer, type VideoSource } from "expo-video";
 import { colors } from "@/theme";
 
-function ActiveVideo({ videoUrl }: { videoUrl: string }) {
-  const player = useVideoPlayer(videoUrl, (instance) => {
+function BufferedVideo({ videoUrl, active }: { videoUrl: string; active: boolean }) {
+  const source = useMemo<VideoSource>(() => ({ uri: videoUrl, useCaching: true }), [videoUrl]);
+  const player = useVideoPlayer(source, (instance) => {
     instance.loop = true;
     instance.muted = false;
-    instance.play();
+    // Five-second movies should have most of their data ready before playback resumes.
+    instance.bufferOptions = {
+      minBufferForPlayback: 4,
+      preferredForwardBufferDuration: 8,
+      maxBufferBytes: 12_000_000,
+      prioritizeTimeOverSizeThreshold: true,
+    };
   });
+
+  useEffect(() => {
+    if (active) player.play();
+    else player.pause();
+  }, [active, player]);
+
+  // Keeping the player mounted without a view lets Expo preload the next feed movie.
+  if (!active) return null;
 
   return (
     <VideoView
@@ -24,23 +40,24 @@ export function MoviePlayer({
   videoUrl,
   posterUrl,
   active = true,
+  preload = false,
 }: {
   videoUrl?: string;
   posterUrl?: string;
   active?: boolean;
+  preload?: boolean;
 }) {
-  if (videoUrl && active) {
-    return <ActiveVideo videoUrl={videoUrl} />;
-  }
-
-  if (posterUrl) {
-    return <Image style={StyleSheet.absoluteFill} source={posterUrl} contentFit="cover" transition={250} />;
-  }
-
   return (
-    <View style={[StyleSheet.absoluteFill, styles.fallback]}>
-      <View style={styles.sun} />
-      <View style={styles.horizon} />
+    <View style={StyleSheet.absoluteFill}>
+      {posterUrl ? (
+        <Image style={StyleSheet.absoluteFill} source={posterUrl} contentFit="cover" transition={250} />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.fallback]}>
+          <View style={styles.sun} />
+          <View style={styles.horizon} />
+        </View>
+      )}
+      {videoUrl && (active || preload) ? <BufferedVideo videoUrl={videoUrl} active={active} /> : null}
     </View>
   );
 }
