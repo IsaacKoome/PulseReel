@@ -35,6 +35,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_DIRECT_VIDEO_BYTES = 50_000_000;
+const MAX_IDENTITY_IMAGE_BYTES = 10_000_000;
 
 const schema = z.object({
   creatorName: z.string().min(1),
@@ -199,12 +200,24 @@ export async function POST(request: Request) {
     const video = formData.get("video");
     const videoBlobUrl = String(formData.get("videoBlobUrl") ?? "").trim();
     const selfie = formData.get("selfie");
+    const imageOnly = formData.get("sourceType") === "image";
     const quickPrompt = String(formData.get("quickPrompt") ?? "").trim();
     const templateIdValue = String(formData.get("templateId") ?? "");
 
     const hasVideoFile = video instanceof File && video.size > 0;
-    if (!hasVideoFile && !videoBlobUrl) {
-      return NextResponse.json({ error: "A video clip is required." }, { status: 400 });
+    if (!hasVideoFile && !videoBlobUrl && !imageOnly) {
+      return NextResponse.json({ error: "A photo or video is required." }, { status: 400 });
+    }
+    if (imageOnly && (hasVideoFile || videoBlobUrl)) {
+      return NextResponse.json({ error: "Choose either a photo or a video." }, { status: 400 });
+    }
+    if (imageOnly && (
+      !(selfie instanceof File) ||
+      selfie.size <= 0 ||
+      selfie.size > MAX_IDENTITY_IMAGE_BYTES ||
+      !selfie.type.startsWith("image/")
+    )) {
+      return NextResponse.json({ error: "Choose an image no larger than 10 MB." }, { status: 400 });
     }
 
     if (videoBlobUrl) {
@@ -282,6 +295,13 @@ export async function POST(request: Request) {
       requestedHeavyProvider === DIRECT_SEEDANCE_PROVIDER;
     const directProjectId = useDirectSeedance ? randomUUID() : undefined;
 
+    if (imageOnly && !useDirectSeedance) {
+      return NextResponse.json(
+        { error: "Photo-to-movie currently requires direct Seedance generation." },
+        { status: 400 },
+      );
+    }
+
     if (
       isVercelRuntime() &&
       parsed.data.renderMode !== "seedance-2-fast" &&
@@ -349,7 +369,7 @@ export async function POST(request: Request) {
     }
 
     if (useDirectSeedance) {
-      if (!(selfie instanceof File) || selfie.size <= 0) {
+      if (!(selfie instanceof File) || selfie.size <= 0 || !selfie.type.startsWith("image/")) {
         return NextResponse.json(
           { error: "A clear identity frame is required for direct Seedance generation." },
           { status: 400 },
@@ -357,7 +377,9 @@ export async function POST(request: Request) {
       }
 
       const deleteCredential = createProjectDeleteCredential();
-      const sourceVideoUrl = directVideoBlobUrl
+      const sourceVideoUrl = imageOnly
+        ? ""
+        : directVideoBlobUrl
         ? directVideoBlobUrl
         : (await saveSourceAssets(video as File)).sourceVideoUrl;
       const project = await createDirectSeedanceProject({

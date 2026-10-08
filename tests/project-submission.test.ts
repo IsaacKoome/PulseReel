@@ -46,6 +46,18 @@ test("mobile source uploads use short-lived signed URLs capped at 50 MB", () => 
   assert.match(creator, /maxDuration: 10/);
 });
 
+test("photo-only submissions are limited to direct Seedance before reserving an attempt", () => {
+  const route = readFileSync(new URL("../app/api/projects/route.ts", import.meta.url), "utf8");
+
+  assert.match(route, /const imageOnly = formData\.get\("sourceType"\) === "image"/);
+  assert.match(route, /imageOnly && !useDirectSeedance/);
+  assert.match(route, /const sourceVideoUrl = imageOnly\s*\? ""/);
+  assert.ok(
+    route.indexOf("if (imageOnly && !useDirectSeedance)") < route.indexOf("generationReservation = await reserveManagedGeneration"),
+    "unsupported photo requests must not reserve a paid attempt",
+  );
+});
+
 test("web studio keeps creation to a clip and scene, with opt-in camera and optional settings", () => {
   const studio = readFileSync(new URL("../components/create-studio.tsx", import.meta.url), "utf8");
 
