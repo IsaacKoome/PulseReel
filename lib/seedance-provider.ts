@@ -3,6 +3,7 @@ import path from "path";
 import { experimental_generateVideo } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
 import { put } from "@vercel/blob";
+import { makeMp4Streamable } from "@/lib/mp4-faststart";
 import { createMovieProjectDraft } from "@/lib/project-draft";
 import { assetUrlToPath, getRuntimeAssetDir, runtimeAssetUrl } from "@/lib/runtime-storage";
 import type { CameraMode, MovieProject } from "@/lib/types";
@@ -40,8 +41,9 @@ async function readReferenceImage(project: MovieProject) {
 }
 
 async function saveGeneratedVideo(bytes: Uint8Array, filename: string, contentType: string) {
+  const streamable = contentType === "video/mp4" ? makeMp4Streamable(bytes) : bytes;
   if (process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-    const blob = await put(`pulsereel/${filename}`, new Blob([Buffer.from(bytes)], { type: contentType }), {
+    const blob = await put(`pulsereel/${filename}`, new Blob([Buffer.from(streamable)], { type: contentType }), {
       access: "public",
       contentType,
     });
@@ -50,7 +52,7 @@ async function saveGeneratedVideo(bytes: Uint8Array, filename: string, contentTy
 
   const generatedDir = getRuntimeAssetDir("generated");
   await fs.mkdir(generatedDir, { recursive: true });
-  await fs.writeFile(path.join(generatedDir, filename), Buffer.from(bytes));
+  await fs.writeFile(path.join(generatedDir, filename), Buffer.from(streamable));
   return runtimeAssetUrl("generated", filename);
 }
 

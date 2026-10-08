@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { del, put } from "@vercel/blob";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
 import { portraitIdentityBuffer } from "@/lib/identity-portrait";
+import { makeMp4Streamable } from "@/lib/mp4-faststart";
 import { createMovieProjectDraft } from "@/lib/project-draft";
 import { addProject, getProjectById, updateProject } from "@/lib/store";
 import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
@@ -241,9 +242,9 @@ async function persistReplicateVideo(project: MovieProject, outputUrl: string) {
   if (!response.ok) {
     throw new Error(`Replicate movie download failed (${response.status}).`);
   }
-  const movie = await response.blob();
+  const movie = makeMp4Streamable(new Uint8Array(await response.arrayBuffer()));
   const ownerPath = project.ownerId ?? "public";
-  return put(`pulsereel/generated/${ownerPath}/${project.id}.mp4`, movie, {
+  return put(`pulsereel/generated/${ownerPath}/${project.id}.mp4`, Buffer.from(movie), {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
