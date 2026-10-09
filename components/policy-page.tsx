@@ -33,16 +33,6 @@ export function PolicyPage({
 }
 
 export function SupportContact() {
-  const supportEmail = process.env.NEXT_PUBLIC_PULSEREEL_SUPPORT_EMAIL?.trim();
-
-  if (!supportEmail) {
-    return (
-      <p>
-        During the private beta, use the MimiReel support address displayed on the Google sign-in
-        consent screen. A dedicated public support address will be added before the open beta.
-      </p>
-    );
-  }
-
+  const supportEmail = "koomeisaac16@gmail.com";
   return <p>Email <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.</p>;
 }

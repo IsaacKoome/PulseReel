@@ -11,6 +11,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Your identity deserves careful handling."
       intro="This notice explains what MimiReel collects during the beta, why it is needed, and the choices available to you."
+      updated="October 9, 2026"
     >
       <section>
         <h2>Information we handle</h2>
@@ -18,7 +19,8 @@ export default function PrivacyPage() {
           <li>Your Google account identifier, name, email address, and profile image when provided by Google.</li>
           <li>The video clips, identity selfies, prompts, styles, and model choices you submit.</li>
           <li>Generated movies, posters, processing status, and technical records needed to operate the service.</li>
-          <li>Movie ratings, willingness-to-pay answers, and optional comments you submit during the beta.</li>
+          <li>Social activity such as likes, follows, comments, shares, reports, and creator blocks.</li>
+          <li>Movie ratings, willingness-to-pay answers, and other optional feedback you submit during the beta.</li>
         </ul>
       </section>
       <section>
@@ -27,7 +29,24 @@ export default function PrivacyPage() {
           We use this information to authenticate you, generate and deliver your movie, associate it
           with your account, prevent unauthorized deletion, troubleshoot failures, and protect the beta
           from abuse and uncontrolled generation costs. Beta feedback is used to improve identity accuracy,
-          movie quality, and product decisions. Google account information is not used for advertising.
+          movie quality, and product decisions. Reports and blocks are used to review harmful content and
+          keep unwanted creators out of your feed. Google account information is not used for advertising.
+        </p>
+      </section>
+      <section>
+        <h2>How we protect it</h2>
+        <p>
+          We use HTTPS to send information between the app and our services. Sign-in and service
+          permissions control access to account-linked records. We limit the information sent to
+          service providers to what is needed for the features you use.
+        </p>
+      </section>
+      <section>
+        <h2>Payments</h2>
+        <p>
+          MimiReel&apos;s Google Play release does not use the web checkout for digital purchases. If in-app
+          purchases are enabled later, they will use Google Play Billing and applicable purchase records
+          will be handled by Google and MimiReel for fulfillment, fraud prevention, and support.
         </p>
       </section>
       <section>
@@ -50,8 +69,11 @@ export default function PrivacyPage() {
         <h2>Retention and deletion</h2>
         <p>
           We retain account and project records while they are needed to provide the beta. You can delete
-          individual movies from My Movies. For account-level deletion, follow the instructions on the
-          Delete my data page. Provider backups and operational logs may take additional time to expire.
+          individual movies from My Movies. You can submit an account-level deletion request inside the
+          mobile app under Profile, Account and data, or follow the alternative instructions on the <a href="/data-deletion">Delete
+          my data page</a>. After identity verification, account-linked live data is removed or anonymized as
+          applicable. Provider backups, fraud-prevention records, and operational logs may remain until
+          their normal retention periods expire.
         </p>
       </section>
       <section>
