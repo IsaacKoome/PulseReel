@@ -8,3 +8,5 @@ dist/
 *.p12
 *.key
 *.mobileprovision
+release/*.apk
+release/*.aab

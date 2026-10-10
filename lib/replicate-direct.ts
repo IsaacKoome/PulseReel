@@ -3,6 +3,7 @@ import { del, put } from "@vercel/blob";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
 import { portraitIdentityBuffer } from "@/lib/identity-portrait";
 import { makeMp4Streamable } from "@/lib/mp4-faststart";
+import { storeGeneratedMedia } from "@/lib/media-storage";
 import { createMovieProjectDraft } from "@/lib/project-draft";
 import { addProject, getProjectById, updateProject } from "@/lib/store";
 import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
@@ -244,13 +245,7 @@ async function persistReplicateVideo(project: MovieProject, outputUrl: string) {
   }
   const movie = makeMp4Streamable(new Uint8Array(await response.arrayBuffer()));
   const ownerPath = project.ownerId ?? "public";
-  return put(`pulsereel/generated/${ownerPath}/${project.id}.mp4`, Buffer.from(movie), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "video/mp4",
-    cacheControlMaxAge: 31_536_000,
-  });
+  return storeGeneratedMedia(`pulsereel/generated/${ownerPath}/${project.id}.mp4`, movie, "video/mp4");
 }
 
 export async function applyReplicatePrediction(projectId: string, prediction: ReplicatePrediction) {

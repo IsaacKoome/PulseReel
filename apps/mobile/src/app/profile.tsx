@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { getGenerationAccess, getMovies } from "@/lib/api";
+import { API_URL, getGenerationAccess, getMovies, requestAccountDeletion } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { PulseDock } from "@/components/PulseDock";
 import { colors } from "@/theme";
@@ -48,6 +50,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requestingDeletion, setRequestingDeletion] = useState(false);
 
   const load = useCallback(async (refresh = false) => {
     const token = session?.access_token;
@@ -83,6 +86,38 @@ export default function ProfileScreen() {
     }
   }
 
+  function confirmDeletionRequest() {
+    Alert.alert(
+      "Request account deletion?",
+      "MimiReel will review the request, remove your account and associated content after verification, and contact you if anything else is needed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Request deletion",
+          style: "destructive",
+          onPress: async () => {
+            if (!session?.access_token || requestingDeletion) return;
+            setRequestingDeletion(true);
+            try {
+              await requestAccountDeletion(session.access_token);
+              Alert.alert(
+                "Request received",
+                "Your account deletion request is now pending. You can also review the public deletion instructions on our website.",
+              );
+            } catch (caught) {
+              Alert.alert(
+                "Request not sent",
+                caught instanceof Error ? caught.message : "Please try again.",
+              );
+            } finally {
+              setRequestingDeletion(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   if (!ready) {
     return <View style={styles.center}><ActivityIndicator color={colors.orange} size="large" /></View>;
   }
@@ -90,7 +125,7 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <View style={[styles.signedOut, { paddingTop: insets.top + 72 }] }>
-        <Text style={styles.brand}>PULSEREEL</Text>
+        <Text style={styles.brand}>MIMIREEL</Text>
         <View style={styles.avatarEmpty}><Ionicons name="person-outline" size={38} color={colors.ivory} /></View>
         <Text style={styles.signedOutTitle}>Your movies belong to you.</Text>
         <Text style={styles.signedOutBody}>Sign in to create a scene, keep private drafts, and publish when you are ready.</Text>
@@ -100,6 +135,15 @@ export default function ProfileScreen() {
         </Pressable>
         {!configured ? <Text style={styles.error}>Mobile Supabase public settings still need to be added.</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.policyRow}>
+          <Pressable onPress={() => void Linking.openURL(`${API_URL}/privacy`)}>
+            <Text style={styles.policyLink}>Privacy</Text>
+          </Pressable>
+          <Text style={styles.policyDot}>•</Text>
+          <Pressable onPress={() => void Linking.openURL(`${API_URL}/terms`)}>
+            <Text style={styles.policyLink}>Terms</Text>
+          </Pressable>
+        </View>
         <PulseDock />
       </View>
     );
@@ -121,7 +165,7 @@ export default function ProfileScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.orange} />}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.brand}>PULSEREEL</Text>
+          <Text style={styles.brand}>MIMIREEL</Text>
           <Pressable onPress={signOut} style={styles.iconButton} accessibilityLabel="Sign out">
             <Ionicons name="log-out-outline" size={22} color={colors.ivory} />
           </Pressable>
@@ -166,6 +210,43 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.grid}>{movies.map((movie) => <MovieTile key={movie.id} movie={movie} />)}</View>
         )}
+
+        <View style={styles.accountSection}>
+          <Text style={styles.accountTitle}>Account and data</Text>
+          <Pressable
+            style={styles.accountLink}
+            onPress={() => void Linking.openURL(`${API_URL}/privacy`)}
+          >
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.orangeSoft} />
+            <Text style={styles.accountLinkText}>Privacy policy</Text>
+          </Pressable>
+          <Pressable
+            style={styles.accountLink}
+            onPress={() => void Linking.openURL(`${API_URL}/terms`)}
+          >
+            <Ionicons name="document-text-outline" size={20} color={colors.orangeSoft} />
+            <Text style={styles.accountLinkText}>Terms of use</Text>
+          </Pressable>
+          <Pressable
+            style={styles.accountLink}
+            onPress={confirmDeletionRequest}
+            disabled={requestingDeletion}
+          >
+            {requestingDeletion
+              ? <ActivityIndicator size="small" color={colors.danger} />
+              : <Ionicons name="trash-outline" size={20} color={colors.danger} />}
+            <Text style={[styles.accountLinkText, styles.deleteLinkText]}>
+              {requestingDeletion ? "Submitting deletion request…" : "Request account deletion"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.accountLink}
+            onPress={() => void Linking.openURL(`${API_URL}/data-deletion`)}
+          >
+            <Ionicons name="open-outline" size={20} color={colors.muted} />
+            <Text style={styles.accountLinkText}>View deletion instructions</Text>
+          </Pressable>
+        </View>
       </ScrollView>
       <PulseDock />
     </View>
@@ -182,6 +263,9 @@ const styles = StyleSheet.create({
   signedOutBody: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
   signInButton: { marginTop: 12, height: 52, borderRadius: 26, backgroundColor: colors.ivory, paddingHorizontal: 22, flexDirection: "row", alignItems: "center", gap: 10 },
   signInText: { color: colors.black, fontSize: 15, fontWeight: "900" },
+  policyRow: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 4 },
+  policyLink: { color: colors.orangeSoft, fontSize: 12, fontWeight: "800" },
+  policyDot: { color: colors.faint, fontSize: 12 },
   content: { paddingHorizontal: 20, paddingBottom: 118 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 30 },
   iconButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
@@ -211,5 +295,10 @@ const styles = StyleSheet.create({
   noMovies: { minHeight: 220, borderRadius: 22, borderWidth: 1, borderColor: colors.line, borderStyle: "dashed", alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
   noMoviesTitle: { color: colors.ivory, fontSize: 20, fontWeight: "900" },
   noMoviesBody: { color: colors.muted, fontSize: 13, textAlign: "center", lineHeight: 19 },
+  accountSection: { marginTop: 32, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 20, gap: 4 },
+  accountTitle: { color: colors.ivory, fontSize: 18, fontWeight: "900", marginBottom: 8 },
+  accountLink: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 },
+  accountLinkText: { color: colors.ivory, fontSize: 14, fontWeight: "700" },
+  deleteLinkText: { color: colors.danger },
   error: { color: colors.danger, fontSize: 13, lineHeight: 18, textAlign: "center" },
 });

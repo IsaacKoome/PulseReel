@@ -9,12 +9,12 @@ function BufferedVideo({ videoUrl, active }: { videoUrl: string; active: boolean
   const player = useVideoPlayer(source, (instance) => {
     instance.loop = true;
     instance.muted = false;
-    // Five-second movies should have most of their data ready before playback resumes.
+    // Start promptly without buffering an entire movie ahead of playback.
     instance.bufferOptions = {
-      minBufferForPlayback: 4,
-      preferredForwardBufferDuration: 8,
-      maxBufferBytes: 12_000_000,
-      prioritizeTimeOverSizeThreshold: true,
+      minBufferForPlayback: 1,
+      preferredForwardBufferDuration: 2,
+      maxBufferBytes: 3_000_000,
+      prioritizeTimeOverSizeThreshold: false,
     };
   });
 

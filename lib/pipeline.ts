@@ -3,7 +3,7 @@ import crypto from "crypto";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import { v4 as uuid } from "uuid";
 import { assetUrlToPath, getRuntimeAssetDir, isVercelRuntime, runtimeAssetUrl } from "@/lib/runtime-storage";
 import type { MovieProject, RenderMode, ShotSpec } from "@/lib/types";
@@ -194,7 +194,7 @@ function buildSceneSvg(options: {
   </svg>`;
 }
 
-function buildEnemySilhouette(index: number, total: number): sharp.OverlayOptions {
+function buildEnemySilhouette(index: number, total: number): OverlayOptions {
   const x = 60 + index * ((VIDEO_SIZE.width - 160) / Math.max(total, 1));
   const y = 780 + (index % 2) * 28;
 
@@ -286,7 +286,7 @@ async function renderSceneImage(options: {
     .png()
     .toBuffer();
 
-  const composites: sharp.OverlayOptions[] = [];
+  const composites: OverlayOptions[] = [];
 
   if (options.stage === "battle" && options.plan.enemyCount > 0) {
     for (let index = 0; index < options.plan.enemyCount; index += 1) {
@@ -360,7 +360,7 @@ async function createEnemyLayer(enemyCount: number) {
     return outputPath;
   }
 
-  const overlays: sharp.OverlayOptions[] = [];
+  const overlays: OverlayOptions[] = [];
   const count = Math.max(0, Math.min(enemyCount, 8));
 
   for (let index = 0; index < count; index += 1) {

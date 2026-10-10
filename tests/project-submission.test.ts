@@ -46,16 +46,28 @@ test("mobile source uploads use short-lived signed URLs capped at 50 MB", () => 
   assert.match(creator, /maxDuration: 10/);
 });
 
-test("photo-only submissions are limited to direct Seedance before reserving an attempt", () => {
+test("mobile photo selection reaches direct Seedance without a fake video upload", () => {
+  const creator = readFileSync(new URL("../apps/mobile/src/app/create.tsx", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../apps/mobile/src/lib/api.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/projects/route.ts", import.meta.url), "utf8");
 
-  assert.match(route, /const imageOnly = formData\.get\("sourceType"\) === "image"/);
+  assert.match(creator, /mediaTypes: \["images", "videos"\]/);
+  assert.match(creator, /stage === "capture" \? \(\s*<Pressable style=\{styles\.galleryButton\} onPress=\{pickMedia\}>/);
+  assert.match(creator, /setIdentity\(kind === "image" \? selected : null\)/);
+  assert.match(api, /input\.clip\.kind === "image"/);
+  assert.match(api, /form\.append\("sourceType", "image"\)/);
   assert.match(route, /imageOnly && !useDirectSeedance/);
   assert.match(route, /const sourceVideoUrl = imageOnly\s*\? ""/);
-  assert.ok(
-    route.indexOf("if (imageOnly && !useDirectSeedance)") < route.indexOf("generationReservation = await reserveManagedGeneration"),
-    "unsupported photo requests must not reserve a paid attempt",
-  );
+});
+
+test("mobile identity photos are JPEG encoded and capped before multipart upload", () => {
+  const api = readFileSync(new URL("../apps/mobile/src/lib/api.ts", import.meta.url), "utf8");
+  assert.match(api, /ImageManipulator\.manipulate\(asset\.uri\)/);
+  assert.match(api, /format: SaveFormat\.JPEG/);
+  assert.match(api, /file\.size <= 1_000_000/);
+  assert.match(api, /form\.append\("selfie", await prepareIdentityPhoto\(input\.identity\)\)/);
+  assert.match(api, /response\.status === 413/);
+  assert.match(api, /response\.status === 504/);
 });
 
 test("web studio keeps creation to a clip and scene, with opt-in camera and optional settings", () => {

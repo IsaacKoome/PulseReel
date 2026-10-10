@@ -9,6 +9,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
 import type { BillingStatus } from "@/types";
 
+const googlePlayRelease = process.env.EXPO_PUBLIC_GOOGLE_PLAY_RELEASE === "true";
+
 export default function BillingScreen() {
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
@@ -41,6 +43,10 @@ export default function BillingScreen() {
   }, [refresh]);
 
   async function buy() {
+    if (googlePlayRelease) {
+      setMessage("Google Play purchases are not available in this release yet.");
+      return;
+    }
     if (!session?.access_token || !status?.ready) return;
     setBuying(true);
     setMessage(null);
@@ -67,7 +73,7 @@ export default function BillingScreen() {
       </Pressable>
 
       <View style={styles.content}>
-        <Text style={styles.eyebrow}>PULSEREEL CREDITS</Text>
+        <Text style={styles.eyebrow}>MIMIREEL CREDITS</Text>
         <Text style={styles.title}>Keep creating.</Text>
         <Text style={styles.subtitle}>Five more chances to turn yourself into the lead.</Text>
 
@@ -90,6 +96,11 @@ export default function BillingScreen() {
             <Ionicons name="add" size={21} color={colors.black} />
             <Text style={styles.buyText}>Create a movie</Text>
           </Pressable>
+        ) : googlePlayRelease ? (
+          <Pressable style={[styles.buyButton, styles.disabled]} disabled>
+            <Ionicons name="logo-google-playstore" size={19} color={colors.black} />
+            <Text style={styles.buyText}>Google Play purchases coming soon</Text>
+          </Pressable>
         ) : (
           <Pressable
             style={[styles.buyButton, (!status?.ready || buying) && styles.disabled]}
@@ -110,7 +121,11 @@ export default function BillingScreen() {
         <Pressable style={styles.checkButton} onPress={refresh} disabled={loading}>
           <Text style={styles.checkText}>Check my attempts</Text>
         </Pressable>
-        <Text style={styles.safe}>You review the exact KES 675 charge in Paystack before paying.</Text>
+        <Text style={styles.safe}>
+          {googlePlayRelease
+            ? "External checkout is disabled in the Google Play release. Existing attempts remain available."
+            : "You review the exact KES 675 charge in Paystack before paying."}
+        </Text>
       </View>
     </View>
   );

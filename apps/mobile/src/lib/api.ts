@@ -2,6 +2,7 @@ import { randomUUID } from "expo-crypto";
 import type { BillingStatus, GenerationAccess, MovieComment, MovieProject } from "@/types";
 import { fetch } from "expo/fetch";
 import { File } from "expo-file-system";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || "https://pulse-reel.vercel.app").replace(/\/$/, "");
 
@@ -16,7 +17,11 @@ async function readJson<T>(response: Response): Promise<T> {
   const body = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
   if (!response.ok) {
     throw new PulseReelApiError(
-      body.error || "PulseReel could not complete that request.",
+      body.error || (response.status === 413
+        ? "This photo or clip is too large to upload. Choose a smaller file."
+        : response.status === 504
+          ? "The movie service took too long to respond. Check My movies before trying again."
+          : `MimiReel could not complete that request (HTTP ${response.status}). Please try again later.`),
       body.code,
       response.status,
     );
@@ -68,6 +73,66 @@ export async function postMovieComment(slug: string, body: string, token: string
   return readJson<{ comment: MovieComment }>(response);
 }
 
+export type SafetyReportReason =
+  | "inappropriate"
+  | "harassment"
+  | "sexual_content"
+  | "violence"
+  | "misleading"
+  | "other";
+
+export async function reportMovie(
+  slug: string,
+  token: string,
+  reason: SafetyReportReason = "inappropriate",
+) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason }),
+  });
+  return readJson<{ reported: boolean }>(response);
+}
+
+export async function setCreatorBlocked(slug: string, blocked: boolean, token: string) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/block`, {
+    method: blocked ? "POST" : "DELETE",
+    headers: authHeaders(token),
+  });
+  return readJson<{ blocked: boolean }>(response);
+}
+
+export async function reportMovieComment(
+  slug: string,
+  commentId: string,
+  token: string,
+  reason: SafetyReportReason = "inappropriate",
+) {
+  const response = await fetch(
+    `${API_URL}/api/projects/${encodeURIComponent(slug)}/comments/${encodeURIComponent(commentId)}/report`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  return readJson<{ reported: boolean }>(response);
+}
+
+export async function requestAccountDeletion(token: string) {
+  const response = await fetch(`${API_URL}/api/account/deletion`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return readJson<{ status: string }>(response);
+}
+
 export async function recordMovieShare(slug: string, token?: string | null) {
   const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/share`, {
     method: "POST",
@@ -116,6 +181,29 @@ function nativeUpload(asset: LocalAsset) {
   return new File(asset.uri);
 }
 
+async function prepareIdentityPhoto(asset: LocalAsset) {
+  // Keep the image plus a recorded 2.8 MB clip below the API request limit.
+  // Re-encoding also gives gallery PNG/HEIC files a reliable JPEG MIME type.
+  for (const width of [1600, 1200, 800]) {
+    const context = ImageManipulator.manipulate(asset.uri);
+    try {
+      context.resize({ width, height: null });
+      const image = await context.renderAsync();
+      try {
+        const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.75 });
+        const file = new File(saved.uri);
+        if (file.size > 0 && file.size <= 1_000_000) return file;
+        file.delete();
+      } finally {
+        image.release();
+      }
+    } finally {
+      context.release();
+    }
+  }
+  throw new PulseReelApiError("This photo could not be prepared for upload. Please choose a different photo.");
+}
+
 async function uploadSourceVideo(asset: LocalAsset, ownerId: string, token: string) {
   const file = nativeUpload(asset);
   const extension = asset.fileName?.match(/\.[a-z0-9]{1,8}$/i)?.[0]?.toLowerCase()
@@ -158,19 +246,21 @@ export async function startBillingCheckout(token: string) {
 }
 
 export async function createMovie(input: {
-  clip: LocalAsset;
+  clip: LocalAsset & { kind: "image" | "video" };
   identity: LocalAsset;
   prompt: string;
   token: string;
   ownerId: string;
 }) {
   const form = new FormData();
-  if (input.clip.uploadDirectly) {
+  if (input.clip.kind === "image") {
+    form.append("sourceType", "image");
+  } else if (input.clip.uploadDirectly) {
     form.append("videoBlobUrl", await uploadSourceVideo(input.clip, input.ownerId, input.token));
   } else {
     form.append("video", nativeUpload(input.clip));
   }
-  form.append("selfie", nativeUpload(input.identity));
+  form.append("selfie", await prepareIdentityPhoto(input.identity));
   form.append("quickPrompt", input.prompt);
   form.append("templateId", "identity-cinematic");
   form.append("cameraMode", "cinematic");

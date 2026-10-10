@@ -14,6 +14,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { setVideoCacheSizeAsync } from "expo-video";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,7 +24,9 @@ import {
   API_URL,
   getMovies,
   recordMovieShare,
+  reportMovie,
   setCreatorFollow,
+  setCreatorBlocked,
   setMovieLike,
 } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
@@ -65,6 +68,7 @@ function MovieCard({
   onTalk,
   onShare,
   onFollow,
+  onSafety,
 }: {
   project: MovieProject;
   active: boolean;
@@ -74,6 +78,7 @@ function MovieCard({
   onTalk: () => void;
   onShare: () => void;
   onFollow: () => void;
+  onSafety: () => void;
 }) {
   return (
     <View style={[styles.card, { height }]}>
@@ -83,8 +88,16 @@ function MovieCard({
         active={active}
         preload={preload}
       />
-      <View style={styles.scrimTop} />
-      <View style={styles.scrimBottom} />
+      <LinearGradient
+        pointerEvents="none"
+        colors={["rgba(0,0,0,0.48)", "rgba(0,0,0,0.16)", "rgba(0,0,0,0)"]}
+        style={styles.scrimTop}
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.30)", "rgba(0,0,0,0.72)"]}
+        style={styles.scrimBottom}
+      />
 
       <View style={styles.rail}>
         <RailButton
@@ -102,6 +115,11 @@ function MovieCard({
           icon="paper-plane-outline"
           label={compactCount(project.metrics?.shares)}
           onPress={onShare}
+        />
+        <RailButton
+          icon="ellipsis-horizontal"
+          label="More"
+          onPress={onSafety}
         />
       </View>
 
@@ -121,7 +139,7 @@ function MovieCard({
         <View style={styles.genreRow}>
           <Text style={styles.genre}>{project.genre}</Text>
           <Text style={styles.dot}>•</Text>
-          <Text style={styles.scene}>PulseReel original</Text>
+          <Text style={styles.scene}>MimiReel original</Text>
         </View>
         <Pressable
           style={styles.starButton}
@@ -257,7 +275,7 @@ export default function WatchScreen() {
       const result = await Share.share(
         {
           title: project.title,
-          message: `${project.title} on PulseReel\n${API_URL}/watch/${encodeURIComponent(project.slug)}`,
+          message: `${project.title} on MimiReel\n${API_URL}/watch/${encodeURIComponent(project.slug)}`,
         },
         { dialogTitle: `Share ${project.title}` },
       );
@@ -272,6 +290,40 @@ export default function WatchScreen() {
     } catch (caught) {
       Alert.alert("Could not share", caught instanceof Error ? caught.message : "Please try again.");
     }
+  }
+
+  async function report(project: MovieProject) {
+    try {
+      const token = await signedInToken();
+      if (!token) return;
+      await reportMovie(project.slug, token);
+      Alert.alert("Report received", "Thank you. MimiReel will review this movie.");
+    } catch (caught) {
+      Alert.alert("Report not sent", caught instanceof Error ? caught.message : "Please try again.");
+    }
+  }
+
+  async function block(project: MovieProject) {
+    try {
+      const token = await signedInToken();
+      if (!token) return;
+      await setCreatorBlocked(project.slug, true, token);
+      setProjects((current) => current.filter((item) => item.creatorId !== project.creatorId));
+      Alert.alert("Creator blocked", "Their movies will no longer appear in your feed.");
+    } catch (caught) {
+      Alert.alert("Creator not blocked", caught instanceof Error ? caught.message : "Please try again.");
+    }
+  }
+
+  function safety(project: MovieProject) {
+    const buttons = [
+      { text: "Report movie", onPress: () => void report(project) },
+      ...(project.creatorId && !project.viewer?.owns
+        ? [{ text: "Block creator", style: "destructive" as const, onPress: () => void block(project) }]
+        : []),
+      { text: "Cancel", style: "cancel" as const },
+    ];
+    Alert.alert("Movie options", "Choose how you want to handle this movie.", buttons);
   }
 
   const onViewableItemsChanged = useRef(
@@ -301,12 +353,13 @@ export default function WatchScreen() {
             <MovieCard
               project={item}
               active={focused && index === activeIndex}
-              preload={focused && index === activeIndex + 1}
+              preload={false}
               height={contentHeight}
               onLike={() => void like(item)}
               onTalk={() => router.push({ pathname: "/comments/[slug]", params: { slug: item.slug, title: item.title } })}
               onShare={() => void share(item)}
               onFollow={() => void follow(item)}
+              onSafety={() => safety(item)}
             />
           )}
           pagingEnabled
@@ -338,7 +391,7 @@ export default function WatchScreen() {
                     : "Sign in, follow creators you like, and their new movies will collect here."
                   : normalizedQuery
                     ? `Nothing in the feed matches “${query.trim()}”.`
-                    : "Record ten seconds. Say what happens. PulseReel turns you into the lead.")}
+                    : "Record ten seconds. Say what happens. MimiReel turns you into the lead.")}
               </Text>
               <Pressable
                 style={styles.emptyButton}
@@ -404,8 +457,8 @@ export default function WatchScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.black },
   card: { width: "100%", backgroundColor: colors.black, overflow: "hidden" },
-  scrimTop: { position: "absolute", left: 0, right: 0, top: 0, height: 180, backgroundColor: "rgba(0,0,0,0.28)" },
-  scrimBottom: { position: "absolute", left: 0, right: 0, bottom: 0, height: 390, backgroundColor: "rgba(0,0,0,0.58)" },
+  scrimTop: { position: "absolute", left: 0, right: 0, top: 0, height: 180 },
+  scrimBottom: { position: "absolute", left: 0, right: 0, bottom: 0, height: 430 },
   topBar: { position: "absolute", left: 22, right: 22, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   tabs: { flexDirection: "row", gap: 24, alignItems: "center" },
   tab: { color: colors.muted, fontSize: 16, fontWeight: "700" },

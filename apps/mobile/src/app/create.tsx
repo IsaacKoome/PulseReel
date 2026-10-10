@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,9 +23,11 @@ import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
 
 const MAX_UPLOADED_VIDEO_BYTES = 50_000_000;
+const MAX_UPLOADED_IMAGE_BYTES = 10_000_000;
 
 type Asset = {
   uri: string;
+  kind: "image" | "video";
   mimeType?: string | null;
   fileName?: string | null;
   fileSize?: number;
@@ -72,9 +75,7 @@ export default function CreateScreen() {
   }
 
   async function allowCapture() {
-    const cameraResult = permission?.granted ? permission : await requestPermission();
-    if (!cameraResult.granted) return;
-    if (!microphonePermission?.granted) await requestMicrophonePermission();
+    if (!permission?.granted) await requestPermission();
   }
 
   async function record() {
@@ -96,7 +97,7 @@ export default function CreateScreen() {
     try {
       const movie = await camera.current.recordAsync({ maxDuration: 10, maxFileSize: 2_800_000 });
       if (!movie?.uri) return;
-      setClip({ uri: movie.uri, mimeType: "video/mp4", fileName: "clip.mp4", uploadDirectly: false });
+      setClip({ uri: movie.uri, kind: "video", mimeType: "video/mp4", fileName: "clip.mp4", uploadDirectly: false });
       setIdentity(null);
       setStage("identity");
     } catch (caught) {
@@ -106,34 +107,37 @@ export default function CreateScreen() {
     }
   }
 
-  async function pickVideo() {
+  async function pickMedia() {
     const access = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!access.granted) {
-      Alert.alert("Video access needed", "Allow PulseReel to choose the clip you want to turn into a movie.");
+      Alert.alert("Gallery access needed", "Allow MimiReel to choose a photo or video for your movie.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["videos"],
+      mediaTypes: ["images", "videos"],
       allowsEditing: false,
       quality: 1,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
     if (!asset) return;
+    const kind = asset.type === "video" || asset.mimeType?.startsWith("video/") ? "video" : "image";
     const fileSize = asset.fileSize ?? new File(asset.uri).size;
-    if (fileSize > MAX_UPLOADED_VIDEO_BYTES) {
-      Alert.alert("Clip is too large", "Choose an uploaded video no larger than 50 MB.");
+    if (fileSize > (kind === "image" ? MAX_UPLOADED_IMAGE_BYTES : MAX_UPLOADED_VIDEO_BYTES)) {
+      Alert.alert(kind === "image" ? "Photo is too large" : "Clip is too large", kind === "image" ? "Choose a photo no larger than 10 MB." : "Choose a video no larger than 50 MB.");
       return;
     }
-    setClip({
+    const selected: Asset = {
       uri: asset.uri,
+      kind,
       mimeType: asset.mimeType,
       fileName: asset.fileName,
       fileSize,
-      uploadDirectly: true,
-    });
-    setIdentity(null);
-    setStage("identity");
+      uploadDirectly: kind === "video",
+    };
+    setClip(selected);
+    setIdentity(kind === "image" ? selected : null);
+    setStage(kind === "image" ? "describe" : "identity");
   }
 
   async function captureIdentity() {
@@ -141,7 +145,7 @@ export default function CreateScreen() {
     try {
       const photo = await camera.current.takePictureAsync({ quality: 0.5, shutterSound: false });
       if (!photo?.uri) return;
-      setIdentity({ uri: photo.uri, mimeType: "image/jpeg", fileName: "identity.jpg" });
+      setIdentity({ uri: photo.uri, kind: "image", mimeType: "image/jpeg", fileName: "identity.jpg" });
       setStage("describe");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "That identity frame could not be captured.");
@@ -224,11 +228,21 @@ export default function CreateScreen() {
       ) : needsCamera ? (
         <View style={styles.permission}>
           <Ionicons name="camera-outline" size={38} color={colors.orange} />
-          <Text style={styles.permissionTitle}>Your camera, when you choose.</Text>
-          <Text style={styles.permissionBody}>PulseReel needs it only to record your clip and keep your face consistent in the movie.</Text>
+          <Text style={styles.permissionTitle}>{stage === "identity" ? "One identity photo." : "Your camera, when you choose."}</Text>
+          <Text style={styles.permissionBody}>
+            {stage === "identity"
+              ? "Allow the camera to capture the identity photo for your uploaded video."
+              : "Record a clip with your camera, or choose a photo or video from your gallery without camera access."}
+          </Text>
           <Pressable style={styles.primaryButton} onPress={allowCapture}>
             <Text style={styles.primaryButtonText}>Allow camera</Text>
           </Pressable>
+          {stage === "capture" ? (
+            <Pressable style={styles.galleryButton} onPress={pickMedia}>
+              <Ionicons name="images-outline" size={20} color={colors.ivory} />
+              <Text style={styles.galleryButtonText}>Choose photo or video</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -238,13 +252,13 @@ export default function CreateScreen() {
           <View style={[styles.captureCopy, { top: insets.top + 70 }]}>
             <Text style={styles.eyebrow}>CAST YOURSELF</Text>
             <Text style={styles.captureTitle}>Record ten seconds.</Text>
-            <Text style={styles.captureBody}>Look toward the camera and move naturally, or upload any video up to 50 MB. Your clip stays private unless you publish.</Text>
+            <Text style={styles.captureBody}>Look toward the camera and move naturally, or choose a photo or video. Your source stays private unless you publish.</Text>
           </View>
           <View style={[styles.captureControls, { bottom: insets.bottom + 32 }]}>
-            <Pressable style={styles.upload} onPress={pickVideo} disabled={recording}>
+            <Pressable style={styles.upload} onPress={pickMedia} disabled={recording}>
               <Ionicons name="images-outline" size={24} color={colors.ivory} />
-              <Text style={styles.uploadText}>Upload</Text>
-              <Text style={styles.uploadLimit}>≤ 50 MB</Text>
+              <Text style={styles.uploadText}>Choose</Text>
+              <Text style={styles.uploadLimit}>Photo / video</Text>
             </Pressable>
             <Pressable style={[styles.recordOuter, recording && styles.recordingOuter]} onPress={record}>
               <View style={[styles.recordInner, recording && styles.recordingInner]} />
@@ -275,36 +289,42 @@ export default function CreateScreen() {
       ) : null}
 
       {stage === "describe" && clip ? (
-        <KeyboardAvoidingView style={styles.describe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ClipPreview uri={clip.uri} />
+        <KeyboardAvoidingView style={styles.describe} behavior="padding">
+          {clip.kind === "image" ? <Image source={{ uri: clip.uri }} style={styles.preview} resizeMode="cover" /> : <ClipPreview uri={clip.uri} />}
           <View style={styles.previewScrim} />
-          <View style={[styles.describePanel, { paddingBottom: insets.bottom + 24 }]}>
-            <Text style={styles.eyebrow}>WHAT HAPPENS?</Text>
-            <Text style={styles.describeTitle}>Describe one scene.</Text>
-            <TextInput
-              value={prompt}
-              onChangeText={setPrompt}
-              placeholder="I walk into a rain-soaked city and discover everyone has frozen in time…"
-              placeholderTextColor={colors.faint}
-              style={styles.input}
-              multiline
-              maxLength={500}
-              autoFocus={!params.inspiration}
-            />
-            <View style={styles.promptMeta}>
-              <Text style={styles.hint}>No camera directions needed.</Text>
-              <Text style={styles.count}>{prompt.length}/500</Text>
+          <ScrollView
+            style={styles.describeScroll}
+            contentContainerStyle={styles.describeScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[styles.describePanel, { paddingBottom: insets.bottom + 24 }]}>
+              <Text style={styles.eyebrow}>WHAT HAPPENS?</Text>
+              <Text style={styles.describeTitle}>Describe one scene.</Text>
+              <TextInput
+                value={prompt}
+                onChangeText={setPrompt}
+                placeholder="I walk into a rain-soaked city and discover everyone has frozen in time…"
+                placeholderTextColor={colors.faint}
+                style={styles.input}
+                multiline
+                maxLength={500}
+                autoFocus={!params.inspiration}
+              />
+              <View style={styles.promptMeta}>
+                <Text style={styles.hint}>No camera directions needed.</Text>
+                <Text style={styles.count}>{prompt.length}/500</Text>
+              </View>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <Pressable
+                style={[styles.makeButton, prompt.trim().length < 10 && styles.disabled]}
+                disabled={prompt.trim().length < 10}
+                onPress={submit}
+              >
+                <Ionicons name="sparkles" size={18} color={colors.black} />
+                <Text style={styles.makeText}>Make my movie</Text>
+              </Pressable>
             </View>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Pressable
-              style={[styles.makeButton, prompt.trim().length < 10 && styles.disabled]}
-              disabled={prompt.trim().length < 10}
-              onPress={submit}
-            >
-              <Ionicons name="sparkles" size={18} color={colors.black} />
-              <Text style={styles.makeText}>Make my movie</Text>
-            </Pressable>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       ) : null}
 
@@ -337,6 +357,8 @@ const styles = StyleSheet.create({
   permissionBody: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
   primaryButton: { marginTop: 8, backgroundColor: colors.orange, borderRadius: 25, height: 50, paddingHorizontal: 22, justifyContent: "center" },
   primaryButtonText: { color: colors.black, fontSize: 15, fontWeight: "900" },
+  galleryButton: { marginTop: 2, borderWidth: 1, borderColor: colors.line, borderRadius: 25, minHeight: 50, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", gap: 9 },
+  galleryButtonText: { color: colors.ivory, fontSize: 15, fontWeight: "800" },
   cameraScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.18)" },
   captureCopy: { position: "absolute", left: 24, right: 24, alignItems: "center", gap: 9 },
   eyebrow: { color: colors.orangeSoft, fontSize: 12, fontWeight: "900", letterSpacing: 1.8 },
@@ -355,6 +377,8 @@ const styles = StyleSheet.create({
   photoOuter: { width: 78, height: 78, borderRadius: 39, borderWidth: 4, borderColor: colors.ivory, alignItems: "center", justifyContent: "center" },
   photoInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.ivory },
   describe: { flex: 1, justifyContent: "flex-end" },
+  describeScroll: { flex: 1 },
+  describeScrollContent: { flexGrow: 1, justifyContent: "flex-end" },
   preview: { ...StyleSheet.absoluteFill },
   previewScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.46)" },
   describePanel: { backgroundColor: "rgba(5,5,5,0.96)", borderTopLeftRadius: 30, borderTopRightRadius: 30, borderTopWidth: 1, borderColor: colors.line, padding: 24, gap: 12 },

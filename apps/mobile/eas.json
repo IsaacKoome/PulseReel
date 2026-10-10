@@ -12,7 +12,14 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_PLAY_RELEASE": "true"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   }
 }

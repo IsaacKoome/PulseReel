@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getMovieComments, postMovieComment } from "@/lib/api";
+import { getMovieComments, postMovieComment, reportMovieComment } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
 import type { MovieComment } from "@/types";
@@ -79,6 +80,31 @@ export default function CommentsScreen() {
     }
   }
 
+  function report(comment: MovieComment) {
+    Alert.alert(
+      "Report comment",
+      "Send this comment to MimiReel for review?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          style: "destructive",
+          onPress: async () => {
+            if (!slug) return;
+            try {
+              const activeSession = session ?? (await signInWithGoogle());
+              if (!activeSession?.access_token) return;
+              await reportMovieComment(slug, comment.id, activeSession.access_token);
+              Alert.alert("Report received", "Thank you. MimiReel will review this comment.");
+            } catch (caught) {
+              Alert.alert("Report not sent", caught instanceof Error ? caught.message : "Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -114,6 +140,13 @@ export default function CommentsScreen() {
                 <View style={styles.commentMeta}>
                   <Text style={styles.author} numberOfLines={1}>{item.authorName}</Text>
                   <Text style={styles.time}>{shortTime(item.createdAt)}</Text>
+                  <Pressable
+                    onPress={() => report(item)}
+                    accessibilityLabel={`Report comment by ${item.authorName}`}
+                    hitSlop={10}
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={18} color={colors.muted} />
+                  </Pressable>
                 </View>
                 <Text style={styles.body}>{item.body}</Text>
               </View>

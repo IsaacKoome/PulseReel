@@ -1,6 +1,6 @@
-# PulseReel mobile
+# MimiReel mobile
 
-The first native PulseReel vertical slice, built with Expo SDK 57 and Expo Router.
+The first native MimiReel vertical slice, built with Expo SDK 57 and Expo Router. The existing PulseReel API and storage identifiers remain in use during the brand transition.
 
 ## Product loop
 
@@ -16,7 +16,7 @@ The permanent navigation contains only **Watch**, **+**, and **You**. Payment is
 
 1. Copy `.env.example` to `.env.local`.
 2. Copy the existing public Supabase URL and publishable key into the two `EXPO_PUBLIC_SUPABASE_*` values. Never put the Supabase service role key or Paystack secret key in this app.
-3. Add `pulsereel://auth/callback` to the Supabase authentication redirect allowlist.
+3. Add `mimireel://auth/callback` to the Supabase authentication redirect allowlist. Keep the old `pulsereel://auth/callback` entry while legacy test builds are in use.
 4. Run `npm install` and then `npm start` from this directory.
 
 Google OAuth should be tested in an Expo development build rather than Expo Go. The current direct mobile upload is deliberately capped at a ten-second, 3 MB clip so it stays within the existing Vercel request path. A later upload pass should move mobile video directly to Vercel Blob before project submission.

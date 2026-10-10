@@ -17,6 +17,9 @@ for (const trace of traces) {
   const unwanted = files.filter((file) =>
     /(?:public\/(?:uploads|generated)\/|data\/heavy-jobs\/|workers\/|tools\/|\.codex-pulsereel-rollback)/.test(file.replaceAll("\\", "/")),
   );
+  // The legacy background-removal stack is local-only and has unresolved
+  // upstream advisories. It must not enter any hosted function, not just the webhook.
+  unwanted.push(...files.filter((file) => /background-removal-node/.test(file)));
   if (trace.replaceAll("\\", "/").includes("api/webhooks/replicate/")) {
     unwanted.push(...files.filter((file) => /ffmpeg-static|fluent-ffmpeg|background-removal-node/.test(file)));
   }

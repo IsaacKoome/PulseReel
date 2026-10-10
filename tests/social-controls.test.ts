@@ -16,6 +16,13 @@ test("social tables are server-controlled and cascade with movies and accounts",
   assert.match(migration, /to service_role/);
 });
 
+test("service role can upsert likes and follows", () => {
+  const migration = read("../supabase/migrations/202609220001_pulsereel_social_upsert_permissions.sql");
+  assert.match(migration, /grant update on public\.pulse_reel_movie_likes,\s*public\.pulse_reel_creator_follows to service_role/);
+  assert.doesNotMatch(migration, /grant update on public\.pulse_reel_movie_comments/);
+  assert.doesNotMatch(migration, /grant update on public\.pulse_reel_movie_shares/);
+});
+
 test("social mutations require authenticated server routes", () => {
   for (const route of ["like", "follow", "comments"]) {
     const source = read(`../app/api/projects/[slug]/${route}/route.ts`);

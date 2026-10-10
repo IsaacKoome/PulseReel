@@ -11,6 +11,7 @@ export default function DataDeletionPage() {
       eyebrow="Data controls"
       title="Delete a movie or your account data."
       intro="Signing out does not delete your movies or account. Use the appropriate option below."
+      updated="September 20, 2026"
     >
       <section>
         <h2>Delete one movie</h2>
@@ -22,10 +23,15 @@ export default function DataDeletionPage() {
       </section>
       <section>
         <h2>Request account deletion</h2>
+        <ol>
+          <li>Open MimiReel and sign in to the account you want deleted.</li>
+          <li>Open Profile, then Account and data.</li>
+          <li>Select Request account deletion and confirm.</li>
+        </ol>
         <p>
-          Send a deletion request from the same email address used to sign in. Include the words
-          &quot;Delete my MimiReel account&quot;. We may ask you to confirm ownership before removing account-linked
-          project records and requesting deletion from applicable service providers.
+          If you cannot access the app, send a deletion request from the same email address used to sign in
+          and include the words &quot;Delete my MimiReel account&quot;. We may ask you to confirm ownership before
+          removing account-linked project records and requesting deletion from applicable service providers.
         </p>
         <SupportContact />
       </section>

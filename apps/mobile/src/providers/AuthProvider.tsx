@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("Add the Supabase public URL and publishable key to the mobile .env file first.");
     }
 
-    const redirectTo = makeRedirectUri({ scheme: "pulsereel", path: "auth/callback" });
+    const redirectTo = makeRedirectUri({ scheme: "mimireel", path: "auth/callback" });
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo, skipBrowserRedirect: true },

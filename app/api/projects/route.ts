@@ -24,6 +24,7 @@ import {
 import { isAuthEnabled } from "@/lib/auth/config";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { FREE_BETA_MANAGED_PROVIDER } from "@/lib/beta-config";
+import { getBlockedUserIds } from "@/lib/safety";
 import {
   createDirectSeedanceProject,
   DIRECT_SEEDANCE_PROVIDER,
@@ -159,12 +160,16 @@ export async function GET(request: Request) {
     const followedCreatorIds = scope === "following" && user
       ? new Set(await getFollowedCreatorIds(user.id))
       : null;
+    const blockedCreatorIds = user && scope !== "mine"
+      ? new Set(await getBlockedUserIds(user.id))
+      : null;
     const projects = (await getProjects())
       .filter((project) =>
         scope === "mine"
           ? project.ownerId === user?.id
           : project.visibility === "public"
             && project.status === "published"
+            && !Boolean(project.ownerId && blockedCreatorIds?.has(project.ownerId))
             && (scope !== "following" || Boolean(project.ownerId && followedCreatorIds?.has(project.ownerId))),
       )
       .slice(0, limit);

@@ -76,7 +76,7 @@ export function MoviePlayer({
         controls
         playsInline
         poster={posterUrl}
-        preload="auto"
+        preload="none"
         src={videoUrl}
         onError={() => setHasPlaybackError(true)}
       >

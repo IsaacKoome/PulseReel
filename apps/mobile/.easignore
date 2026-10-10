@@ -1,0 +1,22 @@
+# Keep the native Android source, but exclude generated local build outputs.
+node_modules/
+.expo/
+dist/
+.env
+.env.local
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+release/*.apk
+release/*.aab
+android/.gradle/
+android/build/
+android/app/build/
+android/.cxx/
+android/app/.cxx/
+android/local.properties
+android/.idea/
+android/app/src/main/java/inline/
+docs/

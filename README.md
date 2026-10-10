@@ -72,7 +72,9 @@ PULSEREEL_HEAVY_PROVIDER=minimax-subject-adapter
 PULSEREEL_HEAVY_PROVIDER=local-heavy-v1
 ```
 
-The Replicate adapter now prepares provider-specific request bundles, forwards the token privately from Vercel to the remote worker, and lets the worker call Replicate, download the returned MP4, and publish it through the normal watch page. Set `PULSEREEL_REPLICATE_MODEL` to an `owner/model` slug or `version:<id>`. The first recommended PulseReel experiment is `minimax/video-01` because it is a MiniMax/Hailuo video model with prompt/image support. If your chosen model uses custom input names, set `PULSEREEL_REPLICATE_INPUT_TEMPLATE` as JSON with placeholders like `{{PROMPT}}`, `{{SOURCE_IMAGE_URL}}`, `{{SOURCE_VIDEO_URL}}`, `{{WIDTH}}`, `{{HEIGHT}}`, and `{{DURATION_SECONDS}}`.
+Seedance 1.5 Pro is submitted asynchronously from Vercel directly to Replicate. Replicate calls the PulseReel webhook when generation completes, and PulseReel copies the temporary result into Vercel Blob before publishing it. This default path works while the development laptop is off. The remote worker remains available for MiniMax, Kling, local FFmpeg/ComfyUI, and experimental providers.
+
+Set `PULSEREEL_REPLICATE_API_TOKEN` and `BLOB_READ_WRITE_TOKEN` on Vercel. `PULSEREEL_PUBLIC_BASE_URL` and `PULSEREEL_REPLICATE_WEBHOOK_SECRET` are optional; when the signing secret is omitted, PulseReel retrieves and caches it from Replicate using the API token.
 
 MiniMax currently remains a prepared adapter path for the next identity/subject-reference integration.
 
@@ -96,6 +98,7 @@ See `data/remote-worker-contract.md` for the exact multipart request and JSON re
 There is also a starter worker in `workers/pulsereel-gpu-worker` that can already return hosted `processedVideoUrl` values, optionally switch into ComfyUI-backed shot generation on the GPU machine, and upload final movies to S3-compatible storage for durable production playback.
 When PulseReel is running on Vercel and `PULSEREEL_REMOTE_MODEL_BACKEND_URL` is set, all movie requests automatically route through the heavy worker path, even if the UI mode is Fast Trailer or Prompt Movie Beta.
 If you are blocked on the Vercel setup message, use `docs/vercel-remote-worker-quickstart.md` for the shortest path from that error to a live worker.
+For the permanent Cloudflare tunnel setup on your laptop, use `docs/local-worker-startup.md` to register the worker at Windows login and run quick health checks before testing Vercel.
 
 ## Vercel runtime storage
 

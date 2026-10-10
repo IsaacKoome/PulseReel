@@ -34,13 +34,13 @@ export default function AuthCallbackScreen() {
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.brand}>PULSEREEL</Text>
+      <Text style={styles.brand}>MIMIREEL</Text>
       {error ? (
         <>
           <Text style={styles.title}>Sign-in needs another try.</Text>
           <Text style={styles.error}>{error}</Text>
           <Pressable style={styles.button} onPress={() => router.replace("/profile")}>
-            <Text style={styles.buttonText}>Back to PulseReel</Text>
+            <Text style={styles.buttonText}>Back to MimiReel</Text>
           </Pressable>
         </>
       ) : (
