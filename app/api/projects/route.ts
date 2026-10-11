@@ -35,7 +35,7 @@ import type { HeavyRenderProviderId } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_DIRECT_VIDEO_BYTES = 50_000_000;
+const MAX_DIRECT_VIDEO_BYTES = 100_000_000;
 const MAX_IDENTITY_IMAGE_BYTES = 10_000_000;
 
 const schema = z.object({

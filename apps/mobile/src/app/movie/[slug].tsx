@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MoviePlayer } from "@/components/MoviePlayer";
+import { MoviePreview } from "@/components/MoviePreview";
+import { downloadMovie } from "@/lib/download";
+import { API_URL } from "@/lib/api";
 import { getMovie, setMovieVisibility } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
@@ -21,7 +24,7 @@ export default function MovieScreen() {
   const load = useCallback(async () => {
     if (!slug) return;
     try {
-      const next = await getMovie(slug);
+      const next = await getMovie(slug, session?.access_token);
       setMovie(next);
       setError(null);
     } catch (caught) {
@@ -29,7 +32,7 @@ export default function MovieScreen() {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, session?.access_token]);
 
   useEffect(() => {
     load();
@@ -72,6 +75,25 @@ export default function MovieScreen() {
   const failed = movie.status === "failed";
   const progress = Math.max(0, Math.min(movie.workerJob?.progress ?? 8, 100));
 
+  if (ready && movie.processedVideoUrl) return (
+    <ScrollView style={styles.screen} contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }}>
+      <Pressable style={styles.secondaryButton} onPress={() => router.replace("/profile")}><Text style={styles.secondaryText}>Your Movies</Text></Pressable>
+      <Text style={[styles.movieTitle, { padding: 20 }]}>{movie.title}</Text>
+      <MoviePreview uri={movie.processedVideoUrl} />
+      <View style={[styles.resultPanel, { position: "relative" }]}>
+        <Text style={styles.moviePremise}>Watch, replay, and take your time. Publishing is your choice.</Text>
+        {movie.visibility !== "public" && movie.viewer?.owns ? <Pressable style={styles.publishButton} onPress={publish} disabled={publishing || !session}><Text style={styles.publishText}>{publishing ? "Publishing…" : "Publish to Watch"}</Text></Pressable> : movie.visibility === "public" ? <Text style={styles.liveText}>Published</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.actions}>
+          <Pressable style={styles.privateButton} onPress={() => void downloadMovie(movie)}><Text style={styles.privateText}>Download</Text></Pressable>
+          {movie.visibility === "public" ? <Pressable style={styles.privateButton} onPress={() => void Share.share({ message: `${movie.title} — ${API_URL}/watch/${movie.slug}` }).catch(() => Alert.alert("Could not share", "Please try again."))}><Text style={styles.privateText}>Share</Text></Pressable> : null}
+        </View>
+        <Pressable style={styles.secondaryButton} onPress={() => router.replace("/profile")}><Text style={styles.secondaryText}>{movie.visibility === "public" ? "Your Movies" : "Keep unpublished · Your Movies"}</Text></Pressable>
+        <Pressable style={styles.secondaryButton} onPress={() => router.replace("/")}><Text style={styles.secondaryText}>Back to Watch</Text></Pressable>
+        <Pressable style={styles.another} onPress={() => Alert.alert("Make another take?", "This starts a new generation and uses an available attempt. Your current movie stays saved.", [{ text: "Cancel", style: "cancel" }, { text: "Continue", onPress: () => router.push({ pathname: "/create", params: { inspiration: movie.premise } }) }])}><Text style={styles.anotherText}>Another take</Text></Pressable>
+      </View>
+    </ScrollView>
+  );
   return (
     <View style={styles.screen}>
       <MoviePlayer

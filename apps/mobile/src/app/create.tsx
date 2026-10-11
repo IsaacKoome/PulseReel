@@ -21,9 +21,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createMovie, getGenerationAccess, PulseReelApiError } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors } from "@/theme";
+import { IdentityFramePicker } from "@/components/IdentityFramePicker";
 
-const MAX_UPLOADED_VIDEO_BYTES = 50_000_000;
-const MAX_UPLOADED_IMAGE_BYTES = 10_000_000;
+const MAX_UPLOADED_VIDEO_BYTES = 100_000_000;
+const MAX_UPLOADED_IMAGE_BYTES = 25_000_000;
 
 type Asset = {
   uri: string;
@@ -33,7 +34,7 @@ type Asset = {
   fileSize?: number;
   uploadDirectly?: boolean;
 };
-type Stage = "capture" | "identity" | "describe" | "making";
+type Stage = "capture" | "identity" | "frame" | "describe" | "making";
 
 function ClipPreview({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (instance) => {
@@ -99,7 +100,7 @@ export default function CreateScreen() {
       if (!movie?.uri) return;
       setClip({ uri: movie.uri, kind: "video", mimeType: "video/mp4", fileName: "clip.mp4", uploadDirectly: false });
       setIdentity(null);
-      setStage("identity");
+      setStage("frame");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The camera could not record that clip.");
     } finally {
@@ -124,7 +125,7 @@ export default function CreateScreen() {
     const kind = asset.type === "video" || asset.mimeType?.startsWith("video/") ? "video" : "image";
     const fileSize = asset.fileSize ?? new File(asset.uri).size;
     if (fileSize > (kind === "image" ? MAX_UPLOADED_IMAGE_BYTES : MAX_UPLOADED_VIDEO_BYTES)) {
-      Alert.alert(kind === "image" ? "Photo is too large" : "Clip is too large", kind === "image" ? "Choose a photo no larger than 10 MB." : "Choose a video no larger than 50 MB.");
+      Alert.alert(kind === "image" ? "Photo is too large" : "Clip is too large", kind === "image" ? "Choose a photo no larger than 25 MB." : "Choose a video no larger than 100 MB.");
       return;
     }
     const selected: Asset = {
@@ -137,7 +138,20 @@ export default function CreateScreen() {
     };
     setClip(selected);
     setIdentity(kind === "image" ? selected : null);
-    setStage(kind === "image" ? "describe" : "identity");
+    setStage(kind === "image" ? "describe" : "frame");
+  }
+
+  async function pickIdentity() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      if ((asset.fileSize ?? new File(asset.uri).size) > MAX_UPLOADED_IMAGE_BYTES) {
+        setError("Choose a photo no larger than 25 MB."); return;
+      }
+      setIdentity({ uri: asset.uri, kind: "image", mimeType: asset.mimeType, fileName: asset.fileName });
+      setStage("describe");
+    } catch { setError("That photo could not be opened. Please choose another photo."); }
   }
 
   async function captureIdentity() {
@@ -203,7 +217,7 @@ export default function CreateScreen() {
       setIdentity(null);
       return;
     }
-    if (stage === "identity") {
+    if (stage === "identity" || stage === "frame") {
       setStage("capture");
       setClip(null);
       return;
@@ -215,6 +229,7 @@ export default function CreateScreen() {
 
   return (
     <View style={styles.screen}>
+      {stage === "frame" && clip ? <IdentityFramePicker uri={clip.uri} onGallery={() => void pickIdentity()} onSelect={uri => { setIdentity({ uri, kind: "image", mimeType: "image/jpeg", fileName: "identity-frame.jpg" }); setStage("describe"); }} /> : null}
       {needsCamera && permission?.granted ? (
         <CameraView
           ref={camera}
@@ -300,6 +315,12 @@ export default function CreateScreen() {
             <View style={[styles.describePanel, { paddingBottom: insets.bottom + 24 }]}>
               <Text style={styles.eyebrow}>WHAT HAPPENS?</Text>
               <Text style={styles.describeTitle}>Describe one scene.</Text>
+              {identity ? <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <Image source={{ uri: identity.uri }} style={{ width: 56, height: 56, borderRadius: 12 }} />
+                <Pressable onPress={() => void (clip.kind === "video" ? pickIdentity() : pickMedia())}>
+                  <Text style={styles.captureBody}>Your identity photo · Change</Text>
+                </Pressable>
+              </View> : null}
               <TextInput
                 value={prompt}
                 onChangeText={setPrompt}

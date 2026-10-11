@@ -20,6 +20,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MoviePlayer } from "@/components/MoviePlayer";
 import { PulseDock } from "@/components/PulseDock";
+import { downloadMovie } from "@/lib/download";
 import {
   API_URL,
   getMovies,
@@ -317,6 +318,8 @@ export default function WatchScreen() {
 
   function safety(project: MovieProject) {
     const buttons = [
+      { text: "Download movie", onPress: () => void downloadMovie(project) },
+      { text: "Open movie", onPress: () => router.push({ pathname: "/movie/[slug]", params: { slug: project.slug } }) },
       { text: "Report movie", onPress: () => void report(project) },
       ...(project.creatorId && !project.viewer?.owns
         ? [{ text: "Block creator", style: "destructive" as const, onPress: () => void block(project) }]

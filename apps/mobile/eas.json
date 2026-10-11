@@ -11,6 +11,13 @@
     "preview": {
       "distribution": "internal"
     },
+    "feedback": {
+      "distribution": "internal",
+      "autoIncrement": true,
+      "environment": "production",
+      "env": { "EXPO_PUBLIC_GOOGLE_PLAY_RELEASE": "true" },
+      "android": { "buildType": "apk" }
+    },
     "production": {
       "autoIncrement": true,
       "environment": "production",

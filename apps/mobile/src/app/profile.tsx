@@ -13,7 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { MovieThumbnail } from "@/components/MovieThumbnail";
 import { API_URL, getGenerationAccess, getMovies, requestAccountDeletion } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { PulseDock } from "@/components/PulseDock";
@@ -26,13 +26,12 @@ function MovieTile({ movie }: { movie: MovieProject }) {
       style={styles.tile}
       onPress={() => router.push({ pathname: "/movie/[slug]", params: { slug: movie.slug } })}
     >
-      {movie.posterUrl ? (
-        <Image source={movie.posterUrl} style={StyleSheet.absoluteFill} contentFit="cover" />
-      ) : (
+      <MovieThumbnail videoUrl={movie.status === "published" ? movie.processedVideoUrl : undefined} posterUrl={movie.posterUrl} />
+      {!movie.posterUrl && !movie.processedVideoUrl ? (
         <View style={styles.tileFallback}>
           <Ionicons name={movie.status === "failed" ? "alert-circle-outline" : "sparkles"} size={26} color={colors.orange} />
         </View>
-      )}
+      ) : null}
       <View style={styles.tileScrim} />
       <View style={styles.statusPill}>
         <Text style={styles.statusText}>{movie.status === "published" ? "READY" : movie.status.toUpperCase()}</Text>

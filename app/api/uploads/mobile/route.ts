@@ -5,7 +5,7 @@ import { getRequestUser } from "@/lib/auth/request-user";
 
 export const runtime = "nodejs";
 
-const MAX_SOURCE_VIDEO_BYTES = 50_000_000;
+const MAX_SOURCE_VIDEO_BYTES = 100_000_000;
 const requestSchema = z.object({
   pathname: z.string().min(1).max(512),
   contentType: z.string().regex(/^video\/[a-z0-9.+-]+$/i),
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const parsed = requestSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Choose a video no larger than 50 MB." },
+        { error: "Choose a video no larger than 100 MB." },
         { status: 400 },
       );
     }

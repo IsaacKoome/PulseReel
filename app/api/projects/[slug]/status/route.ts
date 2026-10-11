@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getProjectStatus } from "@/lib/heavy-worker";
 import { getProjectBySlug } from "@/lib/store";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
@@ -22,7 +23,8 @@ export async function GET(
   }
 
   const { ownerId: _ownerId, deleteTokenHash: _deleteTokenHash, ...clientProject } = project;
-  return NextResponse.json(clientProject, {
+  const user = await getRequestUser(request);
+  return NextResponse.json({ ...clientProject, creatorId: project.ownerId ?? null, viewer: { owns: Boolean(user && project.ownerId === user.id), liked: false, following: false } }, {
     headers: { "Cache-Control": "no-store" },
   });
 }

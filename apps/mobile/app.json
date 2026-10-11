@@ -47,7 +47,8 @@
         {
           "photosPermission": "MimiReel lets you choose a photo or video you want to turn into a movie."
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "router": {},

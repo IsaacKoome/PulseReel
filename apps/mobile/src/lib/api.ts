@@ -141,8 +141,8 @@ export async function recordMovieShare(slug: string, token?: string | null) {
   return readJson<{ tracked: boolean; shares?: number }>(response);
 }
 
-export async function getMovie(slug: string) {
-  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/status`);
+export async function getMovie(slug: string, token?: string) {
+  const response = await fetch(`${API_URL}/api/projects/${encodeURIComponent(slug)}/status`, { headers: authHeaders(token) });
   return readJson<MovieProject>(response);
 }
 
@@ -253,6 +253,9 @@ export async function createMovie(input: {
   ownerId: string;
 }) {
   const form = new FormData();
+  let preparedIdentity: File;
+  try { preparedIdentity = await prepareIdentityPhoto(input.identity); }
+  catch { throw new PulseReelApiError("This photo could not be decoded. Choose a different gallery photo, a screenshot, or another video frame. No generation has started."); }
   if (input.clip.kind === "image") {
     form.append("sourceType", "image");
   } else if (input.clip.uploadDirectly) {
@@ -260,7 +263,7 @@ export async function createMovie(input: {
   } else {
     form.append("video", nativeUpload(input.clip));
   }
-  form.append("selfie", await prepareIdentityPhoto(input.identity));
+  form.append("selfie", preparedIdentity);
   form.append("quickPrompt", input.prompt);
   form.append("templateId", "identity-cinematic");
   form.append("cameraMode", "cinematic");
