@@ -1,0 +1,27 @@
+# EAS uses the Git repository root for this standalone mobile app archive.
+/*
+!/apps
+/apps/*
+!/apps/mobile
+!/apps/mobile/**
+/apps/mobile/node_modules/
+/apps/mobile/.expo/
+/apps/mobile/.claude/
+/apps/mobile/dist/
+/apps/mobile/.env*
+/apps/mobile/credentials.json
+/apps/mobile/**/*.jks
+/apps/mobile/**/*.p8
+/apps/mobile/**/*.p12
+/apps/mobile/**/*.key
+/apps/mobile/**/*.mobileprovision
+/apps/mobile/release/
+/apps/mobile/docs/
+/apps/mobile/android/.gradle/
+/apps/mobile/android/build/
+/apps/mobile/android/app/build/
+/apps/mobile/android/.cxx/
+/apps/mobile/android/app/.cxx/
+/apps/mobile/android/local.properties
+/apps/mobile/android/.idea/
+/apps/mobile/android/app/src/main/java/inline/
