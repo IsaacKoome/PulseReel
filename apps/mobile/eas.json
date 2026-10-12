@@ -18,6 +18,10 @@
       "env": { "EXPO_PUBLIC_GOOGLE_PLAY_RELEASE": "true" },
       "android": { "buildType": "apk" }
     },
+    "production-v7": {
+      "extends": "production",
+      "autoIncrement": false
+    },
     "production": {
       "autoIncrement": true,
       "environment": "production",
