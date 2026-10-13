@@ -19,6 +19,7 @@ import { setVideoCacheSizeAsync } from "expo-video";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MoviePlayer } from "@/components/MoviePlayer";
+import { MovieOptions, type MovieOption } from "@/components/MovieOptions";
 import { PulseDock } from "@/components/PulseDock";
 import { downloadMovie } from "@/lib/download";
 import {
@@ -167,6 +168,7 @@ export default function WatchScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(true);
+  const [movieOptions, setMovieOptions] = useState<MovieOption[] | null>(null);
 
   useEffect(() => {
     // Bound the persistent replay cache on smaller phones.
@@ -326,7 +328,7 @@ export default function WatchScreen() {
         : []),
       { text: "Cancel", style: "cancel" as const },
     ];
-    Alert.alert("Movie options", "Choose how you want to handle this movie.", buttons);
+    setMovieOptions(buttons);
   }
 
   const onViewableItemsChanged = useRef(
@@ -453,6 +455,7 @@ export default function WatchScreen() {
       </View>
 
       <PulseDock />
+      <MovieOptions options={movieOptions} onClose={() => setMovieOptions(null)} />
     </View>
   );
 }

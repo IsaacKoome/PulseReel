@@ -4,6 +4,7 @@ import { useEvent } from "expo";
 import { useFocusEffect } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { colors } from "@/theme";
+import { pausePlayerSafely } from "@/lib/player-lifecycle";
 
 export function MoviePreview({ uri }: { uri: string }) {
   const player = useVideoPlayer({ uri, useCaching: true }, instance => {
@@ -11,7 +12,7 @@ export function MoviePreview({ uri }: { uri: string }) {
     instance.muted = false;
   });
   const { status } = useEvent(player, "statusChange", { status: player.status });
-  useFocusEffect(useCallback(() => () => player.pause(), [player]));
+  useFocusEffect(useCallback(() => () => pausePlayerSafely(player), [player]));
   return <View style={styles.wrap}>
     <VideoView player={player} style={styles.video} nativeControls contentFit="contain" fullscreenOptions={{ enable: true }} />
     {status === "error" ? <Text style={styles.error}>The preview could not load. Go back and try again.</Text> : null}
