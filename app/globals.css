@@ -259,6 +259,69 @@ select {
   padding-left: 24px;
 }
 
+.web-video-upload, .web-video-upload fieldset, .web-video-upload label {
+  display: grid;
+  gap: 12px;
+}
+.web-video-upload fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+.web-video-upload label input:not([type="checkbox"]), .web-video-upload textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #101113;
+  color: var(--text);
+}
+.web-video-upload .web-upload-rights { grid-template-columns: auto 1fr; align-items: start; }
+.web-video-upload video { width: 100%; max-height: 360px; background: #050607; }
+
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
+  align-items: center;
+  gap: clamp(24px, 6vw, 88px);
+  padding: clamp(24px, 6vw, 72px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: radial-gradient(ellipse at 85% 45%, #3a1d10, transparent 66%), #101113;
+  margin-bottom: 52px;
+}
+
+.home-hero-kicker, .home-hero-demo figcaption span {
+  color: var(--accent-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.home-hero h1 {
+  margin: 14px 0 20px;
+  font-size: clamp(2.4rem, 5.5vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+}
+
+.home-hero h1 em { color: var(--accent-soft); font-style: normal; }
+.home-hero-description { max-width: 45ch; color: var(--muted); line-height: 1.6; }
+.home-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+
+.home-hero-demo {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #101113;
+  box-shadow: var(--shadow);
+}
+
+.home-hero-demo video { width: 100%; aspect-ratio: 9 / 14; object-fit: contain; background: #050607; }
+.home-hero-demo figcaption { display: grid; gap: 6px; padding: 16px; }
+
+@media (max-width: 700px) {
+  .home-hero { grid-template-columns: minmax(0, 1fr); }
+  .home-hero-demo { width: min(100%, 260px); }
+}
+
 .home-feed {
   max-width: 980px;
   margin: 0 auto;
@@ -272,7 +335,7 @@ select {
   margin-bottom: 22px;
 }
 
-.home-feed-head h1 {
+.home-feed-head :is(h1, h2) {
   margin: 0 0 8px;
   font-family: inherit;
   font-size: clamp(2rem, 4vw, 3.4rem);
@@ -992,7 +1055,7 @@ select {
   color: #fca5a5;
 }
 
-/* MimiReel's web studio follows the same quiet, identity-first path as the app. */
+/* MimiScene's web studio follows the same quiet, identity-first path as the app. */
 .mimi-studio {
   max-width: 1120px;
   margin: 0 auto;

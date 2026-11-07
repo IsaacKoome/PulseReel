@@ -36,7 +36,7 @@ export default async function MyMoviesPage() {
     <main className="app-home shell">
       <header className="app-header">
         <Link className="brand-mark" href="/">
-          MimiReel
+          MimiScene
         </Link>
         <AccountNav enabled={enabled} user={user} isAdmin={isPulseReelAdmin(user)} />
       </header>
@@ -46,9 +46,10 @@ export default async function MyMoviesPage() {
             <h1>My Movies</h1>
             <p>Movies created while signed in to this account.</p>
           </div>
-          <Link className="button" href="/create">
-            New Movie
-          </Link>
+          <div className="header-actions">
+            <Link className="button-secondary" href={{ pathname: "/upload" }}>Upload a video</Link>
+            <Link className="button" href="/create">New Movie</Link>
+          </div>
         </div>
         <div className="feed-grid">
           <RecentMovies

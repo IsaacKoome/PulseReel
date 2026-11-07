@@ -24,7 +24,7 @@ export type HeavyRenderProviderId =
   | "replicate-kling-v3-omni"
   | "minimax-subject-adapter";
 
-export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta" | "seedance-2-fast";
+export type RenderMode = "fast-trailer" | "prompt-movie-beta" | "heavy-worker-beta" | "seedance-2-fast" | "uploaded-video";
 
 export type CameraMode = "cinematic" | "selfie";
 
@@ -79,6 +79,8 @@ export type IdentityQualityReport = {
 };
 
 export type MovieProject = {
+  origin?: "uploaded" | "generated";
+  rightsConfirmedAt?: string;
   id: string;
   slug: string;
   creatorName: string;
@@ -100,6 +102,8 @@ export type MovieProject = {
   shotPlan: ShotSpec[];
   scenePrompts: string[];
   posterUrl: string;
+  thumbnailUrl?: string;
+  thumbnailVideoUrl?: string;
   processedVideoUrl: string;
   sourceVideoUrl: string;
   sourceImageUrl?: string;

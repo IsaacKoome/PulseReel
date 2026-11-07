@@ -46,7 +46,7 @@ export default async function WatchPage({
 
       <div className="watch-grid">
         <section className="watch-card glass">
-          <p className="eyebrow-copy">MimiReel movie</p>
+          <p className="eyebrow-copy">{project.origin === "uploaded" ? "Community upload" : "MimiScene movie"}</p>
           <h1 className="heading" style={{ marginBottom: 10 }}>
             {project.title}
           </h1>
@@ -64,7 +64,7 @@ export default async function WatchPage({
             ) : (
               <MoviePlayer
                 projectId={project.id}
-                posterUrl={project.posterUrl}
+                posterUrl={project.thumbnailVideoUrl === project.processedVideoUrl ? project.thumbnailUrl || project.posterUrl : project.posterUrl}
                 title={project.title}
                 videoUrl={project.processedVideoUrl}
               />
@@ -90,7 +90,7 @@ export default async function WatchPage({
             <div className="pill-row" style={{ marginBottom: 12 }}>
               <span className="pill">{project.genre}</span>
               <span className="pill">
-                {isFailed ? "Failed" : isProcessing ? "Processing" : "Published"}
+                {isFailed ? "Failed" : isProcessing ? "Processing" : project.visibility === "unlisted" ? "Unlisted" : "Published"}
               </span>
             </div>
             <p className="body-copy" style={{ marginTop: 0 }}>
@@ -145,9 +145,9 @@ export default async function WatchPage({
 
         <section className="watch-card glass">
           <div className="poster-card poster-fallback">
-            <span>MimiReel Original</span>
+            <span>{project.origin === "uploaded" ? "Community upload" : "MimiScene Original"}</span>
             <strong>{project.title}</strong>
-            <p>Identity-first AI movie</p>
+            <p>{project.origin === "uploaded" ? "Shared by a MimiScene creator" : "Identity-first AI movie"}</p>
           </div>
 
           <div className="panel" style={{ marginTop: 18 }}>
