@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Privacy | MimiReel",
-  description: "How MimiReel handles account, identity, and movie-generation data.",
+  title: "Privacy | MimiScene",
+  description: "How MimiScene handles account, identity, and movie-generation data.",
 };
 
 export default function PrivacyPage() {
@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <PolicyPage
       eyebrow="Privacy"
       title="Your identity deserves careful handling."
-      intro="This notice explains what MimiReel collects during the beta, why it is needed, and the choices available to you."
+      intro="This notice explains what MimiScene collects during the beta, why it is needed, and the choices available to you."
       updated="October 9, 2026"
     >
       <section>
@@ -44,15 +44,15 @@ export default function PrivacyPage() {
       <section>
         <h2>Payments</h2>
         <p>
-          MimiReel&apos;s Google Play release does not use the web checkout for digital purchases. If in-app
+          MimiScene&apos;s Google Play release does not use the web checkout for digital purchases. If in-app
           purchases are enabled later, they will use Google Play Billing and applicable purchase records
-          will be handled by Google and MimiReel for fulfillment, fraud prevention, and support.
+          will be handled by Google and MimiScene for fulfillment, fraud prevention, and support.
         </p>
       </section>
       <section>
         <h2>Processors and AI providers</h2>
         <p>
-          MimiReel relies on service providers including Supabase for authentication, Vercel for hosting
+          MimiScene relies on service providers including Supabase for authentication, Vercel for hosting
           and storage, and the AI provider selected for generation, such as Replicate. The minimum inputs
           needed to perform a generation may be sent to those providers and handled under their own service terms.
         </p>

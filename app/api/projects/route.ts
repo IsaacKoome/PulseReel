@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { feedWindow } from "@/lib/feed-window";
 import { randomUUID } from "node:crypto";
 import { del, head } from "@vercel/blob";
 import { z } from "zod";
@@ -163,7 +164,7 @@ export async function GET(request: Request) {
     const blockedCreatorIds = user && scope !== "mine"
       ? new Set(await getBlockedUserIds(user.id))
       : null;
-    const projects = (await getProjects())
+    const eligibleProjects = (await getProjects())
       .filter((project) =>
         scope === "mine"
           ? project.ownerId === user?.id
@@ -171,8 +172,10 @@ export async function GET(request: Request) {
             && project.status === "published"
             && !Boolean(project.ownerId && blockedCreatorIds?.has(project.ownerId))
             && (scope !== "following" || Boolean(project.ownerId && followedCreatorIds?.has(project.ownerId))),
-      )
-      .slice(0, limit);
+      );
+    // Anchor only within the already-authorized feed; never bypass visibility,
+    // following or blocking filters to restore a removed/inaccessible movie.
+    const projects = feedWindow(eligibleProjects, limit, scope === "mine" ? null : url.searchParams.get("anchor"));
     const social = await getProjectSocialSnapshots(projects, user?.id);
 
     return NextResponse.json(

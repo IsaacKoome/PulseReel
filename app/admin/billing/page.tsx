@@ -32,7 +32,7 @@ export default async function BillingAdminPage({
   return (
     <main className="admin-shell shell">
       <header className="app-header compact-header">
-        <Link className="brand-mark" href="/">MimiReel</Link>
+        <Link className="brand-mark" href="/">MimiScene</Link>
         <div className="header-actions">
           <Link className="button-secondary" href="/admin/beta">Beta Admin</Link>
           <Link className="button-secondary" href="/billing">Customer billing</Link>

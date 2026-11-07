@@ -53,7 +53,7 @@ async function extractIdentityFrameFromVideo(videoFile: File) {
 
       video.onerror = () => {
         window.clearTimeout(timeout);
-        reject(new Error("MimiReel could not read this clip to preserve your identity."));
+        reject(new Error("MimiScene could not read this clip to preserve your identity."));
       };
       video.onloadeddata = () => {
         const duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -85,13 +85,13 @@ async function extractIdentityFrameFromVideo(videoFile: File) {
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) {
-      throw new Error("MimiReel could not prepare the creator identity frame.");
+      throw new Error("MimiScene could not prepare the creator identity frame.");
     }
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (value) => value ? resolve(value) : reject(new Error("MimiReel could not encode the identity frame.")),
+        (value) => value ? resolve(value) : reject(new Error("MimiScene could not encode the identity frame.")),
         "image/jpeg",
         0.88,
       );
@@ -447,7 +447,7 @@ export function CreateStudio({
     if (finalVideo.size > 50_000_000) {
       setStatus({
         tone: "error",
-        message: "That clip is larger than the current 50 MB MimiReel upload limit.",
+        message: "That clip is larger than the current 50 MB MimiScene upload limit.",
       });
       return;
     }
@@ -482,7 +482,7 @@ export function CreateStudio({
       } catch (error) {
         setStatus({
           tone: "error",
-          message: error instanceof Error ? error.message : "MimiReel could not prepare your identity frame.",
+          message: error instanceof Error ? error.message : "MimiScene could not prepare your identity frame.",
         });
         setIsSubmitting(false);
         return;
@@ -620,7 +620,7 @@ export function CreateStudio({
       <div className="mimi-studio-intro">
         <p className="mimi-kicker">CAST YOURSELF</p>
         <h1>Your story starts with you.</h1>
-        <p>Bring one short clip and one scene idea. MimiReel will make the movie.</p>
+        <p>Bring one short clip and one scene idea. MimiScene will make the movie.</p>
       </div>
 
       <div className="mimi-studio-grid">
@@ -751,7 +751,7 @@ export function CreateStudio({
               <label className="mimi-extra-photo">
                 <span>Clear face photo <small>(optional)</small></span>
                 <input type="file" accept="image/*" onChange={(event) => setSelfieFile(event.target.files?.[0] ?? null)} />
-                <small>If you skip this, MimiReel selects a frame from your clip.</small>
+                <small>If you skip this, MimiScene selects a frame from your clip.</small>
               </label>
             </div>
           </details>

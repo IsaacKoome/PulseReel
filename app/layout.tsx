@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MimiReel",
+  title: "MimiScene",
   description:
-    "MimiReel turns your short clip and scene idea into an identity-first movie.",
+    "MimiScene turns your short clip and scene idea into an identity-first movie.",
 };
 
 export default function RootLayout({

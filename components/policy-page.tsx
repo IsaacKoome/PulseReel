@@ -17,7 +17,7 @@ export function PolicyPage({
   return (
     <main className="policy-shell shell">
       <header className="policy-header">
-        <a className="brand-mark" href="/">MimiReel</a>
+        <a className="brand-mark" href="/">MimiScene</a>
         <a className="button-secondary" href="/">Home</a>
       </header>
       <article className="policy-card glass">

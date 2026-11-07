@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Delete My Data | MimiReel",
-  description: "How to delete a MimiReel movie or request account deletion.",
+  title: "Delete My Data | MimiScene",
+  description: "How to delete a MimiScene movie or request account deletion.",
 };
 
 export default function DataDeletionPage() {
@@ -24,13 +24,13 @@ export default function DataDeletionPage() {
       <section>
         <h2>Request account deletion</h2>
         <ol>
-          <li>Open MimiReel and sign in to the account you want deleted.</li>
+          <li>Open MimiScene and sign in to the account you want deleted.</li>
           <li>Open Profile, then Account and data.</li>
           <li>Select Request account deletion and confirm.</li>
         </ol>
         <p>
           If you cannot access the app, send a deletion request from the same email address used to sign in
-          and include the words &quot;Delete my MimiReel account&quot;. We may ask you to confirm ownership before
+          and include the words &quot;Delete my MimiScene account&quot;. We may ask you to confirm ownership before
           removing account-linked project records and requesting deletion from applicable service providers.
         </p>
         <SupportContact />

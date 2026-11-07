@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import type { MovieProject } from "@/lib/types";
+import { StoredMovieThumbnail } from "@/components/stored-movie-thumbnail";
 
 function readLocalProjects() {
   const projects: MovieProject[] = [];
@@ -48,16 +49,9 @@ function readOwnedMovieSlugs() {
 
 function seekToMoviePreview(event: SyntheticEvent<HTMLVideoElement>) {
   const video = event.currentTarget;
-
-  if (!Number.isFinite(video.duration) || video.duration <= 0) {
-    return;
-  }
-
+  if (!Number.isFinite(video.duration) || video.duration <= 0) return;
   const latestSafeTime = Math.max(video.duration - 0.1, 0);
-  video.currentTime = Math.min(
-    Math.max(video.duration * 0.25, 0.35),
-    latestSafeTime,
-  );
+  video.currentTime = Math.min(Math.max(video.duration * 0.25, 0.35), latestSafeTime);
 }
 
 export function RecentMovies({
@@ -106,7 +100,7 @@ export function RecentMovies({
     return (
       <article className="feed-card glass" style={{ padding: 24 }}>
         <h3>No movies yet</h3>
-        <p className="body-copy">Create the first MimiReel movie.</p>
+        <p className="body-copy">Create the first MimiScene movie.</p>
         <Link className="button" href="/create">
           Start
         </Link>
@@ -121,7 +115,7 @@ export function RecentMovies({
       return;
     }
 
-    const confirmed = window.confirm(`Delete "${project.title}" from MimiReel?`);
+    const confirmed = window.confirm(`Delete "${project.title}" from MimiScene?`);
     if (!confirmed) {
       return;
     }
@@ -155,11 +149,12 @@ export function RecentMovies({
 
   return (
     <>
-      {projects.map((project) => {
+      {projects.map((project, index) => {
         return (
           <article className="feed-card glass movie-card" key={project.id}>
             <Link className="movie-card-link" href={`/watch/${project.slug}`}>
               <div className="feed-art" style={{ background: "linear-gradient(140deg, #24170f, #0d1522 52%, #050a12)" }}>
+                <StoredMovieThumbnail url={project.thumbnailVideoUrl === project.processedVideoUrl ? project.thumbnailUrl : undefined} priority={index < 3}>
                 {project.processedVideoUrl ? (
                   <video
                     aria-hidden="true"
@@ -173,6 +168,7 @@ export function RecentMovies({
                     tabIndex={-1}
                   />
                 ) : null}
+                </StoredMovieThumbnail>
                 <div
                   style={{
                     position: "absolute",

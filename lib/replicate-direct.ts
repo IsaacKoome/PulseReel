@@ -4,6 +4,7 @@ import { syncGenerationReservationForProject } from "@/lib/generation-access";
 import { portraitIdentityBuffer } from "@/lib/identity-portrait";
 import { makeMp4Streamable } from "@/lib/mp4-faststart";
 import { storeGeneratedMedia } from "@/lib/media-storage";
+import { storeMovieThumbnail } from "@/lib/movie-thumbnail";
 import { createMovieProjectDraft } from "@/lib/project-draft";
 import { addProject, getProjectById, updateProject } from "@/lib/store";
 import type { CameraMode, MovieProject, RenderMode } from "@/lib/types";
@@ -245,7 +246,13 @@ async function persistReplicateVideo(project: MovieProject, outputUrl: string) {
   }
   const movie = makeMp4Streamable(new Uint8Array(await response.arrayBuffer()));
   const ownerPath = project.ownerId ?? "public";
-  return storeGeneratedMedia(`pulsereel/generated/${ownerPath}/${project.id}.mp4`, movie, "video/mp4");
+  const stored = await storeGeneratedMedia(`pulsereel/generated/${ownerPath}/${project.id}.mp4`, movie, "video/mp4");
+  try {
+    return { ...stored, ...await storeMovieThumbnail(project.id, stored.url, movie) };
+  } catch (error) {
+    console.warn("Movie saved; thumbnail deferred.", error instanceof Error ? error.message : "Thumbnail error");
+    return { ...stored, thumbnailUrl: undefined, thumbnailVideoUrl: undefined };
+  }
 }
 
 export async function applyReplicatePrediction(projectId: string, prediction: ReplicatePrediction) {
@@ -270,6 +277,8 @@ export async function applyReplicatePrediction(projectId: string, prediction: Re
       ...item,
       status: "published",
       processedVideoUrl: stored.url,
+      thumbnailUrl: stored.thumbnailUrl,
+      thumbnailVideoUrl: stored.thumbnailVideoUrl,
       updatedAt: new Date().toISOString(),
       workerJob: {
         ...item.workerJob!,

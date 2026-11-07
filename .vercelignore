@@ -3,6 +3,12 @@ public/uploads/
 public/generated/
 data/heavy-jobs/
 data/projects.json
+data/thumbnail-backups/
+tmp/
+apps/mobile/
+.env*
+output/
+.codex*/
 workers/
 tools/
 .codex-pulsereel-rollback*

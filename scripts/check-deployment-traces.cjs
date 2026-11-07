@@ -20,13 +20,11 @@ for (const trace of traces) {
   // The legacy background-removal stack is local-only and has unresolved
   // upstream advisories. It must not enter any hosted function, not just the webhook.
   unwanted.push(...files.filter((file) => /background-removal-node/.test(file)));
-  if (trace.replaceAll("\\", "/").includes("api/webhooks/replicate/")) {
-    unwanted.push(...files.filter((file) => /ffmpeg-static|fluent-ffmpeg|background-removal-node/.test(file)));
-  }
+  // ffmpeg-static is now intentionally used for bounded stored thumbnails.
   if (unwanted.length) {
     violations += unwanted.length;
     console.error(`${trace}: ${unwanted.length} unwanted dependencies`, unwanted.slice(0, 5));
   }
 }
 if (violations) process.exitCode = 1;
-else console.log(`Checked ${traces.length} traces: no runtime data or local worker files bundled; Replicate webhook has no local renderer dependencies.`);
+else console.log(`Checked ${traces.length} traces: no runtime data, background-removal stack or local worker files bundled; thumbnail decoder is intentional.`);

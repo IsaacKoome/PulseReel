@@ -1,7 +1,7 @@
 export function SiteFooter() {
   return (
-    <footer className="site-footer" aria-label="MimiReel information">
-      <span>MimiReel beta</span>
+    <footer className="site-footer" aria-label="MimiScene information">
+      <span>MimiScene beta</span>
       <nav aria-label="Legal and safety">
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>

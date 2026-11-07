@@ -1,8 +1,8 @@
 import { PolicyPage, SupportContact } from "@/components/policy-page";
 
 export const metadata = {
-  title: "Terms | MimiReel",
-  description: "Terms for using the MimiReel beta.",
+  title: "Terms | MimiScene",
+  description: "Terms for using the MimiScene beta.",
 };
 
 export default function TermsPage() {
@@ -10,7 +10,7 @@ export default function TermsPage() {
     <PolicyPage
       eyebrow="Beta terms"
       title="Create responsibly."
-      intro="MimiReel is an early identity-first movie-generation beta. These terms are intentionally written in plain language."
+      intro="MimiScene is an early identity-first movie-generation beta. These terms are intentionally written in plain language."
       updated="September 20, 2026"
     >
       <section>
@@ -24,7 +24,7 @@ export default function TermsPage() {
       <section>
         <h2>Prohibited use</h2>
         <p>
-          Do not use MimiReel for impersonation, fraud, harassment, non-consensual intimate content,
+          Do not use MimiScene for impersonation, fraud, harassment, non-consensual intimate content,
           deceptive political material, exploitation of minors, illegal activity, or infringement of
           another person&apos;s privacy, publicity, or intellectual-property rights.
         </p>
@@ -33,7 +33,7 @@ export default function TermsPage() {
         <h2>Community safety</h2>
         <p>
           You can report a movie or comment and block a creator from the movie options in the app.
-          MimiReel may review, restrict, unpublish, or remove content and may suspend accounts when needed
+          MimiScene may review, restrict, unpublish, or remove content and may suspend accounts when needed
           to enforce these terms or protect users. Do not misuse reporting tools to target other creators.
         </p>
       </section>
@@ -49,7 +49,7 @@ export default function TermsPage() {
         <h2>Beta availability and costs</h2>
         <p>
           Models, durations, audio, generation limits, and availability may change. A generation can fail
-          because of provider limits or invalid input. MimiReel may pause generation to control spending,
+          because of provider limits or invalid input. MimiScene may pause generation to control spending,
           protect users, or maintain the service.
         </p>
       </section>
@@ -59,7 +59,7 @@ export default function TermsPage() {
           When purchases are available, a paid pack adds the number of generation attempts displayed at
           checkout. Google Play app builds use Google Play Billing for digital purchases; if Play Billing
           is not yet enabled, purchasing is unavailable in that build. One attempt is
-          reserved when MimiReel accepts a generation request for submission to its AI provider.
+          reserved when MimiScene accepts a generation request for submission to its AI provider.
           Creating a new variation uses another attempt. A confirmed technical generation failure
           restores the reserved attempt automatically. Differences in style, likeness, or creative
           outcome are limitations of AI output and are not technical failures.
@@ -68,7 +68,7 @@ export default function TermsPage() {
       <section>
         <h2>Payment problems and refunds</h2>
         <p>
-          If you are charged but attempts do not appear, contact MimiReel support with the transaction
+          If you are charged but attempts do not appear, contact MimiScene support with the transaction
           reference shown in your billing activity. Google Play purchases are also subject to Google Play&apos;s
           purchase and refund processes. Duplicate or incorrect charges and other refund
           requests will be reviewed using the payment and attempt ledger. Approved monetary refunds
@@ -80,7 +80,7 @@ export default function TermsPage() {
       <section>
         <h2>Processing permission</h2>
         <p>
-          You keep your rights in your uploads. You give MimiReel and its service providers the limited
+          You keep your rights in your uploads. You give MimiScene and its service providers the limited
           permission needed to store, transform, transmit, and process those materials to operate the service
           and produce the movie you requested.
         </p>
