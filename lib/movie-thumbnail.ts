@@ -11,7 +11,9 @@ function run(args: string[], tolerateFailure = false): Promise<string> {
   if (!binary) return Promise.reject(new Error("Thumbnail decoder is unavailable."));
   return new Promise((resolve, reject) => {
     execFile(binary, args, { timeout: 8_000, maxBuffer: 1_000_000, windowsHide: true }, (error, _stdout, stderr) => {
-      if (error && !tolerateFailure) reject(error);
+      if (error && !(tolerateFailure && error.code === 1 && !error.killed)) {
+        reject(new Error(`Thumbnail decoder failed (${error.code ?? error.signal ?? "unknown"}).`));
+      }
       else resolve(String(stderr));
     });
   });

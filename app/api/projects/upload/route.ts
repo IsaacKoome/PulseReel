@@ -6,7 +6,7 @@ import { getRequestUser } from "@/lib/auth/request-user";
 import { addProject, getProjectById, getProjects } from "@/lib/store";
 import { storeGeneratedMedia } from "@/lib/media-storage";
 import { extractMovieThumbnail, storeThumbnailImage } from "@/lib/movie-thumbnail";
-import { makeMp4Streamable } from "@/lib/mp4-faststart";
+import { hasMp4Video, makeMp4Streamable } from "@/lib/mp4-faststart";
 import { MAX_PUBLISHED_UPLOAD_BYTES, uploadedMovie, validateUploadedMovieSource } from "@/lib/uploaded-movie";
 
 export const runtime = "nodejs";
@@ -44,13 +44,18 @@ export async function POST(request: Request) {
             chunks.push(chunk);
           }
           const bytes = Buffer.concat(chunks);
-          if (bytes.toString("ascii", 4, 8) !== "ftyp") throw new Error("Please choose an MP4 video.");
+          if (!hasMp4Video(bytes)) throw new Error("Please choose an MP4 with a video track.");
           const movie = makeMp4Streamable(bytes);
-          const jpeg = await extractMovieThumbnail(movie);
           const stored = await storeGeneratedMedia(`pulsereel/uploads/${user.id}/${id}.mp4`, movie, "video/mp4");
-          const thumbnail = await storeThumbnailImage(id, stored.url, jpeg);
+          let thumbnailUrl = "";
+          try {
+            const jpeg = await extractMovieThumbnail(movie);
+            thumbnailUrl = (await storeThumbnailImage(id, stored.url, jpeg)).thumbnailUrl;
+          } catch (error) {
+            console.warn("Upload saved without thumbnail.", error instanceof Error ? error.message : "Thumbnail error");
+          }
           const next = uploadedMovie({ id, ownerId: user.id, creatorName: String(user.user_metadata?.full_name || "Creator").slice(0, 80),
-            title: parsed.data.title, caption: parsed.data.caption, videoUrl: stored.url, thumbnailUrl: thumbnail.thumbnailUrl });
+            title: parsed.data.title, caption: parsed.data.caption, videoUrl: stored.url, thumbnailUrl });
           await addProject(next);
           return next;
         })();

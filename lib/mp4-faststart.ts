@@ -26,6 +26,21 @@ function boxes(bytes: Buffer, start: number, end: number): Box[] | null {
 
 const OFFSET_CONTAINERS = new Set(["trak", "mdia", "minf", "stbl"]);
 
+// Check the container independently of optional thumbnail decoding.
+export function hasMp4Video(bytes: Buffer): boolean {
+  const top = boxes(bytes, 0, bytes.length);
+  if (top?.[0]?.type !== "ftyp" || !top.some((box) => box.type === "mdat" && box.end > box.start + box.headerSize)) return false;
+  const movie = top.find((box) => box.type === "moov");
+  if (!movie) return false;
+  const children = (box: Box) => boxes(bytes, box.start + box.headerSize, box.end) ?? [];
+  return children(movie).some((track) => track.type === "trak" && children(track).some(
+    (media) => media.type === "mdia" && children(media).some((box) => {
+      const offset = box.start + box.headerSize + 8;
+      return box.type === "hdlr" && offset + 4 <= box.end && bytes.toString("ascii", offset, offset + 4) === "vide";
+    }),
+  ));
+}
+
 function adjustChunkOffsets(moov: Buffer, shift: number, mediaStart: number, mediaEnd: number): boolean {
   let adjusted = 0;
 
