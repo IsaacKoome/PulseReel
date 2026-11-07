@@ -169,18 +169,6 @@ export function RecentMovies({
                   />
                 ) : null}
                 </StoredMovieThumbnail>
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: "auto 18px 18px",
-                    zIndex: 2,
-                  }}
-                >
-                  <strong style={{ fontSize: "1.2rem" }}>{project.title}</strong>
-                  <p className="muted" style={{ margin: "6px 0 0" }}>
-                    {project.creatorName}
-                  </p>
-                </div>
               </div>
               <div className="feed-copy">
                 <h3>{project.title}</h3>
