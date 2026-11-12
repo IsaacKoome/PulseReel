@@ -7,6 +7,8 @@ import { getBetaAdminSnapshot, getBetaUserAllowances } from "@/lib/generation-ac
 import { buildIdentityBenchmark } from "@/lib/identity-benchmark";
 import { getFeedbackAdminSnapshot } from "@/lib/movie-feedback";
 import { getProjects } from "@/lib/store";
+import { createSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
+import { generationFailureCode, generationFailureMessage } from "@/lib/generation-failure";
 import { setAttemptLimit, setGenerationEnabled, setUserAttemptLimit } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +25,7 @@ function formatPercent(value: number | null) {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
-export default async function BetaAdminPage() {
+export default async function BetaAdminPage({ searchParams }: { searchParams: Promise<{ supportProject?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin/beta");
   if (!isPulseReelAdmin(user)) notFound();
@@ -35,6 +37,13 @@ export default async function BetaAdminPage() {
     getProjects(),
   ]);
   const identityBenchmark = buildIdentityBenchmark(projects, feedback.recentFeedback);
+  const failures = projects.filter((project) => project.status === "failed" && project.workerJob?.remoteJobId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 30);
+  const { supportProject } = await searchParams;
+  const selected = failures.find((project) => project.id === supportProject);
+  const contact = selected?.ownerId && isSupabaseAdminConfigured()
+    ? await createSupabaseAdminClient().auth.admin.getUserById(selected.ownerId)
+    : undefined;
   const maximumBudget = snapshot.totalAttemptLimit * SEEDANCE_15_ESTIMATED_COST_USD;
   const remainingBudget = snapshot.remainingAttempts * SEEDANCE_15_ESTIMATED_COST_USD;
 
@@ -61,6 +70,28 @@ export default async function BetaAdminPage() {
         <p className="eyebrow-copy">Private launch controls</p>
         <h1>Free Beta</h1>
         <p>Monitor every hosted generation attempt and stop new spending instantly.</p>
+      </section>
+
+      <section className="admin-control-card glass" id="failed-generations">
+        <div>
+          <h2>Failed generations</h2>
+          <p>Recent provider failures. Account email is looked up only when requested for support.</p>
+          {selected && <p role="status">Contact for {selected.title}: {contact?.data?.user?.email ?? "No account email available."}</p>}
+          {!failures.length && <p>No provider failures found.</p>}
+          {failures.length > 0 && <ul>
+            {failures.map((project) => {
+              const job = project.workerJob!;
+              const code = job.failureCode ?? generationFailureCode(job.error);
+              const attempt = snapshot.recentReservations.find((reservation) => reservation.projectId === project.id);
+              return <li key={project.id}>
+                <strong>{project.title}</strong> · {new Date(job.completedAt ?? project.updatedAt).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })}<br />
+                Prediction: <code>{job.remoteJobId}</code> · Free attempt: {attempt?.status ?? "Not in recent reservations"}<br />
+                {code ? <>{generationFailureMessage(code)} <code>{code}</code></> : "Generation failed; no recognized provider error code."}{" "}
+                {project.ownerId && <Link href={`/admin/beta?supportProject=${encodeURIComponent(project.id)}#failed-generations`}>Show support email</Link>}
+              </li>;
+            })}
+          </ul>}
+        </div>
       </section>
 
       {!snapshot.controlsEnabled ? (

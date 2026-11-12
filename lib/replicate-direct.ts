@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { del, put } from "@vercel/blob";
 import { syncGenerationReservationForProject } from "@/lib/generation-access";
+import { generationFailureCode, generationFailureMessage } from "@/lib/generation-failure";
 import { portraitIdentityBuffer } from "@/lib/identity-portrait";
 import { makeMp4Streamable } from "@/lib/mp4-faststart";
 import { storeGeneratedMedia } from "@/lib/media-storage";
@@ -315,7 +316,8 @@ export async function applyReplicatePrediction(projectId: string, prediction: Re
         stage: "Seedance generation failed",
         executionMode: "direct-replicate",
         completedAt: new Date().toISOString(),
-        error: message,
+        failureCode: generationFailureCode(message),
+        error: generationFailureMessage(message),
       },
     }));
     await cleanupSourceAssets(project);

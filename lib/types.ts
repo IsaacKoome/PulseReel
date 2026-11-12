@@ -123,6 +123,7 @@ export type MovieProject = {
     payloadPath?: string;
     resultPath?: string;
     remoteJobId?: string;
+    failureCode?: string;
     remoteStatusUrl?: string;
     executionMode?: "local-worker" | "remote-worker" | "direct-replicate";
     startedAt?: string;
