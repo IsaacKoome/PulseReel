@@ -9,7 +9,7 @@ import { getProjects } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-const demoVideo = "https://mimireel-media.wonderjoyai.com/pulsereel/migrated/0d73d21c-0815-4767-9a96-15a4d3454b40/a3b4dc0d09c8c5f7992bed424bcb9f3dedd99dfd5db92b973537cdb34cd4225d.mp4";
+const demoVideo = "/mimiscene-kung-fu.mp4";
 
 export default async function HomePage() {
   const authEnabled = isAuthEnabled();
@@ -60,8 +60,8 @@ export default async function HomePage() {
           </div>
         </div>
         <figure className="home-hero-demo">
-          <video src={demoVideo} controls playsInline preload="metadata" aria-label="Trying Something New, an AI scene made with MimiScene" />
-          <figcaption><span>MADE WITH MIMISCENE</span><strong>Trying Something New</strong></figcaption>
+          <video src={demoVideo} controls playsInline preload="metadata" aria-label="Isaac’s Kung Fu scene" />
+          <figcaption><span>MIMISCENE DEMO</span><strong>Isaac’s Kung Fu Scene</strong></figcaption>
         </figure>
       </section>
 
