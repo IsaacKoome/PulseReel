@@ -88,7 +88,7 @@ export function isManagedGeneration(input: {
 function accessMessage(reason: BetaAccessReason) {
   switch (reason) {
     case "available":
-      return "Your first AI movie is free during the PulseReel beta.";
+      return "MimiScene offers free AI movie attempts during the beta.";
     case "paid_available":
       return "A paid attempt is available for this movie.";
     case "paused":
@@ -200,7 +200,7 @@ export async function getGenerationAccessStatus(user: User | null): Promise<Beta
   const totalAttemptLimit = Number(config.total_attempt_limit);
   const totalAttemptCount = Number(config.total_attempt_count);
   const activeReservations = reservationResult.data ?? [];
-  const personalLimit = Number(allowanceResult.data?.free_movie_limit ?? 1);
+  const personalLimit = Number(allowanceResult.data?.free_movie_limit ?? 2);
   const personalAttemptCount = activeReservations.length;
   const personalAttemptsRemaining = Math.max(0, personalLimit - personalAttemptCount);
   const reservationStatus = (activeReservations[0]?.status as ReservationStatus | undefined) ?? null;
@@ -273,7 +273,7 @@ export async function getBetaUserAllowances(): Promise<BetaUserAllowance[]> {
 
   return usersResult.data.users
     .map((user) => {
-      const freeMovieLimit = limitsByUser.get(user.id) ?? 1;
+      const freeMovieLimit = limitsByUser.get(user.id) ?? 2;
       const attemptsUsed = attemptsByUser.get(user.id) ?? 0;
       const displayName =
         typeof user.user_metadata?.full_name === "string"

@@ -132,7 +132,7 @@ export default async function BetaAdminPage() {
             <p className="eyebrow-copy">Individual allowances</p>
             <h2>Free movies per account</h2>
             <p className="muted">
-              New accounts receive one free AI movie by default. Set a personal limit from 0 to
+              Accounts without a custom limit receive two free AI movie attempts by default. Set a personal limit from 0 to
               10,000; the total beta attempt limit above remains the final spending cap.
             </p>
           </div>
